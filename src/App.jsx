@@ -1836,7 +1836,7 @@ function MyProfileWorkspace({ userProfile, profiles, setProfiles, categories, se
 }
 
 // --- DEDICATED ADMIN CONTROL HUB PANEL ---
-function AdminPanel({ profiles, setProfiles, siteSettings, setSiteSettings, ytConfig, setYtConfig, syncYouTubeStats, userProfile, showToast }) {
+function localPanel({ profiles, setProfiles, siteSettings, setSiteSettings, ytConfig, setYtConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText);
   const [logoUrlInput, setLogoUrlInput] = useState(siteSettings.logoUrl || '');
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
