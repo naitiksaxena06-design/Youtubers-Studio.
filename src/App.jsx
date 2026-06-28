@@ -16,8 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'studio-aurum-app';
-
+const appId = 'studio-aurum-app';
 // --- INJECT CUSTOM TAILWIND TAILORED STYLES ---
 const injectArtStyleStyles = () => {
   if (document.getElementById('studio-aurum-styles')) return;
