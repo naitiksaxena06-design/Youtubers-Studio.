@@ -4,13 +4,14 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 // --- FIREBASE INITIALIZATION ---
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-  apiKey: "mock-key",
-  authDomain: "mock-domain.firebaseapp.com",
-  projectId: "mock-project",
-  storageBucket: "mock-bucket.appspot.com",
-  messagingSenderId: "mock-sender",
-  appId: "mock-app-id"
+const firebaseConfig = {
+  apiKey: "AIzaSyDii1RdcZnzYQx7oGYmHsb0PU8wlnxlm6TY",
+  authDomain: "rs-studio-c152d.firebaseapp.com",
+  databaseURL: "https://rs-studio-c152d-default-rtdb.firebaseio.com",
+  projectId: "rs-studio-c152d",
+  storageBucket: "rs-studio-c152d.firebasestorage.app",
+  messagingSenderId: "319185394502",
+  appId: "1:319185394502:web:e8bd4c6ab196f486c06347"
 };
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
