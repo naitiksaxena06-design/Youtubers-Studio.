@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from "./firebase.js";
+import { db } from "../firebase.js";
 import { doc, setDoc, deleteDoc, collection, onSnapshot } from "firebase/firestore";
 
 // --- INITIAL CREW DATA SETS ---
