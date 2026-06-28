@@ -1,4 +1,22 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+
+// --- FIREBASE INITIALIZATION ---
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+  apiKey: "mock-key",
+  authDomain: "mock-domain.firebaseapp.com",
+  projectId: "mock-project",
+  storageBucket: "mock-bucket.appspot.com",
+  messagingSenderId: "mock-sender",
+  appId: "mock-app-id"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'studio-aurum-app';
+
 // --- INJECT CUSTOM TAILWIND TAILORED STYLES ---
 const injectArtStyleStyles = () => {
   if (document.getElementById('studio-aurum-styles')) return;
@@ -2056,5 +2074,3 @@ function PendingScreen({ userProfile }) {
 function RejectedScreen({ userProfile }) {
   return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact Owner direct link.</div>;
 }
-
-```
