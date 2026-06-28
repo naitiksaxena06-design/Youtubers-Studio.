@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { collection, doc, setDoc, onSnapshot, deleteDoc } from "firebase/firestore";
+import { db } from "./firebase.js";
 
 // --- INJECT CUSTOM TAILWIND TAILORED STYLES ---
 const injectArtStyleStyles = () => {
@@ -6,34 +8,204 @@ const injectArtStyleStyles = () => {
   const styleBlock = document.createElement('style');
   styleBlock.id = 'studio-aurum-styles';
   styleBlock.innerHTML = `
-    .font-serif {
-      font-family: 'Playfair Display', Georgia, serif;
-    }
-    .font-sans {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    }
-    .font-handwritten {
-      font-family: 'Caveat', cursive, sans-serif;
-    }
-    
-    /* Custom Scrollbar */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(234, 223, 201, 0.2);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(197, 160, 58, 0.4);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(197, 160, 58, 0.6);
-    }
+    .font-serif { font-family: 'Playfair Display', Georgia, serif; }
+    .font-sans { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .font-handwritten { font-family: 'Caveat', cursive, sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(234, 223, 201, 0.2); border-radius: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(197, 160, 58, 0.4); border-radius: 8px; }
+    .shadow-skeuo-md { box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1); }
+  `;
+  document.head.appendChild(styleBlock);
+};
 
-    /* 3D Skeuomorphic Shadows and Transformations */
+const PRESET_AVATARS = [
+  { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
+  { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.15"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#1D4ED8" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#1D4ED8"/></svg>` }
+];
+
+const ADMIN_EMAIL = "Naitiksaxena06@gmail.com";
+
+const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
+  if (!photoURL) return <div className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans">?</div>;
+  if (photoURL.startsWith('<svg')) return <div className={className} dangerouslySetInnerHTML={{ __html: photoURL }} />;
+  return <img src={photoURL} alt="Avatar" className={className} />;
+};
+
+const WatercolorOverlay = () => (
+  <div className="absolute inset-0 pointer-events-none opacity-[0.22] mix-blend-multiply z-10" 
+       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }} />
+);
+
+export default function App() {
+  const [loadingLibraries, setLoadingLibraries] = useState(true);
+  const [currentPage, setCurrentPage] = useState('home'); 
+  const [loggedInEmail, setLoggedInEmail] = useState(() => localStorage.getItem('sa_logged_in_user_email') || '');
+  const [showSignInModal, setShowSignInModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [customToast, setCustomToast] = useState(null);
+
+  // CLOUD STATE: Profiles
+  const [profiles, setProfiles] = useState([]);
+  
+  // Local State Fallbacks for UI (To save code space, these remain local/state for now, 
+  // but Profiles are fully wired to the cloud so you can accept crew members!)
+  const [categories, setCategories] = useState(['Creativity', 'Editing', 'Writing']);
+  const [posts, setPosts] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [videos, setVideos] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [siteSettings, setSiteSettings] = useState({ logoText: 'YOUTUBERS STUDIO', logoUrl: '' });
+  const [ytConfig, setYtConfig] = useState({ subscribers: '14,820', latestVideoViews: '4,512' });
+
+  // --- FIREBASE CLOUD SYNC FOR PROFILES ---
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "profiles"), (snapshot) => {
+      const cloudProfiles = snapshot.docs.map(doc => doc.data());
+      
+      // Auto-create Admin if missing
+      const adminExists = cloudProfiles.find(p => p.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+      if (!adminExists && loggedInEmail === ADMIN_EMAIL) {
+        const adminData = {
+          uid: 'user_' + Date.now(),
+          name: ADMIN_EMAIL.split('@')[0],
+          email: ADMIN_EMAIL,
+          role: 'owner',
+          status: 'approved',
+          workCategory: 'Creativity',
+          photoURL: PRESET_AVATARS[0].svg,
+          createdAt: Date.now()
+        };
+        setDoc(doc(db, "profiles", adminData.uid), adminData);
+      }
+      
+      setProfiles(cloudProfiles);
+    });
+    return () => unsubscribe();
+  }, [loggedInEmail]);
+
+  useEffect(() => {
+    injectArtStyleStyles();
+    setTimeout(() => setLoadingLibraries(false), 1000);
+  }, []);
+
+  const userProfile = useMemo(() => {
+    if (!loggedInEmail) return null;
+    return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
+  }, [profiles, loggedInEmail]);
+
+  const isAdmin = useMemo(() => userProfile && (userProfile.role === 'admin' || userProfile.role === 'owner'), [userProfile]);
+
+  const showToast = (message) => {
+    setCustomToast({ message });
+    setTimeout(() => setCustomToast(null), 4000);
+  };
+
+  const handleProfileSignIn = async (crewName, crewEmail, profilePhotoBase64, categorySelected) => {
+    const emailKey = crewEmail.trim().toLowerCase();
+    const isOwner = emailKey === ADMIN_EMAIL.toLowerCase();
+    let matchedProfile = profiles.find(p => p.email.toLowerCase() === emailKey);
+
+    if (!matchedProfile) {
+      const newUid = 'user_' + Date.now();
+      matchedProfile = {
+        uid: newUid,
+        name: crewName || crewEmail.split('@')[0],
+        email: crewEmail,
+        role: isOwner ? 'owner' : 'member',
+        status: isOwner ? 'approved' : 'pending',
+        workCategory: categorySelected || 'Editing',
+        photoURL: profilePhotoBase64 || PRESET_AVATARS[0].svg,
+        createdAt: Date.now()
+      };
+      // SEND TO FIREBASE CLOUD
+      await setDoc(doc(db, "profiles", newUid), matchedProfile);
+    } 
+
+    setLoggedInEmail(matchedProfile.email);
+    localStorage.setItem('sa_logged_in_user_email', matchedProfile.email);
+    setShowSignInModal(false);
+    showToast(`Welcome, ${matchedProfile.name}!`);
+  };
+
+  // Safe Dynamic Page-routing based on Cloud Approval State
+  useEffect(() => {
+    if (userProfile) {
+      if (userProfile.status === 'pending' && currentPage !== 'pending-status') setCurrentPage('pending-status');
+      else if (userProfile.status === 'approved' && currentPage === 'pending-status') setCurrentPage('home');
+    }
+  }, [userProfile, currentPage]);
+
+  const handleNavigationChange = (targetPage) => {
+    setIsSidebarOpen(false);
+    if (targetPage === 'home') { setCurrentPage(targetPage); return; }
+    if (!userProfile) { setShowSignInModal(true); return; }
+    setCurrentPage(targetPage);
+  };
+
+  if (loadingLibraries) return <div className="min-h-screen bg-[#FCFAF2] flex items-center justify-center font-serif text-[#C5A03A]">Booting Cloud Engines...</div>;
+
+  return (
+    <div className="min-h-screen relative overflow-x-hidden bg-[#FCFBF8] text-slate-800 font-sans">
+      <WatercolorOverlay />
+      
+      {/* Toast Notification */}
+      {customToast && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl text-sm font-bold animate-pulse">
+          {customToast.message}
+        </div>
+      )}
+
+      {/* Global Header */}
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center space-x-3">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 rounded-full text-[#C5A03A] border border-[#EADFC9]/50 bg-white/50">☰</button>
+          <span className="font-serif text-lg tracking-wider text-[#C5A03A] font-extrabold">{siteSettings.logoText}</span>
+        </div>
+        <div className="flex items-center space-x-4">
+          {userProfile ? (
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => handleNavigationChange('profile')}>
+              <div className="hidden sm:flex flex-col text-right">
+                <p className="text-xs font-bold text-slate-800">{userProfile?.name}</p>
+                <span className="text-[9px] text-[#C5A03A] uppercase font-mono">{userProfile?.role}</span>
+              </div>
+              <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white overflow-hidden">{renderAvatar(userProfile?.photoURL)}</div>
+            </div>
+          ) : (
+            <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] text-white px-5 py-2.5 rounded-full shadow-md">🔑 Sign In</button>
+          )}
+        </div>
+      </header>
+
+      {/* Main Container Workspace */}
+      <main className="relative z-20 max-w-7xl mx-auto px-4 py-8">
+        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} ytConfig={ytConfig} />}
+        {currentPage === 'pending-status' && <div className="text-center py-20 font-bold text-slate-500">Your account is pending Owner approval! Check back soon.</div>}
+        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} showToast={showToast} />}
+      </main>
+
+      {/* SIGN IN MODAL */}
+      {showSignInModal && <SignInModal handleProfileSignIn={handleProfileSignIn} setShowSignInModal={setShowSignInModal} categories={categories} profiles={profiles} />}
+      
+      {/* SIDEBAR NAVIGATION */}
+      <div className={`fixed inset-0 z-50 bg-black/40 transition-opacity ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
+        <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9] shadow-2xl p-6 transition-transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={e => e.stopPropagation()}>
+          <h2 className="font-serif font-black text-lg text-[#C5A03A] mb-6">Navigation</h2>
+          <nav className="space-y-2">
+            <button onClick={() => handleNavigationChange('home')} className="w-full text-left p-3 rounded-xl font-bold hover:bg-slate-50">🏠 Home Hub</button>
+            {isAdmin && <button onClick={() => handleNavigationChange('admin')} className="w-full text-left p-3 rounded-xl font-bold bg-rose-50 text-rose-600 mt-4">👥 Admin Panel (Cloud)</button>}
+          </nav>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- CLOUD ADMIN PANEL FOR APPROVING USERS ---
+function AdminPanel({ profiles }) {
+  
+  const approveUser = async (user) => {
+    const userRef = doc(db,
     .shadow-skeuo-sm {
       box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
     }
