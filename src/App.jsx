@@ -1,4 +1,21 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+
+// --- FIREBASE INITIALIZATION ---
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+  apiKey: "mock-key",
+  authDomain: "mock-domain.firebaseapp.com",
+  projectId: "mock-project",
+  storageBucket: "mock-bucket.appspot.com",
+  messagingSenderId: "mock-sender",
+  appId: "mock-app-id"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'studio-aurum-app';
 
 // --- INJECT CUSTOM TAILWIND TAILORED STYLES ---
 const injectArtStyleStyles = () => {
@@ -90,101 +107,304 @@ export default function App() {
   const [threeReady, setThreeReady] = useState(false);
   const [gsapReady, setGsapReady] = useState(false);
 
+  // Authentication State
+  const [firebaseUser, setFirebaseUser] = useState(null);
+
   const [currentPage, setCurrentPage] = useState('home'); 
   const [loggedInEmail, setLoggedInEmail] = useState(() => localStorage.getItem('sa_logged_in_user_email') || '');
   const [siteSettings, setSiteSettings] = useState({ logoText: 'YOUTUBERS STUDIO', logoUrl: '' });
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Global Categories
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem('sa_categories_v7');
-    return saved ? JSON.parse(saved) : ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
+  // Database States
+  const [categories, setCategoriesState] = useState(['Creativity', 'Editing', 'Writing', 'AI Related Expertise']);
+  const [posts, setPostsState] = useState([]);
+  const [notifications, setNotificationsState] = useState([]);
+  const [ytConfig, setYtConfigState] = useState({
+    channelId: 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-', 
+    apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
+    subscribers: '14,820',
+    latestVideoViews: '4,512',
+    latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
   });
-
-  // Global Posts Feed (Instagram style with comments)
-  const [posts, setPosts] = useState(() => {
-    const saved = localStorage.getItem('sa_posts_v7');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Global Live Notifications Timeline
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem('sa_notifications_v7');
-    return saved ? JSON.parse(saved) : [
-      { id: 'init-notif', message: 'Studio Command Center initialized.', actor: 'System', timestamp: Date.now() - 500000 }
-    ];
-  });
-
-  // Live YouTube Config preloaded with your Data API Key and custom handle!
-  const [ytConfig, setYtConfig] = useState(() => {
-    const saved = localStorage.getItem('sa_yt_config_v8');
-    return saved ? JSON.parse(saved) : {
-      channelId: 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-', 
-      apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
-      subscribers: '14,820',
-      latestVideoViews: '4,512',
-      latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
-    };
-  });
-
-  // Persistent States - with seamless auto-recovery for the logged in crew profile
-  const [profiles, setProfiles] = useState(() => {
-    const saved = localStorage.getItem('sa_profiles_v15');
-    const initialList = saved ? JSON.parse(saved) : INITIAL_PROFILES;
-    const activeEmail = localStorage.getItem('sa_logged_in_user_email') || '';
-    if (activeEmail) {
-      const found = initialList.find(p => p.email.toLowerCase() === activeEmail.toLowerCase());
-      if (!found) {
-        const isOwner = activeEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-        initialList.push({
-          uid: 'user_' + Date.now(),
-          name: activeEmail.split('@')[0],
-          email: activeEmail,
-          role: isOwner ? 'owner' : 'member',
-          status: isOwner ? 'approved' : 'pending',
-          workCategory: 'Creativity',
-          photoURL: PRESET_AVATARS[0].svg,
-          createdAt: Date.now()
-        });
-      }
-    }
-    return initialList;
-  });
-
-  const [projects, setProjects] = useState(() => {
-    const saved = localStorage.getItem('sa_projects_v15');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('sa_tasks_v15');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [chats, setChats] = useState(() => {
-    const saved = localStorage.getItem('sa_chats_v15');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [videos, setVideos] = useState(() => {
-    const saved = localStorage.getItem('sa_videos_v15');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [profiles, setProfilesState] = useState(INITIAL_PROFILES);
+  const [projects, setProjectsState] = useState([]);
+  const [tasks, setTasksState] = useState([]);
+  const [chats, setChatsState] = useState([]);
+  const [videos, setVideosState] = useState([]);
 
   const [selectedProject, setSelectedProject] = useState(null);
   const [chatChannel, setChatChannel] = useState('general');
   const [customToast, setCustomToast] = useState(null);
 
-  // Sync state variables to LocalStorage
-  useEffect(() => { localStorage.setItem('sa_profiles_v15', JSON.stringify(profiles)); }, [profiles]);
-  useEffect(() => { localStorage.setItem('sa_projects_v15', JSON.stringify(projects)); }, [projects]);
-  useEffect(() => { localStorage.setItem('sa_tasks_v15', JSON.stringify(tasks)); }, [tasks]);
-  useEffect(() => { localStorage.setItem('sa_chats_v15', JSON.stringify(chats)); }, [chats]);
-  useEffect(() => { localStorage.setItem('sa_videos_v15', JSON.stringify(videos)); }, [videos]);
-  useEffect(() => { localStorage.setItem('sa_posts_v7', JSON.stringify(posts)); }, [posts]);
-  useEffect(() => { localStorage.setItem('sa_notifications_v7', JSON.stringify(notifications)); }, [notifications]);
-  useEffect(() => { localStorage.setItem('sa_yt_config_v8', JSON.stringify(ytConfig)); }, [ytConfig]);
-  useEffect(() => { localStorage.setItem('sa_categories_v7', JSON.stringify(categories)); }, [categories]);
+  // --- Real-time Firestore Sync Wrappers (Rule 1, Rule 2, Rule 3 Compliant) ---
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Authentication integration mismatch:", err);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setFirebaseUser);
+    return () => unsubscribe();
+  }, []);
 
-  // Derived Logged-in User Profile for flawless real-time roster sync
+  // Sync Listeners
+  useEffect(() => {
+    if (!firebaseUser) return;
+
+    const unsubscribes = [];
+
+    // 1. Profiles
+    const qProfiles = collection(db, 'artifacts', appId, 'public', 'data', 'profiles');
+    unsubscribes.push(onSnapshot(qProfiles, (snapshot) => {
+      const cloudProfiles = [];
+      snapshot.forEach((doc) => {
+        cloudProfiles.push({ uid: doc.id, ...doc.data() });
+      });
+      if (cloudProfiles.length > 0) {
+        setProfilesState(cloudProfiles);
+      } else {
+        INITIAL_PROFILES.forEach(p => {
+          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid), p);
+        });
+        setProfilesState(INITIAL_PROFILES);
+      }
+    }, (err) => console.error("Roster query error:", err)));
+
+    // 2. Projects
+    const qProjects = collection(db, 'artifacts', appId, 'public', 'data', 'projects');
+    unsubscribes.push(onSnapshot(qProjects, (snapshot) => {
+      const cloudProjects = [];
+      snapshot.forEach((doc) => {
+        cloudProjects.push({ id: doc.id, ...doc.data() });
+      });
+      setProjectsState(cloudProjects);
+    }, (err) => console.error("Corkboard query error:", err)));
+
+    // 3. Tasks
+    const qTasks = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
+    unsubscribes.push(onSnapshot(qTasks, (snapshot) => {
+      const cloudTasks = [];
+      snapshot.forEach((doc) => {
+        cloudTasks.push({ id: doc.id, ...doc.data() });
+      });
+      setTasksState(cloudTasks);
+    }, (err) => console.error("Task query error:", err)));
+
+    // 4. Chats
+    const qChats = collection(db, 'artifacts', appId, 'public', 'data', 'chats');
+    unsubscribes.push(onSnapshot(qChats, (snapshot) => {
+      const cloudChats = [];
+      snapshot.forEach((doc) => {
+        cloudChats.push({ id: Number(doc.id) || doc.id, ...doc.data() });
+      });
+      setChatsState(cloudChats);
+    }, (err) => console.error("Whiteboard chat query error:", err)));
+
+    // 5. Videos
+    const qVideos = collection(db, 'artifacts', appId, 'public', 'data', 'videos');
+    unsubscribes.push(onSnapshot(qVideos, (snapshot) => {
+      const cloudVideos = [];
+      snapshot.forEach((doc) => {
+        cloudVideos.push({ id: doc.id, ...doc.data() });
+      });
+      setVideosState(cloudVideos);
+    }, (err) => console.error("Vault query error:", err)));
+
+    // 6. Posts (Instagram Proofs with Base64 Assets)
+    const qPosts = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
+    unsubscribes.push(onSnapshot(qPosts, (snapshot) => {
+      const cloudPosts = [];
+      snapshot.forEach((doc) => {
+        cloudPosts.push({ id: doc.id, ...doc.data() });
+      });
+      setPostsState(cloudPosts);
+    }, (err) => console.error("Showroom query error:", err)));
+
+    // 7. Notifications
+    const qNotifications = collection(db, 'artifacts', appId, 'public', 'data', 'notifications');
+    unsubscribes.push(onSnapshot(qNotifications, (snapshot) => {
+      const cloudNotifs = [];
+      snapshot.forEach((doc) => {
+        cloudNotifs.push({ id: doc.id, ...doc.data() });
+      });
+      cloudNotifs.sort((a, b) => b.timestamp - a.timestamp);
+      setNotificationsState(cloudNotifs.length > 0 ? cloudNotifs : [
+        { id: 'init-notif', message: 'Studio Command Center initialized.', actor: 'System', timestamp: Date.now() - 500000 }
+      ]);
+    }, (err) => console.error("Logs timeline query error:", err)));
+
+    // 8. Categories Configuration Doc
+    const refCategories = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories');
+    unsubscribes.push(onSnapshot(refCategories, (docSnap) => {
+      if (docSnap.exists() && docSnap.data().list) {
+        setCategoriesState(docSnap.data().list);
+      } else {
+        setDoc(refCategories, { list: ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'] });
+      }
+    }, (err) => console.error("Category tag query error:", err)));
+
+    // 9. YtConfig Auto-Sync Configuration Doc
+    const refYtConfig = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig');
+    unsubscribes.push(onSnapshot(refYtConfig, (docSnap) => {
+      if (docSnap.exists()) {
+        setYtConfigState(docSnap.data());
+      } else {
+        setDoc(refYtConfig, {
+          channelId: 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-', 
+          apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
+          subscribers: '14,820',
+          latestVideoViews: '4,512',
+          latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
+        });
+      }
+    }, (err) => console.error("API config query error:", err)));
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [firebaseUser]);
+
+  // --- Safe Setters triggered via UI events (Rule 3 protected) ---
+  const setProfiles = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(profiles) : updater;
+    const currentUids = new Set(nextVal.map(p => p.uid));
+    for (const p of profiles) {
+      if (!currentUids.has(p.uid)) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid));
+      }
+    }
+    const oldMap = new Map(profiles.map(p => [p.uid, JSON.stringify(p)]));
+    for (const p of nextVal) {
+      if (oldMap.get(p.uid) !== JSON.stringify(p)) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid), p);
+      }
+    }
+  };
+
+  const setProjects = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(projects) : updater;
+    const currentIds = new Set(nextVal.map(p => p.id));
+    for (const p of projects) {
+      if (!currentIds.has(p.id)) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id));
+      }
+    }
+    const oldMap = new Map(projects.map(p => [p.id, JSON.stringify(p)]));
+    for (const p of nextVal) {
+      if (oldMap.get(p.id) !== JSON.stringify(p)) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id), p);
+      }
+    }
+  };
+
+  const setTasks = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(tasks) : updater;
+    const currentIds = new Set(nextVal.map(t => t.id));
+    for (const t of tasks) {
+      if (!currentIds.has(t.id)) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id));
+      }
+    }
+    const oldMap = new Map(tasks.map(t => [t.id, JSON.stringify(t)]));
+    for (const t of nextVal) {
+      if (oldMap.get(t.id) !== JSON.stringify(t)) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id), t);
+      }
+    }
+  };
+
+  const setChats = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(chats) : updater;
+    const currentIds = new Set(nextVal.map(c => c.id));
+    for (const c of chats) {
+      if (!currentIds.has(c.id)) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)));
+      }
+    }
+    const oldMap = new Map(chats.map(c => [c.id, JSON.stringify(c)]));
+    for (const c of nextVal) {
+      if (oldMap.get(c.id) !== JSON.stringify(c)) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)), c);
+      }
+    }
+  };
+
+  const setVideos = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(videos) : updater;
+    const currentIds = new Set(nextVal.map(v => v.id));
+    for (const v of videos) {
+      if (!currentIds.has(v.id)) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id));
+      }
+    }
+    const oldMap = new Map(videos.map(v => [v.id, JSON.stringify(v)]));
+    for (const v of nextVal) {
+      if (oldMap.get(v.id) !== JSON.stringify(v)) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id), v);
+      }
+    }
+  };
+
+  const setPosts = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(posts) : updater;
+    const currentIds = new Set(nextVal.map(p => p.id));
+    for (const p of posts) {
+      if (!currentIds.has(p.id)) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id));
+      }
+    }
+    const oldMap = new Map(posts.map(p => [p.id, JSON.stringify(p)]));
+    for (const p of nextVal) {
+      if (oldMap.get(p.id) !== JSON.stringify(p)) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id), p);
+      }
+    }
+  };
+
+  const setNotifications = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(notifications) : updater;
+    const currentIds = new Set(nextVal.map(n => n.id));
+    for (const n of notifications) {
+      if (!currentIds.has(n.id)) {
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id));
+      }
+    }
+    const oldMap = new Map(notifications.map(n => [n.id, JSON.stringify(n)]));
+    for (const n of nextVal) {
+      if (oldMap.get(n.id) !== JSON.stringify(n)) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id), n);
+      }
+    }
+  };
+
+  const setYtConfig = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(ytConfig) : updater;
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), nextVal);
+  };
+
+  const setCategories = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(categories) : updater;
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: nextVal });
+  };
+
+  // Derived Logged-in User Profile
   const userProfile = useMemo(() => {
     if (!loggedInEmail) return null;
     return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
@@ -208,7 +428,7 @@ export default function App() {
     setNotifications(prev => [newNotif, ...prev]);
   };
 
-  // Safe Dynamic Page-routing effect based on Reactive Approval State
+  // Safe Dynamic Page-routing effect
   useEffect(() => {
     if (userProfile) {
       if (userProfile.status === 'pending' && currentPage !== 'pending-status') {
@@ -258,7 +478,7 @@ export default function App() {
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId=${channelIdActual}&maxResults=1&order=date&type=video&key=${activeApiKey}`;
       const searchRes = await fetch(searchUrl);
       let views = "4,512";
-      let videoTitle = "Painting My Dreams: Watercolor Masterclass 2026";
+      let videoTitle = "Painting My Dreams: Watercolor Masterclass";
 
       if (searchRes.ok) {
         const searchData = await searchRes.json();
@@ -1030,7 +1250,6 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
-  // Form submission handler for posting a comment on selected video
   const handlePostVideoComment = (e) => {
     e.preventDefault();
     const commentText = e.target.commentInput.value.trim();
@@ -1051,7 +1270,6 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
       return v;
     }));
 
-    // Local Sync reference update
     setSelectedVid(prev => ({
       ...prev,
       comments: [...(prev.comments || []), newComment]
@@ -1073,7 +1291,6 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
     e.preventDefault();
     if (!videoTitle.trim()) return;
 
-    // Use selected video file object URL, fallback to default loop
     const finalVideoUrl = selectedFile 
       ? URL.createObjectURL(selectedFile) 
       : 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4';
