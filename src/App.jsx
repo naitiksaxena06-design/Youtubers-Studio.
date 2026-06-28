@@ -204,23 +204,21 @@ export default function App() {
 // --- CLOUD ADMIN PANEL FOR APPROVING USERS ---
 function AdminPanel({ profiles }) {
   
-  const approveUser = async (user) => {
-    const userRef = doc(db,
-    .shadow-skeuo-sm {
-      box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
-    }
-    .shadow-skeuo-md {
-      box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1);
-    }
-    .shadow-skeuo-lg {
-      box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15);
-    }
-    .shadow-skeuo-3d {
-      box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
-    }
-  `;
-  document.head.appendChild(styleBlock);
-};
+    const approveUser = async (user) => {
+    const userRef = doc(db, "profiles", user.uid);
+    await setDoc(userRef, { ...user, status: 'approved' }, { merge: true });
+  };
+
+  const promoteUser = async (user) => {
+    const userRef = doc(db, "profiles", user.uid);
+    await setDoc(userRef, { ...user, role: 'admin' }, { merge: true });
+  };
+
+  const removeUser = async (userId) => {
+    await deleteDoc(doc(db, "profiles", userId));
+  };
+
+
 
 // --- INITIAL CREW DATA SETS ---
 const INITIAL_PROFILES = [
