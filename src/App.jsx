@@ -116,7 +116,7 @@ export default function App() {
     ];
   });
 
-  // Live YouTube Config
+  // Live YouTube Config preloaded with your Data API Key and custom handle!
   const [ytConfig, setYtConfig] = useState(() => {
     const saved = localStorage.getItem('sa_yt_config_v8');
     return saved ? JSON.parse(saved) : {
@@ -128,7 +128,7 @@ export default function App() {
     };
   });
 
-  // Persistent States
+  // Persistent States - with seamless auto-recovery for the logged in crew profile
   const [profiles, setProfiles] = useState(() => {
     const saved = localStorage.getItem('sa_profiles_v15');
     const initialList = saved ? JSON.parse(saved) : INITIAL_PROFILES;
@@ -184,7 +184,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('sa_yt_config_v8', JSON.stringify(ytConfig)); }, [ytConfig]);
   useEffect(() => { localStorage.setItem('sa_categories_v7', JSON.stringify(categories)); }, [categories]);
 
-  // Logged-in User Profile
+  // Derived Logged-in User Profile for flawless real-time roster sync
   const userProfile = useMemo(() => {
     if (!loggedInEmail) return null;
     return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
@@ -208,7 +208,7 @@ export default function App() {
     setNotifications(prev => [newNotif, ...prev]);
   };
 
-  // Safe Dynamic Page-routing effect
+  // Safe Dynamic Page-routing effect based on Reactive Approval State
   useEffect(() => {
     if (userProfile) {
       if (userProfile.status === 'pending' && currentPage !== 'pending-status') {
@@ -306,7 +306,7 @@ export default function App() {
     }
   };
 
-  // Capture latest config fields
+  // Capture latest config fields to avoid resetting the sync timer
   const channelIdRef = useRef(ytConfig.channelId);
   const apiKeyRef = useRef(ytConfig.apiKey);
 
@@ -315,10 +315,11 @@ export default function App() {
     apiKeyRef.current = ytConfig.apiKey;
   }, [ytConfig.channelId, ytConfig.apiKey]);
 
-  // API Resynchronization Polling Engine
+  // Persistent 30-Second API Resynchronization Polling Engine
   useEffect(() => {
     if (loadingLibraries) return;
 
+    // Trigger initial stats loading
     syncYouTubeStats(channelIdRef.current, apiKeyRef.current, true);
 
     const timer = setInterval(() => {
@@ -428,7 +429,7 @@ export default function App() {
       {/* Global Header */}
       <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
         <div className="flex items-center space-x-3">
-          {/* Hamburger Menu */}
+          {/* 3-Lines Hamburger Menu Button */}
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
@@ -538,6 +539,7 @@ function ThreeArtBackground() {
     const THREE = window.THREE;
     const scene = new THREE.Scene();
     
+    // Low field of view camera to exaggerate the 3D depth and parallax feel
     const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
     camera.position.z = 11;
 
@@ -546,24 +548,29 @@ function ThreeArtBackground() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
 
+    // Warm atmospheric studio lights
     scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
     
+    // Dynamic Specular Spotlight that follows cursor movement
     const specularSpot = new THREE.SpotLight(0xffedd5, 12, 40, Math.PI / 4, 0.5, 1);
     specularSpot.position.set(0, 0, 8);
     specularSpot.castShadow = true;
     scene.add(specularSpot);
 
+    // Neon Cobalt fill light
     const cobaltPoint = new THREE.PointLight(0x1d4ed8, 2.5, 18);
     cobaltPoint.position.set(-5, -3, 2);
     scene.add(cobaltPoint);
 
+    // Neon Rose rim light
     const rosePoint = new THREE.PointLight(0xf43f5e, 2.5, 18);
     rosePoint.position.set(5, 3, 2);
     scene.add(rosePoint);
 
+    // Main Master Camera Gimbal Assembly Group
     const cameraRigGroup = new THREE.Group();
 
-    // Outer Ring
+    // 1. Titanium outer gimbal ring
     const outerRingGeo = new THREE.TorusGeometry(1.9, 0.12, 16, 100);
     const darkTitaniumMat = new THREE.MeshStandardMaterial({ 
       color: 0x2d3748, 
@@ -575,7 +582,7 @@ function ThreeArtBackground() {
     const outerRing = new THREE.Mesh(outerRingGeo, darkTitaniumMat);
     cameraRigGroup.add(outerRing);
 
-    // Inner Ring
+    // 2. Shiny Chrome inner gimbal ring
     const innerRingGeo = new THREE.TorusGeometry(1.5, 0.08, 16, 100);
     const chromeMat = new THREE.MeshStandardMaterial({ 
       color: 0xe2e8f0, 
@@ -586,7 +593,7 @@ function ThreeArtBackground() {
     innerRing.rotation.x = Math.PI / 2;
     cameraRigGroup.add(innerRing);
 
-    // Gold Lens Cylinder
+    // 3. Central Gold Lens Cylinder Barrel
     const lensBarrelGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 32, 1, true);
     const goldMat = new THREE.MeshStandardMaterial({ 
       color: 0xD4AF37, 
@@ -598,7 +605,7 @@ function ThreeArtBackground() {
     lensBarrel.rotation.x = Math.PI / 2;
     cameraRigGroup.add(lensBarrel);
 
-    // Glass core
+    // 4. Refracting Glass Core spherical element
     const glassGeo = new THREE.SphereGeometry(0.75, 32, 32);
     const glassMat = new THREE.MeshPhysicalMaterial({ 
       color: 0xffffff,
@@ -613,7 +620,7 @@ function ThreeArtBackground() {
     const glassLens = new THREE.Mesh(glassGeo, glassMat);
     cameraRigGroup.add(glassLens);
 
-    // Aperture Blades
+    // 5. Aperture Blades assembly
     const bladeGeo = new THREE.BoxGeometry(0.04, 0.55, 0.02);
     const blackAnodizedMat = new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 0.4 });
     const bladesCount = 8;
@@ -628,7 +635,7 @@ function ThreeArtBackground() {
     cameraRigGroup.position.set(-3.5, 1.5, -2);
     scene.add(cameraRigGroup);
 
-    // Film Reels
+    // Cinematic Film Reels
     const reelGroup = new THREE.Group();
     const diskGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.1, 32);
     const darkMetal = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
@@ -636,6 +643,7 @@ function ThreeArtBackground() {
     disk.rotation.x = Math.PI / 2;
     reelGroup.add(disk);
 
+    // Ring details
     const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 100);
     const brassMat = new THREE.MeshStandardMaterial({ color: 0xC5A03A, metalness: 0.9, roughness: 0.1 });
     const brassRing = new THREE.Mesh(ringGeo, brassMat);
@@ -645,7 +653,7 @@ function ThreeArtBackground() {
     reelGroup.position.set(4, -1, -2);
     scene.add(reelGroup);
 
-    // Particles
+    // Parallax background particle embers
     const pCount = 100;
     const pPositions = new Float32Array(pCount * 3);
     const pSpeeds = [];
@@ -685,6 +693,7 @@ function ThreeArtBackground() {
       requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
 
+      // Extraordinary multi-axis 3D rotation of gimbal rings
       outerRing.rotation.y = elapsed * 0.14;
       outerRing.rotation.x = elapsed * 0.07;
       innerRing.rotation.x = elapsed * 0.22;
@@ -697,6 +706,7 @@ function ThreeArtBackground() {
       reelGroup.rotation.y = elapsed * 0.15;
       reelGroup.position.y = -1 + Math.cos(elapsed * 0.5) * 0.15;
 
+      // Smooth camera interpolation based on cursor coordinates
       mouseX += (targetMouse.x - mouseX) * 0.05;
       mouseY += (targetMouse.y - mouseY) * 0.05;
 
@@ -773,6 +783,7 @@ function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, prof
               {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
             </select>
             
+            {/* Embedded Avatar Picker */}
             <div className="space-y-2 font-sans animate-fadeIn">
               <label className="block text-[10px] font-bold text-slate-500 uppercase font-sans">Choose Badge Avatar</label>
               <div className="grid grid-cols-4 gap-2">
@@ -852,6 +863,7 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
         ))}
       </div>
 
+      {/* Production Logs Section */}
       <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md font-sans animate-fadeIn">
         <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-3 mb-4 font-serif">
           <h3 className="font-serif text-lg font-bold text-[#C5A03A]">⚡ Production Stream Logs</h3>
@@ -944,7 +956,7 @@ function CategoriesViewSection({ profiles, categories, setCategories, showToast 
     <section className="py-4 animate-fadeIn space-y-6 font-sans">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 font-sans">
         
-        {/* Left Side */}
+        {/* Left Side: Create Custom Category & Category Selector List */}
         <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-3xl shadow-skeuo-md space-y-5 animate-fadeIn">
           <div>
             <h4 className="font-serif text-sm font-bold text-slate-800 mb-2">Add Custom Category</h4>
@@ -977,7 +989,7 @@ function CategoriesViewSection({ profiles, categories, setCategories, showToast 
           </div>
         </div>
 
-        {/* Right Side */}
+        {/* Right Side: Showcase matching members */}
         <div className="lg:col-span-3 bg-white/70 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md space-y-4 animate-fadeIn">
           <div className="flex justify-between items-center border-b pb-3 border-slate-100 font-serif">
             <h3 className="font-serif text-lg font-bold text-slate-800">Specialization: <span className="text-[#C5A03A]">{activeCategory}</span></h3>
@@ -1018,6 +1030,7 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
+  // Form submission handler for posting a comment on selected video
   const handlePostVideoComment = (e) => {
     e.preventDefault();
     const commentText = e.target.commentInput.value.trim();
@@ -1038,6 +1051,7 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
       return v;
     }));
 
+    // Local Sync reference update
     setSelectedVid(prev => ({
       ...prev,
       comments: [...(prev.comments || []), newComment]
@@ -1059,6 +1073,7 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
     e.preventDefault();
     if (!videoTitle.trim()) return;
 
+    // Use selected video file object URL, fallback to default loop
     const finalVideoUrl = selectedFile 
       ? URL.createObjectURL(selectedFile) 
       : 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4';
@@ -1093,7 +1108,7 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
         
-        {/* Active Player */}
+        {/* Left main view (Active Video Detail & Comments) */}
         <div className="lg:col-span-2 space-y-4 animate-fadeIn font-sans">
           {selectedVid ? (
             <div className="space-y-4 animate-fadeIn font-sans">
@@ -1141,7 +1156,7 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
           )}
         </div>
 
-        {/* Playlist */}
+        {/* Right side Playlist Grid */}
         <div className="lg:col-span-1 space-y-4 font-sans animate-fadeIn">
           <h4 className="font-serif font-bold text-sm text-slate-700">Video Draft Playlist ({videos.length})</h4>
           <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
@@ -1217,7 +1232,7 @@ function ProjectBoard({ projects, setProjects, tasks, setTasks, profiles, userPr
             <button type="submit" className="px-4 bg-[#C5A03A] text-white text-xs rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow">Pin Board</button>
           </form>
 
-          {/* Real Wood 3D Board Layout */}
+          {/* Heavy 3D Wood Carved Framed Corkboard */}
           <div 
             className="p-8 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-3xl grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn"
             style={{ 
@@ -1412,6 +1427,7 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
           return (
             <div key={post.id} className="bg-white border-2 border-[#EADFC9] rounded-[2rem] overflow-hidden shadow-skeuo-md animate-fadeIn">
               
+              {/* Instagram Card Header */}
               <div className="p-3.5 flex items-center space-x-3 border-b border-slate-50">
                 <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 animate-fadeIn">
                   {renderAvatar(post.authorAvatar)}
@@ -1422,10 +1438,12 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
                 </div>
               </div>
 
+              {/* Card Main Image */}
               <div className="w-full h-80 overflow-hidden bg-slate-100 relative">
                 <img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" />
               </div>
 
+              {/* Action Ribbon & Comment Module */}
               <div className="p-3.5 space-y-2 border-t border-slate-50 font-sans">
                 <div className="flex items-center justify-between font-sans">
                   <div className="flex items-center space-x-3 font-sans">
@@ -1458,6 +1476,7 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
                   )}
                 </div>
 
+                {/* Add Comment Input */}
                 <form onSubmit={(e) => handleAddPostComment(e, post.id)} className="pt-2 border-t border-[#EADFC9]/20 flex gap-2 font-sans">
                   <input 
                     name="commentInputText"
@@ -1515,6 +1534,7 @@ function MyProfileWorkspace({ userProfile, profiles, setProfiles, categories, se
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(userProfile?.photoURL || '');
   const [newCatInp, setNewCatInp] = useState('');
 
+  // Keep internal component state synced when userProfile changes
   useEffect(() => {
     if (userProfile) {
       setFullName(userProfile.name || '');
@@ -1623,6 +1643,7 @@ function MyProfileWorkspace({ userProfile, profiles, setProfiles, categories, se
         </button>
       </form>
 
+      {/* Inline Section to write your own category */}
       <div className="border-t border-[#EADFC9]/50 mt-6 pt-6 font-sans">
         <h4 className="font-serif text-sm font-bold text-slate-800 mb-2">Create & Register Custom Category tag</h4>
         <form onSubmit={handleRegisterCategory} className="flex gap-2 font-sans font-semibold">
@@ -1651,6 +1672,7 @@ function AdminPanel({ profiles, setProfiles, siteSettings, setSiteSettings, ytCo
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
   const [apiKeyInput, setApiKeyInput] = useState(ytConfig.apiKey || '');
   
+  // Custom states for editing other user details
   const [editingUserId, setEditingUserId] = useState(null);
   const [editedPhoto, setEditedPhoto] = useState('');
 
@@ -1782,6 +1804,7 @@ function AdminPanel({ profiles, setProfiles, siteSettings, setSiteSettings, ytCo
                       </div>
                     </div>
                     
+                    {/* Admin Override Photo Picker Slot */}
                     {isEditing && (
                       <div className="mt-2 p-2 bg-slate-50 border rounded-lg space-y-2 animate-fadeIn font-sans">
                         <span className="text-[9px] font-bold uppercase text-slate-400 block font-sans">Admin Photo Override</span>
