@@ -22,7 +22,7 @@ const injectArtStyleStyles = () => {
   if (document.getElementById('studio-aurum-styles')) return;
   const styleBlock = document.createElement('style');
   styleBlock.id = 'studio-aurum-styles';
-  styleBlock.innerHTML = `
+  styleBlock.innerHTML = ".font-serif{font-family:'Playfair Display',Georgia,serif}.font-sans{font-family:'Plus Jakarta Sans',system-ui,sans-serif}.font-handwritten{font-family:'Caveat',cursive}.custom-scrollbar::-webkit-scrollbar{width:6px;height:6px}.shadow-skeuo-sm{box-shadow:0 4px 6px -1px rgba(135,112,58,0.1)}.shadow-skeuo-md{box-shadow:0 10px 25px -5px rgba(135,112,58,0.15)}.shadow-skeuo-lg{box-shadow:0 25px 50px -12px rgba(135,112,58,0.22)}.shadow-skeuo-3d{box-shadow:0 20px 40px rgba(135,112,58,0.25),inset 0 2px 4px rgba(255,255,255,0.9)}";
     .font-serif {
       font-family: 'Playfair Display', Georgia, serif;
     }
@@ -63,7 +63,7 @@ const injectArtStyleStyles = () => {
     .shadow-skeuo-3d {
       box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
     }
-  `;
+';
   document.head.appendChild(styleBlock);
 };
 
