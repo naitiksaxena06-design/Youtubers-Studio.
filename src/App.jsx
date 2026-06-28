@@ -209,7 +209,7 @@ function AdminPanel({ profiles }) {
     await setDoc(userRef, { ...user, status: 'approved' }, { merge: true });
   };
 
-  const promoteUser = async (user) => {
+    const promoteUser = async (user) => {
     const userRef = doc(db, "profiles", user.uid);
     await setDoc(userRef, { ...user, role: 'admin' }, { merge: true });
   };
@@ -218,7 +218,7 @@ function AdminPanel({ profiles }) {
     await deleteDoc(doc(db, "profiles", userId));
   };
 
-
+}
 
 // --- INITIAL CREW DATA SETS ---
 const INITIAL_PROFILES = [
