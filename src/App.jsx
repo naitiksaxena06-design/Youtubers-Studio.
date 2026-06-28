@@ -102,7 +102,6 @@ export default function App() {
   const [emailInput, setEmailInput] = useState("");
   const [nameInput, setNameInput] = useState("");
 
-  // Sync with Firestore Realtime Database
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "profiles"), (snapshot) => {
       const cloudProfiles = [];
@@ -134,7 +133,6 @@ export default function App() {
         status: 'pending'
       };
       setUser(newUser);
-      // Automatically send submission to the cloud database
       setDoc(doc(db, "profiles", newUser.uid), newUser);
     }
   };
@@ -143,13 +141,11 @@ export default function App() {
     <div className="min-h-screen bg-amber-50 text-slate-800 font-sans pb-12 relative selection:bg-amber-200">
       <WatercolorOverlay />
       
-      {/* Header */}
       <header className="py-12 text-center max-w-xl mx-auto px-4">
         <h1 className="text-4xl font-black tracking-tight text-slate-900 mb-2">YOUTUBERS STUDIO</h1>
         <p className="text-amber-800 text-sm italic font-medium">Cloud database linked successfully!</p>
       </header>
 
-      {/* Main UI views */}
       {!user ? (
         <div className="max-w-md mx-auto bg-white p-8 rounded-xl shadow-md border border-amber-100 mx-4">
           <h2 className="text-xl font-bold mb-4 text-slate-800">Sign In / Register Request</h2>
@@ -182,7 +178,6 @@ export default function App() {
         </div>
       ) : (
         <div className="max-w-4xl mx-auto px-4">
-          {/* User Profile Bar */}
           <div className="bg-white p-4 rounded-xl shadow-sm mb-6 border border-amber-100 flex justify-between items-center">
             <div className="flex items-center gap-3">
               {renderAvatar(user.photoURL)}
@@ -194,7 +189,6 @@ export default function App() {
             <button onClick={() => setUser(null)} className="text-sm text-gray-500 hover:text-gray-800 underline">Sign Out</button>
           </div>
 
-          {/* Conditional Admin Panel View */}
           {user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? (
             <CloudAdminPanel profiles={profiles} />
           ) : (
@@ -203,4 +197,12 @@ export default function App() {
               {user.status === 'approved' ? (
                 <p className="text-green-600 font-medium">Welcome back to the studio production hub!</p>
               ) : (
-                <p className="text-amber-600 font-medium">Your access request has been sent to the Admin database. Please wait for approval.</
+                <p className="text-amber-600 font-medium">Your access request has been sent to the Admin database. Please wait for approval.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
