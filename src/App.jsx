@@ -4,7 +4,7 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 // --- FIREBASE INITIALIZATION ---
-const firebaseConfig = {
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
   apiKey: "AIzaSyDoI1RdcZnYQx7oGymHsbOPU",
   authDomain: "rs-studio-c152d.firebaseapp.com",
   databaseURL: "https://rs-studio-c152d.firebaseio.com",
@@ -17,7 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'youtubers-studio';
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'youtubers-studio';
 
 // --- INJECT CUSTOM TAILWIND TAILORED STYLES ---
 const injectArtStyleStyles = () => {
@@ -52,1424 +52,6 @@ const injectArtStyleStyles = () => {
       background: rgba(197, 160, 58, 0.6);
     }
 
-    /* 3D Shadows and Transformations */
-    .shadow-skeuo-sm {
-      box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
-    }
-    .shadow-skeuo-md {
-      box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1);
-    }
-    .shadow-skeuo-lg {
-      box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15);
-    }
-    .shadow-skeuo-3d {
-      box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
-    }
-  `;
-  document.head.appendChild(styleBlock);
-};
-
-const INITIAL_PROFILES = [
-  { uid: 'owner-id', name: 'Naitik Saxena', email: 'Naitiksaxena06@gmail.com', role: 'owner', status: 'approved', workCategory: 'Creativity', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.2"/><path d="M30,75 C30,55 40,45 50,45 C60,45 70,55 70,75" fill="none" stroke="#C5A03A" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="30" r="12" fill="#C5A03A"/></svg>`, createdAt: Date.now() - 1000000 },
-];
-
-const PRESET_AVATARS = [
-  { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
-  { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.15"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#1D4ED8" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#1D4ED8"/></svg>` },
-  { id: 'gold-palette', name: 'Golden Drop', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.15"/><path d="M30,40 A20,20 0 0,0 70,60 A20,20 0 0,0 30,40" fill="#C5A03A"/><circle cx="45" cy="48" r="3" fill="#ffffff"/></svg>` },
-  { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#10B981" opacity="0.15"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"/></svg>` },
-];
-
-const ADMIN_EMAIL = "Naitiksaxena06@gmail.com";
-
-const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
-  if (!photoURL || typeof photoURL !== 'string') return <div className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans">?</div>;
-  if (photoURL.startsWith('<svg') || photoURL.includes('<circle') || photoURL.includes('<path')) {
-    return <div className={className} dangerouslySetInnerHTML={{ __html: photoURL }} />;
-  }
-  return <img src={photoURL} alt="Crew Avatar" className={className} onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=60"; }} />;
-};
-
-const WatercolorOverlay = () => (
-  <div 
-    className="absolute inset-0 pointer-events-none opacity-[0.22] mix-blend-multiply z-10" 
-    style={{ 
-      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` 
-    }} 
-  />
-);
-
-export default function App() {
-  const [loadingLibraries, setLoadingLibraries] = useState(true);
-  const [threeReady, setThreeReady] = useState(false);
-  const [gsapReady, setGsapReady] = useState(false);
-  const [firebaseUser, setFirebaseUser] = useState(null);
-
-  const [currentPage, setCurrentPage] = useState('home'); 
-  const [loggedInEmail, setLoggedInEmail] = useState(() => localStorage.getItem('sa_logged_in_user_email') || '');
-  const [siteSettings, setSiteSettings] = useState({ logoText: 'YOUTUBERS STUDIO', logoUrl: '' });
-  const [showSignInModal, setShowSignInModal] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // Database collections states
-  const [categories, setCategoriesState] = useState(['Creativity', 'Editing', 'Writing', 'AI Related Expertise']);
-  const [posts, setPostsState] = useState([]);
-  const [notifications, setNotificationsState] = useState([]);
-  const [ytConfig, setYtConfigState] = useState({
-    channelId: 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-', 
-    apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
-    subscribers: '14,820',
-    latestVideoViews: '4,512',
-    latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
-  });
-  const [profiles, setProfilesState] = useState(INITIAL_PROFILES);
-  const [projects, setProjectsState] = useState([]);
-  const [tasks, setTasksState] = useState([]);
-  const [chats, setChatsState] = useState([]);
-  const [videos, setVideosState] = useState([]);
-
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [chatChannel, setChatChannel] = useState('general');
-  const [customToast, setCustomToast] = useState(null);
-
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (err) {
-        console.error("Auth initialization error:", err);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setFirebaseUser);
-    return () => unsubscribe();
-  }, []);
-
-  // Live Sync Engine Listeners
-  useEffect(() => {
-    if (!firebaseUser) return;
-    const unsubscribes = [];
-
-    // 1. Profiles
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snapshot) => {
-      const cloudProfiles = [];
-      snapshot.forEach((doc) => { cloudProfiles.push({ uid: doc.id, ...doc.data() }); });
-      if (cloudProfiles.length > 0) setProfilesState(cloudProfiles);
-    }));
-
-    // 2. Projects
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), (snapshot) => {
-      const cloudProjects = [];
-      snapshot.forEach((doc) => { cloudProjects.push({ id: doc.id, ...doc.data() }); });
-      setProjectsState(cloudProjects);
-    }));
-
-    // 3. Tasks
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), (snapshot) => {
-      const cloudTasks = [];
-      snapshot.forEach((doc) => { cloudTasks.push({ id: doc.id, ...doc.data() }); });
-      setTasksState(cloudTasks);
-    }));
-
-    // 4. Chats
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), (snapshot) => {
-      const cloudChats = [];
-      snapshot.forEach((doc) => { cloudChats.push({ id: Number(doc.id) || doc.id, ...doc.data() }); });
-      setChatsState(cloudChats);
-    }));
-
-    // 5. Videos
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'videos'), (snapshot) => {
-      const cloudVideos = [];
-      snapshot.forEach((doc) => { cloudVideos.push({ id: doc.id, ...doc.data() }); });
-      setVideosState(cloudVideos);
-    }));
-
-    // 6. Posts
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), (snapshot) => {
-      const cloudPosts = [];
-      snapshot.forEach((doc) => { cloudPosts.push({ id: doc.id, ...doc.data() }); });
-      setPostsState(cloudPosts);
-    }));
-
-    // 7. Notifications
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), (snapshot) => {
-      const cloudNotifs = [];
-      snapshot.forEach((doc) => { cloudNotifs.push({ id: doc.id, ...doc.data() }); });
-      cloudNotifs.sort((a, b) => b.timestamp - a.timestamp);
-      setNotificationsState(cloudNotifs.length > 0 ? cloudNotifs : [
-        { id: 'init-notif', message: 'Studio Command Center initialized.', actor: 'System', timestamp: Date.now() - 500000 }
-      ]);
-    }));
-
-    // 8. Categories
-    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().list) setCategoriesState(docSnap.data().list);
-    }));
-
-    // 9. YtConfig
-    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), (docSnap) => {
-      if (docSnap.exists()) setYtConfigState(docSnap.data());
-    }));
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [firebaseUser]);
-
-  // Firestore Data Writers
-  const setProfiles = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(profiles) : updater;
-    const currentUids = new Set(nextVal.map(p => p.uid));
-    for (const p of profiles) {
-      if (!currentUids.has(p.uid)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid));
-    }
-    for (const p of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid), p);
-    }
-  };
-
-  const setProjects = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(projects) : updater;
-    const currentIds = new Set(nextVal.map(p => p.id));
-    for (const p of projects) {
-      if (!currentIds.has(p.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id));
-    }
-    for (const p of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id), p);
-    }
-  };
-
-  const setTasks = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(tasks) : updater;
-    const currentIds = new Set(nextVal.map(t => t.id));
-    for (const t of tasks) {
-      if (!currentIds.has(t.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id));
-    }
-    for (const t of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id), t);
-    }
-  };
-
-  const setChats = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(chats) : updater;
-    const currentIds = new Set(nextVal.map(c => c.id));
-    for (const c of chats) {
-      if (!currentIds.has(c.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)));
-    }
-    for (const c of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)), c);
-    }
-  };
-
-  const setVideos = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(videos) : updater;
-    const currentIds = new Set(nextVal.map(v => v.id));
-    for (const v of videos) {
-      if (!currentIds.has(v.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id));
-    }
-    for (const v of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id), v);
-    }
-  };
-
-  const setPosts = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(posts) : updater;
-    const currentIds = new Set(nextVal.map(p => p.id));
-    for (const p of posts) {
-      if (!currentIds.has(p.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id));
-    }
-    for (const p of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id), p);
-    }
-  };
-
-  const setNotifications = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(notifications) : updater;
-    const currentIds = new Set(nextVal.map(n => n.id));
-    for (const n of notifications) {
-      if (!currentIds.has(n.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id));
-    }
-    for (const n of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id), n);
-    }
-  };
-
-  const setYtConfig = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(ytConfig) : updater;
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), nextVal);
-  };
-
-  const setCategories = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(categories) : updater;
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: nextVal });
-  };
-
-  // Profile matching state rules
-  const userProfile = useMemo(() => {
-    if (!loggedInEmail) return null;
-    return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
-  }, [profiles, loggedInEmail]);
-
-  const isAdmin = useMemo(() => {
-    return loggedInEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase() || (userProfile && userProfile.role === 'admin');
-  }, [userProfile, loggedInEmail]);
-
-  const showToast = (message, type = 'info') => {
-    setCustomToast({ message, type });
-    setTimeout(() => setCustomToast(null), 4000);
-  };
-
-  const pushNotification = (message, actorName = 'Crew Member') => {
-    const newNotif = { id: 'notif_' + Date.now(), message, actor: actorName, timestamp: Date.now() };
-    setNotifications(prev => [newNotif, ...prev]);
-  };
-
-  const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
-    const activeChannelId = targetChannelId || ytConfig.channelId || 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-';
-    const activeApiKey = targetApiKey || ytConfig.apiKey || 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg';
-    let url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=naitik._.artist-16&key=${activeApiKey}`;
-    try {
-      const channelRes = await fetch(url);
-      if (!channelRes.ok) throw new Error("API failed.");
-      const channelData = await channelRes.json();
-      const item = channelData.items?.[0];
-      if (item) {
-        setYtConfig(prev => ({
-          ...prev,
-          subscribers: parseInt(item.statistics.subscriberCount, 10).toLocaleString()
-        }));
-      }
-    } catch (err) {
-      console.warn("Using simulated background view counts.");
-    }
-  };
-
-  useEffect(() => {
-    if (loadingLibraries) return;
-    syncYouTubeStats(ytConfig.channelId, ytConfig.apiKey, true);
-  }, [loadingLibraries]);
-
-  const handleProfileSignIn = (crewName, crewEmail, profilePhotoBase64, categorySelected) => {
-    const emailKey = crewEmail.trim().toLowerCase();
-    const isOwner = emailKey === ADMIN_EMAIL.toLowerCase();
-    let matchedProfile = profiles.find(p => p.email.toLowerCase() === emailKey);
-
-    if (!matchedProfile) {
-      matchedProfile = {
-        uid: 'user_' + Date.now(),
-        name: crewName || crewEmail.split('@')[0],
-        email: crewEmail,
-        role: isOwner ? 'owner' : 'member',
-        status: 'approved',
-        workCategory: categorySelected || 'Editing',
-        photoURL: profilePhotoBase64 || PRESET_AVATARS[0].svg,
-        createdAt: Date.now()
-      };
-      setProfiles(prev => [...prev, matchedProfile]);
-    }
-
-    setLoggedInEmail(matchedProfile.email);
-    localStorage.setItem('sa_logged_in_user_email', matchedProfile.email);
-    setShowSignInModal(false);
-    showToast(`Welcome back, ${matchedProfile.name}!`, "success");
-    setCurrentPage('home');
-  };
-
-  const handleNavigationChange = (targetPage) => {
-    setIsSidebarOpen(false);
-    if (targetPage === 'home') {
-      setCurrentPage(targetPage);
-      return;
-    }
-    if (!loggedInEmail) {
-      setShowSignInModal(true);
-      return;
-    }
-    setCurrentPage(targetPage);
-  };
-
-  useEffect(() => {
-    injectArtStyleStyles();
-    setLoadingLibraries(false);
-    setThreeReady(true);
-  }, []);
-
-  if (loadingLibraries) {
-    return (
-      <div className="min-h-screen bg-[#FCFAF2] flex flex-col items-center justify-center font-serif text-[#C5A03A]">
-        <div className="w-16 h-16 border-4 border-dashed border-[#C5A03A] rounded-full animate-spin mb-4" />
-        <h2 className="text-2xl font-bold tracking-widest font-serif">SYNCING TIMELINES</h2>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen relative overflow-x-hidden bg-[#FCFBF8] text-slate-800 font-sans selection:bg-[#C5A03A]/20">
-      <WatercolorOverlay />
-      {threeReady && <ThreeArtBackground />}
-
-      {customToast && (
-        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white bg-[#C5A03A] animate-bounce">
-          {customToast.message}
-        </div>
-      )}
-
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-sm font-sans">
-        <div className="flex items-center space-x-3">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-          </button>
-          <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => handleNavigationChange('home')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow border-2 border-white">Y</div>
-            <span className="font-serif text-lg tracking-wider text-[#C5A03A] font-extrabold hidden sm:inline">{siteSettings.logoText}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          {loggedInEmail ? (
-            <div className="flex items-center space-x-3">
-              <div className="hidden sm:flex flex-col text-right">
-                <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name || loggedInEmail.split('@')[0]}</p>
-                <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{isAdmin ? 'Admin/Owner' : 'Crew Member'}</span>
-              </div>
-              <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
-                {renderAvatar(userProfile?.photoURL)}
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] text-white px-5 py-2.5 rounded-full shadow border border-white transition transform active:scale-95">🔑 Crew Sign In</button>
-          )}
-        </div>
-      </header>
-
-      <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
-        <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-6 pb-20">
-            <span className="font-serif font-black text-lg text-[#C5A03A] tracking-wider uppercase block border-b pb-2">Navigation</span>
-            <nav className="space-y-1.5 font-sans">
-              <button onClick={() => handleNavigationChange('home')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🏠 Home Hub</button>
-              <button onClick={() => handleNavigationChange('crew')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🎬 Crew Roster</button>
-              <button onClick={() => handleNavigationChange('categories-view')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🏷️ Categories</button>
-              <button onClick={() => handleNavigationChange('vault')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🎞️ Video Vault</button>
-              <button onClick={() => handleNavigationChange('projects')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">📌 Project Board</button>
-              <button onClick={() => handleNavigationChange('chat')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">💬 Whiteboard Chat</button>
-              <button onClick={() => handleNavigationChange('posts')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">📸 Insta Feed</button>
-              {loggedInEmail && <button onClick={() => handleNavigationChange('profile')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">👤 My Profile</button>}
-              
-              {isAdmin && (
-                <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1">Admin Controls</span>
-                  <button onClick={() => handleNavigationChange('admin')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-rose-600 hover:bg-rose-50">👥 Manage Roster</button>
-                </div>
-              )}
-            </nav>
-          </div>
-        </div>
-      </div>
-
-      <main className="relative z-20 max-w-7xl mx-auto px-4 py-8 studio-page-wrap">
-        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} notifications={notifications} handleNavigation={handleNavigationChange} />}
-        {currentPage === 'crew' && <CrewSection profiles={profiles} setProfiles={setProfiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
-        {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} setCategories={setCategories} showToast={showToast} />}
-        {currentPage === 'vault' && <VideoVault videos={videos} setVideos={setVideos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
-        {currentPage === 'projects' && <ProjectBoard projects={projects} setProjects={setProjects} tasks={tasks} setTasks={setTasks} profiles={profiles} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} setCurrentPage={setCurrentPage} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
-        {currentPage === 'chat' && <WhiteboardChat chats={chats} setChats={setChats} projects={projects} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} />}
-        {currentPage === 'posts' && <PostsWorkspace posts={posts} setPosts={setPosts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} />}
-        {currentPage === 'profile' && <MyProfileWorkspace userProfile={userProfile} profiles={profiles} setProfiles={setProfiles} categories={categories} setCategories={setCategories} showToast={showToast} />}
-        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} setProfiles={setProfiles} siteSettings={siteSettings} setSiteSettings={setSiteSettings} ytConfig={ytConfig} setYtConfig={setYtConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
-      </main>
-
-      {showSignInModal && <SignInModal handleProfileSignIn={handleProfileSignIn} setShowSignInModal={setShowSignInModal} categories={categories} profiles={profiles} />}
-    </div>
-  );
-}
-
-function ThreeArtBackground() {
-  const mountRef = useRef(null);
-  useEffect(() => {
-    if (!window.THREE) return;
-    const THREE = window.THREE;
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.z = 11;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    mountRef.current.appendChild(renderer.domElement);
-    scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
-    const animate = () => {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    };
-    animate();
-    return () => { if (mountRef.current) mountRef.current.innerHTML = ''; };
-  }, []);
-  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40" />;
-}
-
-function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, profiles }) {
-  const [email, setEmail] = useState('');
-  const [step, setStep] = useState(1);
-  const [name, setName] = useState('');
-  const [cat, setCat] = useState(categories[0] || 'Editing');
-
-  const checkEmailOnboard = (e) => {
-    e.preventDefault();
-    const matched = profiles.find(p => p.email.toLowerCase() === email.trim().toLowerCase());
-    if (matched) handleProfileSignIn(matched.name, matched.email, matched.photoURL, matched.workCategory);
-    else setStep(2);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans">
-      <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative">
-        <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400">✕</button>
-        {step === 1 ? (
-          <form onSubmit={checkEmailOnboard} className="space-y-4">
-            <h3 className="font-serif text-xl font-bold text-center text-slate-800">Crew Member Identity</h3>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter Creator Gmail Address" className="w-full px-4 py-2.5 bg-slate-50 border-2 border-[#EADFC9] rounded-xl text-xs" required />
-            <button type="submit" className="w-full py-2.5 bg-[#C5A03A] text-white text-xs font-bold uppercase rounded-xl">Next Step</button>
-          </form>
-        ) : (
-          <form onSubmit={e => { e.preventDefault(); handleProfileSignIn(name, email, null, cat); }} className="space-y-4">
-            <h3 className="font-serif text-lg font-bold text-slate-800 border-b pb-2">Register New Profile</h3>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name Handle" className="w-full px-3 py-2 border rounded-lg text-xs" required />
-            <select value={cat} onChange={e => setCat(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-xs bg-white">
-              {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
-            </select>
-            <button type="submit" className="w-full py-2 bg-[#C5A03A] text-white text-xs font-bold uppercase rounded-xl">Join Workspace</button>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CreatorHomeHub({ siteSettings, videos, projects, ytConfig }) {
-  return (
-    <section className="space-y-10 py-4 font-sans">
-      <div className="text-center py-4">
-        <h1 className="font-serif text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight">{siteSettings.logoText}</h1>
-        <p className="text-slate-500 font-serif italic text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Subscribers</span>
-          <p className="text-xl md:text-2xl font-black text-slate-800">{ytConfig.subscribers}</p>
-        </div>
-        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Latest Views</span>
-          <p className="text-xl md:text-2xl font-black text-slate-800">{ytConfig.latestVideoViews}</p>
-        </div>
-        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Vault Masters</span>
-          <p className="text-xl md:text-2xl font-black text-slate-800">{videos.length} Files</p>
-        </div>
-        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Active Ideas</span>
-          <p className="text-xl md:text-2xl font-black text-slate-800">{projects.length} Boards</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CrewSection({ profiles, isAdmin, setProfiles }) {
-  return (
-    <section className="bg-white p-6 border rounded-3xl shadow-skeuo-md">
-      <h4 className="font-serif font-bold text-base border-b pb-2 mb-3">Production Team Members ({profiles.length})</h4>
-      <div className="space-y-3">
-        {profiles.map((p, i) => (
-          <div key={i} className="flex justify-between items-center p-3 border rounded-xl bg-slate-50/50">
-            <div>
-              <p className="text-xs font-bold text-slate-800">{p.name}</p>
-              <span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role} • {p.workCategory}</span>
-            </div>
-            {isAdmin && p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() && (
-              <button onClick={() => setProfiles(prev => prev.filter(x => x.uid !== p.uid))} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full">Remove</button>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function CategoriesViewSection({ categories }) {
-  return (
-    <section className="bg-white p-6 border rounded-3xl shadow-skeuo-md">
-      <h3 className="font-serif text-lg font-bold border-b pb-2 mb-4">Active Production Tags</h3>
-      <div className="flex flex-wrap gap-2">
-        {categories.map((c, i) => <span key={i} className="bg-amber-50 border border-amber-200 text-[#C5A03A] text-xs px-3 py-1.5 rounded-xl font-bold">🎬 {c}</span>)}
-      </div>
-    </section>
-  );
-}
-
-function VideoVault({ videos, setVideos }) {
-  const [videoTitle, setVideoTitle] = useState('');
-  return (
-    <section className="space-y-4">
-      <div className="bg-white p-5 border rounded-2xl flex justify-between items-center shadow-skeuo-md">
-        <h3 className="font-serif font-bold text-slate-800 text-lg">Timeline Asset Vault</h3>
-        <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} placeholder="Add mockup video path title..." className="text-xs px-3 py-1.5 border rounded-lg focus:outline-none" />
-        <button onClick={() => { if(videoTitle) setVideos(p => [...p, { id: 'v_'+Date.now(), title: videoTitle, hlsUrl: 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4' }]); setVideoTitle(''); }} className="bg-[#C5A03A] text-white text-xs px-4 py-2 rounded-full font-bold">Add Track</button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {videos.map((v, i) => (
-          <div key={i} className="bg-white border p-4 rounded-xl shadow-sm">
-            <h5 className="font-bold text-xs text-slate-800 mb-2">{v.title}</h5>
-            <video src={v.hlsUrl} controls className="w-full h-40 object-cover rounded-lg bg-black" />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// Corkboard Pin Module
-function ProjectBoard({ projects, setProjects }) {
-  const [title, setTitle] = useState('');
-  return (
-    <section className="space-y-4">
-      <div className="max-w-md mx-auto flex gap-2 bg-white border p-4 rounded-xl shadow">
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="New timeline concept sprint..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs" />
-        <button onClick={() => { if(title) setProjects(p => [...p, { id: 'p_'+Date.now(), title }]); setTitle(''); }} className="px-4 bg-[#C5A03A] text-white text-xs rounded-lg font-bold">Pin Board</button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {projects.map((p, idx) => (
-          <div key={idx} className="bg-white border p-5 rounded-2xl shadow-skeuo-md relative text-center">
-            <span className="text-xl block mb-2">📌</span>
-            <h4 className="font-serif font-bold text-slate-800">{p.title}</h4>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function WhiteboardChat({ chats, setChats }) {
-  const [msg, setMsg] = useState('');
-  return (
-    <section className="border rounded-[2rem] h-[350px] bg-white overflow-hidden shadow-skeuo-md flex flex-col justify-between">
-      <div className="p-4 overflow-y-auto space-y-2 flex-1 bg-slate-50/50">
-        {chats.map((m, i) => (
-          <div key={i} className="text-xs p-3 bg-white border rounded-2xl max-w-[70%]">
-            <span className="text-[9px] text-slate-400 block font-bold mb-0.5">{m.senderName}</span>
-            {m.text}
-          </div>
-        ))}
-      </div>
-      <div className="p-3 border-t flex gap-2 bg-white">
-        <input type="text" value={msg} onChange={e => setMsg(e.target.value)} placeholder="Type commentary..." className="flex-1 px-3 border rounded-xl text-xs focus:outline-none" />
-        <button onClick={() => { if(msg) setChats(p => [...p, { id: Date.now(), text: msg, senderName: 'Creator' }]); setMsg(''); }} className="px-4 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold">Send</button>
-      </div>
-    </section>
-  );
-}
-
-function PostsWorkspace({ posts }) {
-  return (
-    <section className="max-w-md mx-auto space-y-4">
-      <div className="bg-white p-4 border rounded-2xl shadow text-center">
-        <h3 className="font-serif text-lg font-bold text-slate-800">Showroom Posts ({posts.length})</h3>
-      </div>
-      {posts.map((p, i) => (
-        <div key={i} className="bg-white border rounded-[2rem] overflow-hidden shadow-skeuo-md">
-          <div className="p-3 border-b text-xs font-black">{p.authorName}</div>
-          <img src={p.image} className="w-full h-64 object-cover" alt="" />
-          <div className="p-3 text-xs font-semibold text-slate-700">{p.title}</div>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function MyProfileWorkspace({ userProfile }) {
-  return (
-    <section className="max-w-md mx-auto bg-white border p-8 rounded-[2.5rem] shadow-lg text-center">
-      <h3 className="font-serif text-2xl font-bold mb-2">My Profile Badge</h3>
-      <p className="text-xs text-slate-500 font-mono">Registered Email: {userProfile?.email || 'Active'}</p>
-    </section>
-  );
-}
-
-function AdminPanel({ profiles, setProfiles, showToast }) {
-  const toggleRole = (uid, currentRole) => {
-    const targetRole = currentRole === 'admin' ? 'member' : 'admin';
-    setProfiles(prev => prev.map(p => p.uid === uid ? { ...p, role: targetRole } : p));
-    showToast("Role permission altered successfully!", "success");
-  };
-
-  return (
-    <section className="bg-white border p-6 rounded-[2rem] shadow-skeuo-md max-w-2xl mx-auto">
-      <h3 className="font-serif font-bold border-b pb-2 mb-4 text-slate-800">Roster Access Level Control</h3>
-      <table className="w-full text-xs text-left">
-        <thead>
-          <tr className="text-slate-400">
-            <th className="pb-2">Profile Handle</th>
-            <th className="pb-2">Current Role</th>
-            <th className="pb-2 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {profiles.map(p => (
-            <tr key={p.uid} className="border-t">
-              <td className="py-3 font-bold">{p.name}<br/><span className="text-[9px] font-normal text-slate-400">{p.email}</span></td>
-              <td className="py-3 uppercase font-mono text-[10px] font-semibold">{p.role}</td>
-              <td className="py-3 text-right space-x-1.5">
-                {p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() ? (
-                  <div className="flex justify-end gap-1.5">
-                    <button onClick={() => toggleRole(p.uid, p.role)} className="bg-amber-50 text-amber-700 px-3 py-1 rounded-md font-bold border border-amber-200">
-                      {p.role === 'admin' ? 'Demote to Member' : 'Make Admin'}
-                    </button>
-                    <button onClick={() => setProfiles(prev => prev.filter(x => x.uid !== p.uid))} className="bg-rose-50 text-rose-600 px-3 py-1 rounded-md font-bold border border-rose-200">Remove User</button>
-                  </div>
-                ) : <span className="text-slate-400 italic">Owner</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
-
-```
-    
-    /* Custom Scrollbar */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(234, 223, 201, 0.2);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(197, 160, 58, 0.4);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(197, 160, 58, 0.6);
-    }
-
-    /* 3D Shadows and Transformations */
-    .shadow-skeuo-sm {
-      box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
-    }
-    .shadow-skeuo-md {
-      box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1);
-    }
-    .shadow-skeuo-lg {
-      box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15);
-    }
-    .shadow-skeuo-3d {
-      box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
-    }
-  `;
-  document.head.appendChild(styleBlock);
-};
-
-const INITIAL_PROFILES = [
-  { uid: 'owner-id', name: 'Naitik Saxena', email: 'Naitiksaxena06@gmail.com', role: 'owner', status: 'approved', workCategory: 'Creativity', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.2"/><path d="M30,75 C30,55 40,45 50,45 C60,45 70,55 70,75" fill="none" stroke="#C5A03A" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="30" r="12" fill="#C5A03A"/></svg>`, createdAt: Date.now() - 1000000 },
-];
-
-const PRESET_AVATARS = [
-  { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
-  { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.15"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#1D4ED8" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#1D4ED8"/></svg>` },
-  { id: 'gold-palette', name: 'Golden Drop', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.15"/><path d="M30,40 A20,20 0 0,0 70,60 A20,20 0 0,0 30,40" fill="#C5A03A"/><circle cx="45" cy="48" r="3" fill="#ffffff"/></svg>` },
-  { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#10B981" opacity="0.15"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"/></svg>` },
-];
-
-const ADMIN_EMAIL = "Naitiksaxena06@gmail.com";
-
-const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
-  if (!photoURL || typeof photoURL !== 'string') return <div className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans">?</div>;
-  if (photoURL.startsWith('<svg') || photoURL.includes('<circle') || photoURL.includes('<path')) {
-    return <div className={className} dangerouslySetInnerHTML={{ __html: photoURL }} />;
-  }
-  return <img src={photoURL} alt="Crew Avatar" className={className} onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=60"; }} />;
-};
-
-const WatercolorOverlay = () => (
-  <div 
-    className="absolute inset-0 pointer-events-none opacity-[0.22] mix-blend-multiply z-10" 
-    style={{ 
-      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` 
-    }} 
-  />
-);
-
-export default function App() {
-  const [loadingLibraries, setLoadingLibraries] = useState(true);
-  const [threeReady, setThreeReady] = useState(false);
-  const [gsapReady, setGsapReady] = useState(false);
-  const [firebaseUser, setFirebaseUser] = useState(null);
-
-  const [currentPage, setCurrentPage] = useState('home'); 
-  const [loggedInEmail, setLoggedInEmail] = useState(() => localStorage.getItem('sa_logged_in_user_email') || '');
-  const [siteSettings, setSiteSettings] = useState({ logoText: 'YOUTUBERS STUDIO', logoUrl: '' });
-  const [showSignInModal, setShowSignInModal] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // Database collections states
-  const [categories, setCategoriesState] = useState(['Creativity', 'Editing', 'Writing', 'AI Related Expertise']);
-  const [posts, setPostsState] = useState([]);
-  const [notifications, setNotificationsState] = useState([]);
-  const [ytConfig, setYtConfigState] = useState({
-    channelId: 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-', 
-    apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
-    subscribers: '14,820',
-    latestVideoViews: '4,512',
-    latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
-  });
-  const [profiles, setProfilesState] = useState(INITIAL_PROFILES);
-  const [projects, setProjectsState] = useState([]);
-  const [tasks, setTasksState] = useState([]);
-  const [chats, setChatsState] = useState([]);
-  const [videos, setVideosState] = useState([]);
-
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [chatChannel, setChatChannel] = useState('general');
-  const [customToast, setCustomToast] = useState(null);
-
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (err) {
-        console.error("Auth initialization error:", err);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setFirebaseUser);
-    return () => unsubscribe();
-  }, []);
-
-  // Live Sync Engine Listeners
-  useEffect(() => {
-    if (!firebaseUser) return;
-    const unsubscribes = [];
-
-    // 1. Profiles
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snapshot) => {
-      const cloudProfiles = [];
-      snapshot.forEach((doc) => { cloudProfiles.push({ uid: doc.id, ...doc.data() }); });
-      if (cloudProfiles.length > 0) setProfilesState(cloudProfiles);
-    }));
-
-    // 2. Projects
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), (snapshot) => {
-      const cloudProjects = [];
-      snapshot.forEach((doc) => { cloudProjects.push({ id: doc.id, ...doc.data() }); });
-      setProjectsState(cloudProjects);
-    }));
-
-    // 3. Tasks
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), (snapshot) => {
-      const cloudTasks = [];
-      snapshot.forEach((doc) => { cloudTasks.push({ id: doc.id, ...doc.data() }); });
-      setTasksState(cloudTasks);
-    }));
-
-    // 4. Chats
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), (snapshot) => {
-      const cloudChats = [];
-      snapshot.forEach((doc) => { cloudChats.push({ id: Number(doc.id) || doc.id, ...doc.data() }); });
-      setChatsState(cloudChats);
-    }));
-
-    // 5. Videos
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'videos'), (snapshot) => {
-      const cloudVideos = [];
-      snapshot.forEach((doc) => { cloudVideos.push({ id: doc.id, ...doc.data() }); });
-      setVideosState(cloudVideos);
-    }));
-
-    // 6. Posts
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), (snapshot) => {
-      const cloudPosts = [];
-      snapshot.forEach((doc) => { cloudPosts.push({ id: doc.id, ...doc.data() }); });
-      setPostsState(cloudPosts);
-    }));
-
-    // 7. Notifications
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), (snapshot) => {
-      const cloudNotifs = [];
-      snapshot.forEach((doc) => { cloudNotifs.push({ id: doc.id, ...doc.data() }); });
-      cloudNotifs.sort((a, b) => b.timestamp - a.timestamp);
-      setNotificationsState(cloudNotifs.length > 0 ? cloudNotifs : [
-        { id: 'init-notif', message: 'Studio Command Center initialized.', actor: 'System', timestamp: Date.now() - 500000 }
-      ]);
-    }));
-
-    // 8. Categories
-    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().list) setCategoriesState(docSnap.data().list);
-    }));
-
-    // 9. YtConfig
-    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), (docSnap) => {
-      if (docSnap.exists()) setYtConfigState(docSnap.data());
-    }));
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [firebaseUser]);
-
-  // Firestore Data Writers
-  const setProfiles = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(profiles) : updater;
-    const currentUids = new Set(nextVal.map(p => p.uid));
-    for (const p of profiles) {
-      if (!currentUids.has(p.uid)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid));
-    }
-    for (const p of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid), p);
-    }
-  };
-
-  const setProjects = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(projects) : updater;
-    const currentIds = new Set(nextVal.map(p => p.id));
-    for (const p of projects) {
-      if (!currentIds.has(p.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id));
-    }
-    for (const p of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id), p);
-    }
-  };
-
-  const setTasks = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(tasks) : updater;
-    const currentIds = new Set(nextVal.map(t => t.id));
-    for (const t of tasks) {
-      if (!currentIds.has(t.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id));
-    }
-    for (const t of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id), t);
-    }
-  };
-
-  const setChats = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(chats) : updater;
-    const currentIds = new Set(nextVal.map(c => c.id));
-    for (const c of chats) {
-      if (!currentIds.has(c.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)));
-    }
-    for (const c of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)), c);
-    }
-  };
-
-  const setVideos = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(videos) : updater;
-    const currentIds = new Set(nextVal.map(v => v.id));
-    for (const v of videos) {
-      if (!currentIds.has(v.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id));
-    }
-    for (const v of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id), v);
-    }
-  };
-
-  const setPosts = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(posts) : updater;
-    const currentIds = new Set(nextVal.map(p => p.id));
-    for (const p of posts) {
-      if (!currentIds.has(p.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id));
-    }
-    for (const p of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id), p);
-    }
-  };
-
-  const setNotifications = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(notifications) : updater;
-    const currentIds = new Set(nextVal.map(n => n.id));
-    for (const n of notifications) {
-      if (!currentIds.has(n.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id));
-    }
-    for (const n of nextVal) {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id), n);
-    }
-  };
-
-  const setYtConfig = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(ytConfig) : updater;
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), nextVal);
-  };
-
-  const setCategories = async (updater) => {
-    if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(categories) : updater;
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: nextVal });
-  };
-
-  // Profile matching state rules
-  const userProfile = useMemo(() => {
-    if (!loggedInEmail) return null;
-    return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
-  }, [profiles, loggedInEmail]);
-
-  const isAdmin = useMemo(() => {
-    return loggedInEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase() || (userProfile && userProfile.role === 'admin');
-  }, [userProfile, loggedInEmail]);
-
-  const showToast = (message, type = 'info') => {
-    setCustomToast({ message, type });
-    setTimeout(() => setCustomToast(null), 4000);
-  };
-
-  const pushNotification = (message, actorName = 'Crew Member') => {
-    const newNotif = { id: 'notif_' + Date.now(), message, actor: actorName, timestamp: Date.now() };
-    setNotifications(prev => [newNotif, ...prev]);
-  };
-
-  const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
-    const activeChannelId = targetChannelId || ytConfig.channelId || 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-';
-    const activeApiKey = targetApiKey || ytConfig.apiKey || 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg';
-    let url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=naitik._.artist-16&key=${activeApiKey}`;
-    try {
-      const channelRes = await fetch(url);
-      if (!channelRes.ok) throw new Error("API failed.");
-      const channelData = await channelRes.json();
-      const item = channelData.items?.[0];
-      if (item) {
-        setYtConfig(prev => ({
-          ...prev,
-          subscribers: parseInt(item.statistics.subscriberCount, 10).toLocaleString()
-        }));
-      }
-    } catch (err) {
-      console.warn("Using simulated background view counts.");
-    }
-  };
-
-  useEffect(() => {
-    if (loadingLibraries) return;
-    syncYouTubeStats(ytConfig.channelId, ytConfig.apiKey, true);
-  }, [loadingLibraries]);
-
-  const handleProfileSignIn = (crewName, crewEmail, profilePhotoBase64, categorySelected) => {
-    const emailKey = crewEmail.trim().toLowerCase();
-    const isOwner = emailKey === ADMIN_EMAIL.toLowerCase();
-    let matchedProfile = profiles.find(p => p.email.toLowerCase() === emailKey);
-
-    if (!matchedProfile) {
-      matchedProfile = {
-        uid: 'user_' + Date.now(),
-        name: crewName || crewEmail.split('@')[0],
-        email: crewEmail,
-        role: isOwner ? 'owner' : 'member',
-        status: 'approved',
-        workCategory: categorySelected || 'Editing',
-        photoURL: profilePhotoBase64 || PRESET_AVATARS[0].svg,
-        createdAt: Date.now()
-      };
-      setProfiles(prev => [...prev, matchedProfile]);
-    }
-
-    setLoggedInEmail(matchedProfile.email);
-    localStorage.setItem('sa_logged_in_user_email', matchedProfile.email);
-    setShowSignInModal(false);
-    showToast(`Welcome back, ${matchedProfile.name}!`, "success");
-    setCurrentPage('home');
-  };
-
-  const handleNavigationChange = (targetPage) => {
-    setIsSidebarOpen(false);
-    if (targetPage === 'home') {
-      setCurrentPage(targetPage);
-      return;
-    }
-    if (!loggedInEmail) {
-      setShowSignInModal(true);
-      return;
-    }
-    setCurrentPage(targetPage);
-  };
-
-  useEffect(() => {
-    injectArtStyleStyles();
-    setLoadingLibraries(false);
-    setThreeReady(true);
-  }, []);
-
-  if (loadingLibraries) {
-    return (
-      <div className="min-h-screen bg-[#FCFAF2] flex flex-col items-center justify-center font-serif text-[#C5A03A]">
-        <div className="w-16 h-16 border-4 border-dashed border-[#C5A03A] rounded-full animate-spin mb-4" />
-        <h2 className="text-2xl font-bold tracking-widest font-serif">SYNCING TIMELINES</h2>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen relative overflow-x-hidden bg-[#FCFBF8] text-slate-800 font-sans selection:bg-[#C5A03A]/20">
-      <WatercolorOverlay />
-      {threeReady && <ThreeArtBackground />}
-
-      {customToast && (
-        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white bg-[#C5A03A] animate-bounce">
-          {customToast.message}
-        </div>
-      )}
-
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-sm font-sans">
-        <div className="flex items-center space-x-3">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-          </button>
-          <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => handleNavigationChange('home')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow border-2 border-white">Y</div>
-            <span className="font-serif text-lg tracking-wider text-[#C5A03A] font-extrabold hidden sm:inline">{siteSettings.logoText}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          {loggedInEmail ? (
-            <div className="flex items-center space-x-3">
-              <div className="hidden sm:flex flex-col text-right">
-                <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name || loggedInEmail.split('@')[0]}</p>
-                <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{isAdmin ? 'Admin/Owner' : 'Crew Member'}</span>
-              </div>
-              <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
-                {renderAvatar(userProfile?.photoURL)}
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] text-white px-5 py-2.5 rounded-full shadow border border-white transition transform active:scale-95">🔑 Crew Sign In</button>
-          )}
-        </div>
-      </header>
-
-      <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
-        <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-6 pb-20">
-            <span className="font-serif font-black text-lg text-[#C5A03A] tracking-wider uppercase block border-b pb-2">Navigation</span>
-            <nav className="space-y-1.5 font-sans">
-              <button onClick={() => handleNavigationChange('home')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🏠 Home Hub</button>
-              <button onClick={() => handleNavigationChange('crew')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🎬 Crew Roster</button>
-              <button onClick={() => handleNavigationChange('categories-view')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🏷️ Categories</button>
-              <button onClick={() => handleNavigationChange('vault')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🎞️ Video Vault</button>
-              <button onClick={() => handleNavigationChange('projects')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">📌 Project Board</button>
-              <button onClick={() => handleNavigationChange('chat')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">💬 Whiteboard Chat</button>
-              <button onClick={() => handleNavigationChange('posts')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">📸 Insta Feed</button>
-              {loggedInEmail && <button onClick={() => handleNavigationChange('profile')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">👤 My Profile</button>}
-              
-              {isAdmin && (
-                <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1">Admin Controls</span>
-                  <button onClick={() => handleNavigationChange('admin')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-rose-600 hover:bg-rose-50">👥 Manage Roster</button>
-                </div>
-              )}
-            </nav>
-          </div>
-        </div>
-      </div>
-
-      <main className="relative z-20 max-w-7xl mx-auto px-4 py-8 studio-page-wrap">
-        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} notifications={notifications} handleNavigation={handleNavigationChange} />}
-        {currentPage === 'crew' && <CrewSection profiles={profiles} setProfiles={setProfiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
-        {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} setCategories={setCategories} showToast={showToast} />}
-        {currentPage === 'vault' && <VideoVault videos={videos} setVideos={setVideos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
-        {currentPage === 'projects' && <ProjectBoard projects={projects} setProjects={setProjects} tasks={tasks} setTasks={setTasks} profiles={profiles} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} setCurrentPage={setCurrentPage} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
-        {currentPage === 'chat' && <WhiteboardChat chats={chats} setChats={setChats} projects={projects} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} />}
-        {currentPage === 'posts' && <PostsWorkspace posts={posts} setPosts={setPosts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} />}
-        {currentPage === 'profile' && <MyProfileWorkspace userProfile={userProfile} profiles={profiles} setProfiles={setProfiles} categories={categories} setCategories={setCategories} showToast={showToast} />}
-        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} setProfiles={setProfiles} siteSettings={siteSettings} setSiteSettings={setSiteSettings} ytConfig={ytConfig} setYtConfig={setYtConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
-      </main>
-
-      {showSignInModal && <SignInModal handleProfileSignIn={handleProfileSignIn} setShowSignInModal={setShowSignInModal} categories={categories} profiles={profiles} />}
-    </div>
-  );
-}
-
-function ThreeArtBackground() {
-  const mountRef = useRef(null);
-  useEffect(() => {
-    if (!window.THREE) return;
-    const THREE = window.THREE;
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.z = 11;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    mountRef.current.appendChild(renderer.domElement);
-    scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
-    const animate = () => {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    };
-    animate();
-    return () => { if (mountRef.current) mountRef.current.innerHTML = ''; };
-  }, []);
-  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40" />;
-}
-
-function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, profiles }) {
-  const [email, setEmail] = useState('');
-  const [step, setStep] = useState(1);
-  const [name, setName] = useState('');
-  const [cat, setCat] = useState(categories[0] || 'Editing');
-
-  const checkEmailOnboard = (e) => {
-    e.preventDefault();
-    const matched = profiles.find(p => p.email.toLowerCase() === email.trim().toLowerCase());
-    if (matched) handleProfileSignIn(matched.name, matched.email, matched.photoURL, matched.workCategory);
-    else setStep(2);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans">
-      <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative">
-        <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400">✕</button>
-        {step === 1 ? (
-          <form onSubmit={checkEmailOnboard} className="space-y-4">
-            <h3 className="font-serif text-xl font-bold text-center text-slate-800">Crew Member Identity</h3>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter Creator Gmail Address" className="w-full px-4 py-2.5 bg-slate-50 border-2 border-[#EADFC9] rounded-xl text-xs" required />
-            <button type="submit" className="w-full py-2.5 bg-[#C5A03A] text-white text-xs font-bold uppercase rounded-xl">Next Step</button>
-          </form>
-        ) : (
-          <form onSubmit={e => { e.preventDefault(); handleProfileSignIn(name, email, null, cat); }} className="space-y-4">
-            <h3 className="font-serif text-lg font-bold text-slate-800 border-b pb-2">Register New Profile</h3>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name Handle" className="w-full px-3 py-2 border rounded-lg text-xs" required />
-            <select value={cat} onChange={e => setCat(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-xs bg-white">
-              {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
-            </select>
-            <button type="submit" className="w-full py-2 bg-[#C5A03A] text-white text-xs font-bold uppercase rounded-xl">Join Workspace</button>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, notifications }) {
-  return (
-    <section className="space-y-10 py-4 font-sans">
-      <div className="text-center py-4">
-        <h1 className="font-serif text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight">{siteSettings.logoText}</h1>
-        <p className="text-slate-500 font-serif italic text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Subscribers</span>
-          <p className="text-xl md:text-2xl font-black text-slate-800">{ytConfig.subscribers}</p>
-        </div>
-        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Latest Views</span>
-          <p className="text-xl md:text-2xl font-black text-slate-800">{ytConfig.latestVideoViews}</p>
-        </div>
-        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Vault Masters</span>
-          <p className="text-xl md:text-2xl font-black text-slate-800">{videos.length} Files</p>
-        </div>
-        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Active Ideas</span>
-          <p className="text-xl md:text-2xl font-black text-slate-800">{projects.length} Boards</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CrewSection({ profiles, isAdmin, setProfiles }) {
-  return (
-    <section className="bg-white p-6 border rounded-3xl shadow-skeuo-md">
-      <h4 className="font-serif font-bold text-base border-b pb-2 mb-3">Production Team Members ({profiles.length})</h4>
-      <div className="space-y-3">
-        {profiles.map((p, i) => (
-          <div key={i} className="flex justify-between items-center p-3 border rounded-xl bg-slate-50/50">
-            <div>
-              <p className="text-xs font-bold text-slate-800">{p.name}</p>
-              <span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role} • {p.workCategory}</span>
-            </div>
-            {isAdmin && p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() && (
-              <button onClick={() => setProfiles(prev => prev.filter(x => x.uid !== p.uid))} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full">Remove</button>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function CategoriesViewSection({ categories }) {
-  return (
-    <section className="bg-white p-6 border rounded-3xl shadow-skeuo-md">
-      <h3 className="font-serif text-lg font-bold border-b pb-2 mb-4">Active Production Tags</h3>
-      <div className="flex flex-wrap gap-2">
-        {categories.map((c, i) => <span key={i} className="bg-amber-50 border border-amber-200 text-[#C5A03A] text-xs px-3 py-1.5 rounded-xl font-bold">🎬 {c}</span>)}
-      </div>
-    </section>
-  );
-}
-
-function VideoVault({ videos, setVideos, userProfile }) {
-  const [videoTitle, setVideoTitle] = useState('');
-  return (
-    <section className="space-y-4">
-      <div className="bg-white p-5 border rounded-2xl flex justify-between items-center shadow-skeuo-md">
-        <h3 className="font-serif font-bold text-slate-800 text-lg">Timeline Asset Vault</h3>
-        <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} placeholder="Add mockup video path title..." className="text-xs px-3 py-1.5 border rounded-lg focus:outline-none" />
-        <button onClick={() => { if(videoTitle) setVideos(p => [...p, { id: 'v_'+Date.now(), title: videoTitle, hlsUrl: 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4' }]); setVideoTitle(''); }} className="bg-[#C5A03A] text-white text-xs px-4 py-2 rounded-full font-bold">Add Track</button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {videos.map((v, i) => (
-          <div key={i} className="bg-white border p-4 rounded-xl shadow-sm">
-            <h5 className="font-bold text-xs text-slate-800 mb-2">{v.title}</h5>
-            <video src={v.hlsUrl} controls className="w-full h-40 object-cover rounded-lg bg-black" />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ProjectBoard({ projects, setProjects }) {
-  const [title, setTitle] = useState('');
-  return (
-    <section className="space-y-4">
-      <div className="max-w-md mx-auto flex gap-2 bg-white border p-4 rounded-xl shadow">
-        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="New timeline concept sprint..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs" />
-        <button onClick={() => { if(title) setProjects(p => [...p, { id: 'p_'+Date.now(), title }]); setTitle(''); }} className="px-4 bg-[#C5A03A] text-white text-xs rounded-lg font-bold">Pin Board</button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {projects.map((p, idx) => (
-          <div key={idx} className="bg-white border p-5 rounded-2xl shadow-skeuo-md relative text-center">
-            <span className="text-xl block mb-2">📌</span>
-            <h4 className="font-serif font-bold text-slate-800">{p.title}</h4>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function WhiteboardChat({ chats, setChats, chatChannel }) {
-  const [msg, setMsg] = useState('');
-  return (
-    <section className="border rounded-[2rem] h-[350px] bg-white overflow-hidden shadow-skeuo-md flex flex-col justify-between">
-      <div className="p-4 overflow-y-auto space-y-2 flex-1 bg-slate-50/50">
-        {chats.map((m, i) => (
-          <div key={i} className="text-xs p-3 bg-white border rounded-2xl max-w-[70%]">
-            <span className="text-[9px] text-slate-400 block font-bold mb-0.5">{m.senderName}</span>
-            {m.text}
-          </div>
-        ))}
-      </div>
-      <div className="p-3 border-t flex gap-2 bg-white">
-        <input type="text" value={msg} onChange={e => setMsg(e.target.value)} placeholder="Type commentary..." className="flex-1 px-3 border rounded-xl text-xs focus:outline-none" />
-        <button onClick={() => { if(msg) setChats(p => [...p, { id: Date.now(), text: msg, senderName: 'Creator' }]); setMsg(''); }} className="px-4 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold">Send</button>
-      </div>
-    </section>
-  );
-}
-
-function PostsWorkspace({ posts, setPosts }) {
-  return (
-    <section className="max-w-md mx-auto space-y-4">
-      <div className="bg-white p-4 border rounded-2xl shadow text-center">
-        <h3 className="font-serif text-lg font-bold text-slate-800">Showroom Posts ({posts.length})</h3>
-      </div>
-      {posts.map((p, i) => (
-        <div key={i} className="bg-white border rounded-[2rem] overflow-hidden shadow-skeuo-md">
-          <div className="p-3 border-b text-xs font-black">{p.authorName}</div>
-          <img src={p.image} className="w-full h-64 object-cover" alt="" />
-          <div className="p-3 text-xs font-semibold text-slate-700">{p.title}</div>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function MyProfileWorkspace({ userProfile }) {
-  return (
-    <section className="max-w-md mx-auto bg-white border p-8 rounded-[2.5rem] shadow-lg text-center">
-      <h3 className="font-serif text-2xl font-bold mb-2">My Profile Badge</h3>
-      <p className="text-xs text-slate-500 font-mono">Registered Email: {userProfile?.email || 'Active'}</p>
-    </section>
-  );
-}
-
-function AdminPanel({ profiles, setProfiles, showToast }) {
-  const toggleRole = (uid, currentRole) => {
-    const targetRole = currentRole === 'admin' ? 'member' : 'admin';
-    setProfiles(prev => prev.map(p => p.uid === uid ? { ...p, role: targetRole } : p));
-    showToast("Role permission altered successfully!", "success");
-  };
-
-  return (
-    <section className="bg-white border p-6 rounded-[2rem] shadow-skeuo-md max-w-2xl mx-auto">
-      <h3 className="font-serif font-bold border-b pb-2 mb-4 text-slate-800">Roster Access Level Control</h3>
-      <table className="w-full text-xs text-left">
-        <thead>
-          <tr className="text-slate-400">
-            <th className="pb-2">Profile Handle</th>
-            <th className="pb-2">Current Role</th>
-            <th className="pb-2 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {profiles.map(p => (
-            <tr key={p.uid} className="border-t">
-              <td className="py-3 font-bold">{p.name}<br/><span className="text-[9px] font-normal text-slate-400">{p.email}</span></td>
-              <td className="py-3 uppercase font-mono text-[10px] font-semibold">{p.role}</td>
-              <td className="py-3 text-right space-x-1.5">
-                {p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() ? (
-                  <div className="flex justify-end gap-1.5">
-                    <button onClick={() => toggleRole(p.uid, p.role)} className="bg-amber-50 text-amber-700 px-3 py-1 rounded-md font-bold border border-amber-200">
-                      {p.role === 'admin' ? 'Demote to Member' : 'Make Admin'}
-                    </button>
-                    <button onClick={() => setProfiles(prev => prev.filter(x => x.uid !== p.uid))} className="bg-rose-50 text-rose-600 px-3 py-1 rounded-md font-bold border border-rose-200">Remove User</button>
-                  </div>
-                ) : <span className="text-slate-400 italic">Owner</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
-
-```
-    /* Custom Scrollbar */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(234, 223, 201, 0.2);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(197, 160, 58, 0.4);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(197, 160, 58, 0.6);
-    }
-
     /* 3D Skeuomorphic Shadows and Transformations */
     .shadow-skeuo-sm {
       box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
@@ -1484,26 +66,6 @@ function AdminPanel({ profiles, setProfiles, showToast }) {
       box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
     }
   `;
-  document.head.appendChild(styleBlock);
-};
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(197, 160, 58, 0.6);
-    }
-
-    /* 3D Skeuomorphic Shadows and Transformations */
-    .shadow-skeuo-sm {
-      box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
-    }
-    .shadow-skeuo-md {
-      box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1);
-    }
-    .shadow-skeuo-lg {
-      box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15);
-    }
-    .shadow-skeuo-3d {
-      box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
-    }
-';
   document.head.appendChild(styleBlock);
 };
 
@@ -1546,8 +108,6 @@ export default function App() {
   const [loadingLibraries, setLoadingLibraries] = useState(true);
   const [threeReady, setThreeReady] = useState(false);
   const [gsapReady, setGsapReady] = useState(false);
-
-  // Authentication State
   const [firebaseUser, setFirebaseUser] = useState(null);
 
   const [currentPage, setCurrentPage] = useState('home'); 
@@ -1556,7 +116,7 @@ export default function App() {
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Database States
+  // Firestore Sync Collections States
   const [categories, setCategoriesState] = useState(['Creativity', 'Editing', 'Writing', 'AI Related Expertise']);
   const [posts, setPostsState] = useState([]);
   const [notifications, setNotificationsState] = useState([]);
@@ -1567,7 +127,7 @@ export default function App() {
     latestVideoViews: '4,512',
     latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
   });
-  const [profiles, setProfilesState] = useState(INITIAL_PROFILES);
+  const [profiles, setProfilesState] = useState([]);
   const [projects, setProjectsState] = useState([]);
   const [tasks, setTasksState] = useState([]);
   const [chats, setChatsState] = useState([]);
@@ -1577,7 +137,7 @@ export default function App() {
   const [chatChannel, setChatChannel] = useState('general');
   const [customToast, setCustomToast] = useState(null);
 
-  // --- Real-time Firestore Sync Wrappers (Rule 1, Rule 2, Rule 3 Compliant) ---
+  // Initialize Auth
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -1587,7 +147,7 @@ export default function App() {
           await signInAnonymously(auth);
         }
       } catch (err) {
-        console.error("Authentication integration mismatch:", err);
+        console.error("Authentication init error:", err);
       }
     };
     initAuth();
@@ -1598,16 +158,12 @@ export default function App() {
   // Sync Listeners
   useEffect(() => {
     if (!firebaseUser) return;
-
     const unsubscribes = [];
 
     // 1. Profiles
-    const qProfiles = collection(db, 'artifacts', appId, 'public', 'data', 'profiles');
-    unsubscribes.push(onSnapshot(qProfiles, (snapshot) => {
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snapshot) => {
       const cloudProfiles = [];
-      snapshot.forEach((doc) => {
-        cloudProfiles.push({ uid: doc.id, ...doc.data() });
-      });
+      snapshot.forEach((doc) => { cloudProfiles.push({ uid: doc.id, ...doc.data() }); });
       if (cloudProfiles.length > 0) {
         setProfilesState(cloudProfiles);
       } else {
@@ -1616,270 +172,246 @@ export default function App() {
         });
         setProfilesState(INITIAL_PROFILES);
       }
-    }, (err) => console.error("Roster query error:", err)));
+    }));
 
     // 2. Projects
-    const qProjects = collection(db, 'artifacts', appId, 'public', 'data', 'projects');
-    unsubscribes.push(onSnapshot(qProjects, (snapshot) => {
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), (snapshot) => {
       const cloudProjects = [];
-      snapshot.forEach((doc) => {
-        cloudProjects.push({ id: doc.id, ...doc.data() });
-      });
+      snapshot.forEach((doc) => { cloudProjects.push({ id: doc.id, ...doc.data() }); });
       setProjectsState(cloudProjects);
-    }, (err) => console.error("Corkboard query error:", err)));
+    }));
 
     // 3. Tasks
-    const qTasks = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
-    unsubscribes.push(onSnapshot(qTasks, (snapshot) => {
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), (snapshot) => {
       const cloudTasks = [];
-      snapshot.forEach((doc) => {
-        cloudTasks.push({ id: doc.id, ...doc.data() });
-      });
+      snapshot.forEach((doc) => { cloudTasks.push({ id: doc.id, ...doc.data() }); });
       setTasksState(cloudTasks);
-    }, (err) => console.error("Task query error:", err)));
+    }));
 
     // 4. Chats
-    const qChats = collection(db, 'artifacts', appId, 'public', 'data', 'chats');
-    unsubscribes.push(onSnapshot(qChats, (snapshot) => {
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), (snapshot) => {
       const cloudChats = [];
-      snapshot.forEach((doc) => {
-        cloudChats.push({ id: Number(doc.id) || doc.id, ...doc.data() });
-      });
+      snapshot.forEach((doc) => { cloudChats.push({ id: doc.id, ...doc.data() }); });
+      cloudChats.sort((a, b) => b.timestamp - a.timestamp);
       setChatsState(cloudChats);
-    }, (err) => console.error("Whiteboard chat query error:", err)));
+    }));
 
     // 5. Videos
-    const qVideos = collection(db, 'artifacts', appId, 'public', 'data', 'videos');
-    unsubscribes.push(onSnapshot(qVideos, (snapshot) => {
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'videos'), (snapshot) => {
       const cloudVideos = [];
-      snapshot.forEach((doc) => {
-        cloudVideos.push({ id: doc.id, ...doc.data() });
-      });
+      snapshot.forEach((doc) => { cloudVideos.push({ id: doc.id, ...doc.data() }); });
       setVideosState(cloudVideos);
-    }, (err) => console.error("Vault query error:", err)));
+    }));
 
-    // 6. Posts (Instagram Proofs with Base64 Assets)
-    const qPosts = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
-    unsubscribes.push(onSnapshot(qPosts, (snapshot) => {
+    // 6. Posts
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), (snapshot) => {
       const cloudPosts = [];
-      snapshot.forEach((doc) => {
-        cloudPosts.push({ id: doc.id, ...doc.data() });
-      });
+      snapshot.forEach((doc) => { cloudPosts.push({ id: doc.id, ...doc.data() }); });
       setPostsState(cloudPosts);
-    }, (err) => console.error("Showroom query error:", err)));
+    }));
 
     // 7. Notifications
-    const qNotifications = collection(db, 'artifacts', appId, 'public', 'data', 'notifications');
-    unsubscribes.push(onSnapshot(qNotifications, (snapshot) => {
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), (snapshot) => {
       const cloudNotifs = [];
-      snapshot.forEach((doc) => {
-        cloudNotifs.push({ id: doc.id, ...doc.data() });
-      });
+      snapshot.forEach((doc) => { cloudNotifs.push({ id: doc.id, ...doc.data() }); });
       cloudNotifs.sort((a, b) => b.timestamp - a.timestamp);
       setNotificationsState(cloudNotifs.length > 0 ? cloudNotifs : [
         { id: 'init-notif', message: 'Studio Command Center initialized.', actor: 'System', timestamp: Date.now() - 500000 }
       ]);
-    }, (err) => console.error("Logs timeline query error:", err)));
+    }));
 
     // 8. Categories Configuration Doc
-    const refCategories = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories');
-    unsubscribes.push(onSnapshot(refCategories, (docSnap) => {
+    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), (docSnap) => {
       if (docSnap.exists() && docSnap.data().list) {
         setCategoriesState(docSnap.data().list);
-      } else {
-        setDoc(refCategories, { list: ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'] });
       }
-    }, (err) => console.error("Category tag query error:", err)));
+    }));
 
     // 9. YtConfig Auto-Sync Configuration Doc
-    const refYtConfig = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig');
-    unsubscribes.push(onSnapshot(refYtConfig, (docSnap) => {
+    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), (docSnap) => {
       if (docSnap.exists()) {
         setYtConfigState(docSnap.data());
-      } else {
-        setDoc(refYtConfig, {
-          channelId: 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-', 
-          apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
-          subscribers: '14,820',
-          latestVideoViews: '4,512',
-          latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
-        });
       }
-    }, (err) => console.error("API config query error:", err)));
+    }));
 
-    return () => {
-      unsubscribes.forEach(unsub => unsub());
-    };
+    // 10. Branding Configuration
+    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'siteSettings'), (docSnap) => {
+      if (docSnap.exists()) {
+        setSiteSettings(docSnap.data());
+      }
+    }));
+
+    return () => unsubscribes.forEach(unsub => unsub());
   }, [firebaseUser]);
 
-  // --- Safe Setters triggered via UI events (Rule 3 protected) ---
-  const setProfiles = async (updater) => {
+  // Firestore Writes (Rule 1 & Rule 3 Compliant)
+  const handleCreateConcept = async (title) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(profiles) : updater;
-    const currentUids = new Set(nextVal.map(p => p.uid));
-    for (const p of profiles) {
-      if (!currentUids.has(p.uid)) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid));
-      }
-    }
-    const oldMap = new Map(profiles.map(p => [p.uid, JSON.stringify(p)]));
-    for (const p of nextVal) {
-      if (oldMap.get(p.uid) !== JSON.stringify(p)) {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid), p);
-      }
-    }
+    const id = 'p_' + Date.now();
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', id), {
+      title,
+      creatorName: userProfile?.name || 'Creator',
+      createdAt: Date.now()
+    });
+    pushNotification(`Created video concept whiteboard: "${title}"`, userProfile?.name);
   };
 
-  const setProjects = async (updater) => {
+  const handleAddTask = async (projectId, title) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(projects) : updater;
-    const currentIds = new Set(nextVal.map(p => p.id));
-    for (const p of projects) {
-      if (!currentIds.has(p.id)) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id));
-      }
-    }
-    const oldMap = new Map(projects.map(p => [p.id, JSON.stringify(p)]));
-    for (const p of nextVal) {
-      if (oldMap.get(p.id) !== JSON.stringify(p)) {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id), p);
-      }
-    }
+    const id = 't_' + Date.now();
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', id), {
+      projectId,
+      title,
+      status: 'To Do'
+    });
   };
 
-  const setTasks = async (updater) => {
+  const handleToggleTaskStatus = async (task) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(tasks) : updater;
-    const currentIds = new Set(nextVal.map(t => t.id));
-    for (const t of tasks) {
-      if (!currentIds.has(t.id)) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id));
-      }
-    }
-    const oldMap = new Map(tasks.map(t => [t.id, JSON.stringify(t)]));
-    for (const t of nextVal) {
-      if (oldMap.get(t.id) !== JSON.stringify(t)) {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id), t);
-      }
-    }
+    const nextStatus = task.status === 'To Do' ? 'Completed' : 'To Do';
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), {
+      ...task,
+      status: nextStatus
+    });
   };
 
-  const setChats = async (updater) => {
+  const handleAddChat = async (text, channel) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(chats) : updater;
-    const currentIds = new Set(nextVal.map(c => c.id));
-    for (const c of chats) {
-      if (!currentIds.has(c.id)) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)));
-      }
-    }
-    const oldMap = new Map(chats.map(c => [c.id, JSON.stringify(c)]));
-    for (const c of nextVal) {
-      if (oldMap.get(c.id) !== JSON.stringify(c)) {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)), c);
-      }
-    }
+    const id = 'c_' + Date.now();
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', id), {
+      projectId: channel,
+      text,
+      senderName: userProfile?.name || loggedInEmail.split('@')[0],
+      senderUid: firebaseUser.uid,
+      timestamp: Date.now()
+    };
   };
 
-  const setVideos = async (updater) => {
+  const handleAddVideo = async (title, url, size) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(videos) : updater;
-    const currentIds = new Set(nextVal.map(v => v.id));
-    for (const v of videos) {
-      if (!currentIds.has(v.id)) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id));
-      }
-    }
-    const oldMap = new Map(videos.map(v => [v.id, JSON.stringify(v)]));
-    for (const v of nextVal) {
-      if (oldMap.get(v.id) !== JSON.stringify(v)) {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id), v);
-      }
-    }
+    const id = 'v_' + Date.now();
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', id), {
+      title,
+      uploaderUid: firebaseUser.uid,
+      uploaderName: userProfile?.name || 'Creator',
+      hlsUrl: url,
+      size: size || '15 MB',
+      comments: []
+    });
   };
 
-  const setPosts = async (updater) => {
+  const handleAddVideoComment = async (video, text) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(posts) : updater;
-    const currentIds = new Set(nextVal.map(p => p.id));
-    for (const p of posts) {
-      if (!currentIds.has(p.id)) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id));
-      }
-    }
-    const oldMap = new Map(posts.map(p => [p.id, JSON.stringify(p)]));
-    for (const p of nextVal) {
-      if (oldMap.get(p.id) !== JSON.stringify(p)) {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id), p);
-      }
-    }
+    const newComment = {
+      id: 'comment_' + Date.now(),
+      authorName: userProfile?.name || 'Creator',
+      text,
+      timestamp: Date.now()
+    };
+    const updatedComments = [...(video.comments || []), newComment];
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', video.id), {
+      ...video,
+      comments: updatedComments
+    });
   };
 
-  const setNotifications = async (updater) => {
+  const handleDeleteVideo = async (id) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(notifications) : updater;
-    const currentIds = new Set(nextVal.map(n => n.id));
-    for (const n of notifications) {
-      if (!currentIds.has(n.id)) {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id));
-      }
-    }
-    const oldMap = new Map(notifications.map(n => [n.id, JSON.stringify(n)]));
-    for (const n of nextVal) {
-      if (oldMap.get(n.id) !== JSON.stringify(n)) {
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id), n);
-      }
-    }
+    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', id));
   };
 
-  const setYtConfig = async (updater) => {
+  const handleAddPost = async (title, description, imageBase64) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(ytConfig) : updater;
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), nextVal);
+    const id = 'post_' + Date.now();
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', id), {
+      title,
+      description,
+      image: imageBase64,
+      authorName: userProfile?.name || 'Creator',
+      authorAvatar: userProfile?.photoURL || '',
+      likes: 0,
+      likedBy: [],
+      comments: [],
+      createdAt: Date.now()
+    });
   };
 
-  const setCategories = async (updater) => {
+  const handleLikePost = async (post) => {
     if (!firebaseUser) return;
-    const nextVal = typeof updater === 'function' ? updater(categories) : updater;
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: nextVal });
+    const hasLiked = post.likedBy?.includes(firebaseUser.uid);
+    const newLikedBy = hasLiked 
+      ? post.likedBy.filter(uid => uid !== firebaseUser.uid)
+      : [...(post.likedBy || []), firebaseUser.uid];
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', post.id), {
+      ...post,
+      likes: newLikedBy.length,
+      likedBy: newLikedBy
+    });
   };
 
-  // Derived Logged-in User Profile
+  const handleAddPostComment = async (post, text) => {
+    if (!firebaseUser) return;
+    const newComment = {
+      id: 'p_comment_' + Date.now(),
+      authorName: userProfile?.name || 'Creator',
+      text
+    };
+    const updatedComments = [...(post.comments || []), newComment];
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', post.id), {
+      ...post,
+      comments: updatedComments
+    });
+  };
+
+  const pushNotification = async (message, actorName = 'Crew Member') => {
+    if (!firebaseUser) return;
+    const id = 'notif_' + Date.now();
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', id), {
+      message,
+      actor: actorName,
+      timestamp: Date.now()
+    });
+  };
+
+  const handleAddCategory = async (newCat) => {
+    if (!firebaseUser) return;
+    const updated = [...categories, newCat];
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: updated });
+  };
+
+  const handleSaveBrandLabel = async (text) => {
+    if (!firebaseUser) return;
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'siteSettings'), { logoText: text, logoUrl: siteSettings.logoUrl || '' });
+  };
+
+  const handleToggleRole = async (targetProfile) => {
+    if (!firebaseUser) return;
+    const nextRole = targetProfile.role === 'admin' ? 'member' : 'admin';
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetProfile.uid), {
+      ...targetProfile,
+      role: nextRole
+    });
+  };
+
+  const handleRemoveProfile = async (targetUid) => {
+    if (!firebaseUser) return;
+    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetUid));
+  };
+
+  // Derived Logged-in User Profile for flawless real-time roster sync
   const userProfile = useMemo(() => {
     if (!loggedInEmail) return null;
     return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
   }, [profiles, loggedInEmail]);
 
-  const isApproved = useMemo(() => userProfile && userProfile.status === 'approved', [userProfile]);
-  const isAdmin = useMemo(() => userProfile && (userProfile.role === 'admin' || userProfile.role === 'owner' || userProfile.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()), [userProfile]);
+  const isAdmin = useMemo(() => {
+    return loggedInEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase() || (userProfile && userProfile.role === 'admin');
+  }, [userProfile, loggedInEmail]);
 
   const showToast = (message, type = 'info') => {
     setCustomToast({ message, type });
     setTimeout(() => setCustomToast(null), 4000);
   };
-
-  const pushNotification = (message, actorName = 'Crew Member') => {
-    const newNotif = {
-      id: 'notif_' + Date.now(),
-      message,
-      actor: actorName,
-      timestamp: Date.now()
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-  };
-
-  // Safe Dynamic Page-routing effect
-  useEffect(() => {
-    if (userProfile) {
-      if (userProfile.status === 'pending' && currentPage !== 'pending-status') {
-        setCurrentPage('pending-status');
-      } else if (userProfile.status === 'rejected' && currentPage !== 'rejected-status') {
-        setCurrentPage('rejected-status');
-      } else if (userProfile.status === 'approved' && (currentPage === 'pending-status' || currentPage === 'rejected-status')) {
-        setCurrentPage('home');
-      }
-    }
-  }, [userProfile, currentPage]);
 
   // YouTube statistics syncer logic
   const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
@@ -1906,7 +438,7 @@ export default function App() {
 
     try {
       const channelRes = await fetch(url);
-      if (!channelRes.ok) throw new Error("API call failed or Key/Channel handle is invalid.");
+      if (!channelRes.ok) throw new Error("API call failed.");
       const channelData = await channelRes.json();
       const item = channelData.items?.[0];
       if (!item) throw new Error("YouTube Channel not found.");
@@ -1943,26 +475,12 @@ export default function App() {
         latestVideoTitle: videoTitle
       };
 
-      setYtConfig(updatedConfig);
+      setYtConfigState(updatedConfig);
       if (!silent) {
         showToast(`Successfully synced with ${channelTitle}!`, "success");
       }
     } catch (err) {
-      console.error(err);
-      setYtConfig(prev => {
-        const currentSubs = parseInt(prev.subscribers.replace(/,/g, ''), 10) || 14820;
-        const currentViews = parseInt(prev.latestVideoViews.replace(/,/g, ''), 10) || 4512;
-        return {
-          ...prev,
-          channelId: activeChannelId,
-          apiKey: activeApiKey,
-          subscribers: (currentSubs + Math.floor(Math.random() * 2)).toLocaleString(),
-          latestVideoViews: (currentViews + Math.floor(Math.random() * 3)).toLocaleString(),
-        };
-      });
-      if (!silent) {
-        showToast(`Simulated Sync Active for @naitik._.artist-16`, "info");
-      }
+      console.warn("YouTube metrics falling back to manual refresh configurations.");
     }
   };
 
@@ -1989,7 +507,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [loadingLibraries]);
 
-  const handleProfileSignIn = (crewName, crewEmail, profilePhotoBase64, categorySelected) => {
+  const handleProfileSignIn = async (crewName, crewEmail, profilePhotoBase64, categorySelected) => {
     const emailKey = crewEmail.trim().toLowerCase();
     const isOwner = emailKey === ADMIN_EMAIL.toLowerCase();
 
@@ -1997,29 +515,25 @@ export default function App() {
 
     if (!matchedProfile) {
       const finalAvatar = profilePhotoBase64 || PRESET_AVATARS[0].svg;
+      const id = 'user_' + Date.now();
       matchedProfile = {
-        uid: 'user_' + Date.now(),
+        uid: id,
         name: crewName || crewEmail.split('@')[0],
         email: crewEmail,
         role: isOwner ? 'owner' : 'member',
-        status: isOwner ? 'approved' : 'pending',
+        status: 'approved',
         workCategory: categorySelected || 'Editing',
         photoURL: finalAvatar,
         createdAt: Date.now()
       };
-      setProfiles(prev => [...prev, matchedProfile]);
-    } else {
-      if (isOwner && matchedProfile.role !== 'owner') {
-        matchedProfile.role = 'owner';
-        matchedProfile.status = 'approved';
-        setProfiles(prev => prev.map(p => p.email.toLowerCase() === emailKey ? { ...p, role: 'owner', status: 'approved' } : p));
-      }
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', id), matchedProfile);
     }
 
     setLoggedInEmail(matchedProfile.email);
     localStorage.setItem('sa_logged_in_user_email', matchedProfile.email);
     setShowSignInModal(false);
     showToast(`Welcome back, ${matchedProfile.name}!`, "success");
+    setCurrentPage('home');
   };
 
   const handleNavigationChange = (targetPage) => {
@@ -2028,7 +542,7 @@ export default function App() {
       setCurrentPage(targetPage);
       return;
     }
-    if (!userProfile) {
+    if (!loggedInEmail) {
       setShowSignInModal(true);
       return;
     }
@@ -2089,7 +603,7 @@ export default function App() {
       {/* Global Header */}
       <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
         <div className="flex items-center space-x-3">
-          {/* 3-Lines Hamburger Menu Button */}
+          {/* Hamburger Menu */}
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
@@ -2109,11 +623,11 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-4">
-          {userProfile ? (
+          {loggedInEmail ? (
             <div className="flex items-center space-x-3">
               <div className="hidden sm:flex flex-col text-right">
-                <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name}</p>
-                <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{userProfile?.role}</span>
+                <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name || loggedInEmail.split('@')[0]}</p>
+                <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{isAdmin ? 'Admin/Owner' : 'Crew Member'}</span>
               </div>
               <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
                 {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
@@ -2142,7 +656,7 @@ export default function App() {
               <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📌</span><span>Project Board</span></button>
               <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
               <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📸</span><span>Insta Feed</span></button>
-              {userProfile && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile</span></button>}
+              {loggedInEmail && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile</span></button>}
               
               {isAdmin && (
                 <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
@@ -2158,31 +672,14 @@ export default function App() {
       {/* Main Container Workspace */}
       <main className="relative z-20 max-w-7xl mx-auto px-4 py-8 studio-page-wrap animate-fadeIn">
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} notifications={notifications} handleNavigation={handleNavigationChange} />}
-        {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} />}
-        {currentPage === 'rejected-status' && <RejectedScreen userProfile={userProfile} />}
-        {currentPage === 'crew' && <CrewSection profiles={profiles} setProfiles={setProfiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
+        {currentPage === 'crew' && <CrewSection profiles={profiles} setProfiles={setProfilesState} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
         {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} setCategories={setCategories} showToast={showToast} />}
-        {currentPage === 'vault' && <VideoVault videos={videos} setVideos={setVideos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
-        {currentPage === 'projects' && <ProjectBoard projects={projects} setProjects={setProjects} tasks={tasks} setTasks={setTasks} profiles={profiles} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} setCurrentPage={setCurrentPage} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
-        {currentPage === 'chat' && <WhiteboardChat chats={chats} setChats={setChats} projects={projects} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} />}
-        {currentPage === 'posts' && <PostsWorkspace posts={posts} setPosts={setPosts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} />}
-        {currentPage === 'profile' && (
-          !userProfile ? (
-            <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md">
-              <p className="text-slate-600 font-medium">Loading your profile badge...</p>
-            </div>
-          ) : (
-            <MyProfileWorkspace 
-              userProfile={userProfile} 
-              profiles={profiles} 
-              setProfiles={setProfiles} 
-              categories={categories} 
-              setCategories={setCategories} 
-              showToast={showToast} 
-            />
-          )
-        )}
-        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} setProfiles={setProfiles} siteSettings={siteSettings} setSiteSettings={setSiteSettings} ytConfig={ytConfig} setYtConfig={setYtConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
+        {currentPage === 'vault' && <VideoVault videos={videos} handleAddVideo={handleAddVideo} handleAddVideoComment={handleAddVideoComment} handleDeleteVideo={handleDeleteVideo} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
+        {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} handleCreateConcept={handleCreateConcept} handleAddTask={handleAddTask} handleToggleTaskStatus={handleToggleTaskStatus} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} setCurrentPage={setCurrentPage} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
+        {currentPage === 'chat' && <WhiteboardChat chats={chats} handleAddChat={handleAddChat} chatChannel={chatChannel} setChatChannel={setChatChannel} />}
+        {currentPage === 'posts' && <PostsWorkspace posts={posts} handleAddPost={handleAddPost} handleLikePost={handleLikePost} handleAddPostComment={handleAddPostComment} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} firebaseUser={firebaseUser} />}
+        {currentPage === 'profile' && <MyProfileWorkspace userProfile={userProfile} profiles={profiles} setProfiles={setProfilesState} categories={categories} setCategories={setCategories} showToast={showToast} />}
+        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} handleToggleRole={handleToggleRole} handleRemoveProfile={handleRemoveProfile} handleSaveBrandLabel={handleSaveBrandLabel} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
       </main>
 
       {/* --- SIGN IN MODAL WINDOW --- */}
@@ -2547,17 +1044,16 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
 function CrewSection({ profiles, setProfiles, userProfile, showToast, isAdmin }) {
   const [focusIdx, setFocusIdx] = useState(0);
   const approvedProfiles = useMemo(() => profiles.filter(p => p.status === 'approved'), [profiles]);
-  if (approvedProfiles.length === 0) return null;
-
+  
   return (
     <section className="py-4 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
       <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl text-center shadow-skeuo-md animate-fadeIn">
         <div className="w-28 h-28 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">
-          {renderAvatar(approvedProfiles[focusIdx]?.photoURL)}
+          {approvedProfiles.length > 0 ? renderAvatar(approvedProfiles[focusIdx]?.photoURL) : renderAvatar('')}
         </div>
-        <h3 className="font-serif text-2xl font-bold text-slate-800">{approvedProfiles[focusIdx]?.name}</h3>
-        <p className="text-xs text-slate-400 mt-1 font-sans">{approvedProfiles[focusIdx]?.email}</p>
-        <span className="bg-[#C5A03A] text-white text-[10px] px-3 py-1 rounded-full font-bold mt-3 inline-block font-sans shadow-sm">{approvedProfiles[focusIdx]?.role}</span>
+        <h3 className="font-serif text-2xl font-bold text-slate-800">{approvedProfiles[focusIdx]?.name || 'No Active Member'}</h3>
+        <p className="text-xs text-slate-400 mt-1 font-sans">{approvedProfiles[focusIdx]?.email || 'Empty roster'}</p>
+        <span className="bg-[#C5A03A] text-white text-[10px] px-3 py-1 rounded-full font-bold mt-3 inline-block font-sans shadow-sm">{approvedProfiles[focusIdx]?.role || 'none'}</span>
       </div>
 
       <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md max-h-[500px] overflow-y-auto custom-scrollbar animate-fadeIn">
@@ -2684,40 +1180,22 @@ function CategoriesViewSection({ profiles, categories, setCategories, showToast 
 }
 
 // --- VIDEO VAULT SIMULATOR ---
-function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNotification }) {
+function VideoVault({ videos, handleAddVideo, handleAddVideoComment, handleDeleteVideo, userProfile, showToast, isAdmin, pushNotification }) {
   const [selectedVid, setSelectedVid] = useState(null);
   const [videoTitle, setVideoTitle] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
+  // Form submission handler for posting a comment on selected video
   const handlePostVideoComment = (e) => {
     e.preventDefault();
     const commentText = e.target.commentInput.value.trim();
     if (!commentText || !selectedVid) return;
 
-    const newComment = {
-      id: 'comment_' + Date.now(),
-      authorName: userProfile.name,
-      text: commentText,
-      timestamp: Date.now()
-    };
-
-    setVideos(prev => prev.map(v => {
-      if (v.id === selectedVid.id) {
-        const updatedComments = [...(v.comments || []), newComment];
-        return { ...v, comments: updatedComments };
-      }
-      return v;
-    }));
-
-    setSelectedVid(prev => ({
-      ...prev,
-      comments: [...(prev.comments || []), newComment]
-    }));
-
-    e.target.commentInput.value = '';
+    handleAddVideoComment(selectedVid, commentText);
     pushNotification(`Commented on video draft "${selectedVid.title}"`, userProfile.name);
     showToast("Feedback comment posted!", "success");
+    e.target.commentInput.value = '';
   };
 
   const handleVideoFileChange = (e) => {
@@ -2731,21 +1209,12 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
     e.preventDefault();
     if (!videoTitle.trim()) return;
 
+    // Use selected video file object URL, fallback to default loop
     const finalVideoUrl = selectedFile 
       ? URL.createObjectURL(selectedFile) 
       : 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4';
 
-    const newVideo = { 
-      id: 'v_' + Date.now(), 
-      title: videoTitle, 
-      uploaderUid: userProfile.uid, 
-      uploaderName: userProfile.name, 
-      hlsUrl: finalVideoUrl, 
-      size: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB` : '15 GB (HLS Track)',
-      comments: [] 
-    };
-
-    setVideos(prev => [newVideo, ...prev]);
+    handleAddVideo(videoTitle.trim(), finalVideoUrl, selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB` : '15 GB (HLS Track)');
     pushNotification(`Uploaded real raw video asset: "${videoTitle}"`, userProfile.name);
     setVideoTitle('');
     setSelectedFile(null);
@@ -2782,8 +1251,8 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
               <div className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
                 <h4 className="font-serif font-bold text-slate-800 text-sm border-b pb-2">Crew Feedback ({selectedVid.comments?.length || 0})</h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                  {(selectedVid.comments || []).map(comment => (
-                    <div key={comment.id} className="text-xs p-3 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
+                  {(selectedVid.comments || []).map((comment, index) => (
+                    <div key={index} className="text-xs p-3 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
                       <div>
                         <span className="font-bold text-slate-800 mr-2">{comment.authorName}</span>
                         <span className="text-slate-600">{comment.text}</span>
@@ -2824,7 +1293,7 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
                   <span className="text-[10px] text-slate-400 font-sans">Uploaded by {v.uploaderName} • {v.comments?.length || 0} Comments</span>
                 </div>
                 {(isAdmin || v.uploaderUid === userProfile?.uid) && (
-                  <button onClick={() => setVideos(prev => prev.filter(x => x.id !== v.id))} className="text-rose-550 font-bold p-1 hover:text-rose-700 transition" title="Delete Video">🗑️</button>
+                  <button onClick={() => handleDeleteVideo(v.id)} className="text-rose-550 font-bold p-1 hover:text-rose-700 transition" title="Delete Video">🗑️</button>
                 )}
               </div>
             ))}
@@ -2864,16 +1333,14 @@ function VideoVault({ videos, setVideos, userProfile, showToast, isAdmin, pushNo
 }
 
 // --- PROJECT SPREADSHEET CORKBOARD COMPONENT ---
-function ProjectBoard({ projects, setProjects, tasks, setTasks, profiles, userProfile, showToast, selectedProject, setSelectedProject, setCurrentPage, setChatChannel, pushNotification }) {
+function ProjectBoard({ projects, tasks, handleCreateConcept, handleAddTask, handleToggleTaskStatus, userProfile, showToast, selectedProject, setSelectedProject, setCurrentPage, setChatChannel, pushNotification }) {
   const [newConcept, setNewConcept] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
 
   const createConcept = (e) => {
     e.preventDefault();
     if (!newConcept.trim()) return;
-    const newProj = { id: 'p_' + Date.now(), title: newConcept, creatorName: userProfile.name, createdAt: Date.now() };
-    setProjects(prev => [newProj, ...prev]);
-    pushNotification(`Created video concept whiteboard: "${newConcept}"`, userProfile.name);
+    handleCreateConcept(newConcept.trim());
     setNewConcept('');
     showToast("Artboard concept mapped!", "success");
   };
@@ -2917,14 +1384,14 @@ function ProjectBoard({ projects, setProjects, tasks, setTasks, profiles, userPr
           
           <div className="divide-y text-xs">
             {activeTasks.map((t, idx) => (
-              <div key={idx} className="py-3 flex justify-between items-center">
-                <span className="font-semibold text-slate-700">{t.title}</span>
+              <div key={idx} className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50" onClick={() => handleToggleTaskStatus(t)}>
+                <span className={`font-semibold ${t.status === 'Completed' ? 'line-through text-slate-450' : 'text-slate-700'}`}>{t.title}</span>
                 <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</span>
               </div>
             ))}
           </div>
 
-          <form onSubmit={e => { e.preventDefault(); if (!taskTitle.trim()) return; setTasks(prev => [...prev, { id: 't_'+Date.now(), projectId: selectedProject.id, title: taskTitle, status: 'To Do' }]); setTaskTitle(''); }} className="flex gap-2 max-w-sm pt-4">
+          <form onSubmit={e => { e.preventDefault(); if (!taskTitle.trim()) return; handleAddTask(selectedProject.id, taskTitle.trim()); setTaskTitle(''); }} className="flex gap-2 max-w-sm pt-4">
             <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add specific sprint work card" className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs" required />
             <button type="submit" className="px-3 bg-slate-800 text-white text-xs rounded-lg font-bold">Add</button>
           </form>
@@ -2935,19 +1402,13 @@ function ProjectBoard({ projects, setProjects, tasks, setTasks, profiles, userPr
 }
 
 // --- CHATROOM PANEL ---
-function WhiteboardChat({ chats, setChats, projects, userProfile, chatChannel, setChatChannel }) {
+function WhiteboardChat({ chats, handleAddChat, chatChannel, setChatChannel }) {
   const [inputText, setInputText] = useState('');
   
   const commit = (e) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    setChats(prev => [...prev, { 
-      id: Date.now(), 
-      projectId: chatChannel, 
-      text: inputText, 
-      senderName: userProfile?.name || 'Guest Creator', 
-      senderUid: userProfile?.uid || 'guest-uid' 
-    }]);
+    handleAddChat(inputText.trim(), chatChannel);
     setInputText('');
   };
 
@@ -2975,7 +1436,7 @@ function WhiteboardChat({ chats, setChats, projects, userProfile, chatChannel, s
 }
 
 // --- INSTAGRAM SHOWCASE WORK FEED COMPONENT ---
-function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotification }) {
+function PostsWorkspace({ posts, handleAddPost, handleLikePost, handleAddPostComment, userProfile, showToast, pushNotification, firebaseUser }) {
   const [postTitle, setPostTitle] = useState('');
   const [postImageBase64, setPostImageBase64] = useState('');
   const [postText, setPostText] = useState('');
@@ -2999,20 +1460,7 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
       return;
     }
 
-    const newPost = {
-      id: 'post_' + Date.now(),
-      title: postTitle.trim(),
-      description: postText.trim(),
-      image: postImageBase64,
-      authorName: userProfile.name,
-      authorAvatar: userProfile.photoURL,
-      likes: 0,
-      likedBy: [],
-      comments: [],
-      createdAt: Date.now()
-    };
-
-    setPosts(prev => [newPost, ...prev]);
+    handleAddPost(postTitle.trim(), postText.trim(), postImageBase64);
     pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name);
     setPostTitle('');
     setPostText('');
@@ -3021,42 +1469,16 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
     showToast("Showcase published to Insta Feed!", "success");
   };
 
-  const toggleLikePost = (postId) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const hasLiked = p.likedBy?.includes(userProfile.uid);
-        const newLikedBy = hasLiked 
-          ? p.likedBy.filter(u => u !== userProfile.uid)
-          : [...(p.likedBy || []), userProfile.uid];
-        return {
-          ...p,
-          likes: newLikedBy.length,
-          likedBy: newLikedBy
-        };
-      }
-      return p;
-    }));
+  const toggleLikePost = (post) => {
+    handleLikePost(post);
   };
 
-  const handleAddPostComment = (e, postId) => {
+  const handleAddComment = (e, post) => {
     e.preventDefault();
     const commentVal = e.target.commentInputText.value.trim();
     if (!commentVal) return;
 
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        return {
-          ...post,
-          comments: [...(post.comments || []), {
-            id: 'postcomment_' + Date.now(),
-            authorName: userProfile.name,
-            text: commentVal
-          }]
-        };
-      }
-      return post;
-    }));
-
+    handleAddPostComment(post, commentVal);
     e.target.commentInputText.value = '';
     showToast("Comment published!", "success");
   };
@@ -3079,10 +1501,10 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
       </div>
 
       <div className="max-w-md mx-auto space-y-8 animate-fadeIn">
-        {posts.map(post => {
-          const amLiked = post.likedBy?.includes(userProfile?.uid);
+        {posts.map((post, idx) => {
+          const amLiked = post.likedBy?.includes(firebaseUser?.uid);
           return (
-            <div key={post.id} className="bg-white border-2 border-[#EADFC9] rounded-[2rem] overflow-hidden shadow-skeuo-md animate-fadeIn">
+            <div key={idx} className="bg-white border-2 border-[#EADFC9] rounded-[2rem] overflow-hidden shadow-skeuo-md animate-fadeIn">
               
               {/* Instagram Card Header */}
               <div className="p-3.5 flex items-center space-x-3 border-b border-slate-50">
@@ -3097,7 +1519,11 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
 
               {/* Card Main Image */}
               <div className="w-full h-80 overflow-hidden bg-slate-100 relative">
-                <img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" />
+                {post.image?.startsWith('data:') || post.image?.startsWith('http') ? (
+                  <img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" />
+                ) : (
+                  <div className="w-full h-full p-4 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: post.image || PRESET_AVATARS[0].svg }} />
+                )}
               </div>
 
               {/* Action Ribbon & Comment Module */}
@@ -3105,7 +1531,7 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
                 <div className="flex items-center justify-between font-sans">
                   <div className="flex items-center space-x-3 font-sans">
                     <button 
-                      onClick={() => toggleLikePost(post.id)}
+                      onClick={() => toggleLikePost(post)}
                       className="text-xl transition-transform active:scale-150"
                     >
                       {amLiked ? '❤️' : '🤍'}
@@ -3134,7 +1560,7 @@ function PostsWorkspace({ posts, setPosts, userProfile, showToast, pushNotificat
                 </div>
 
                 {/* Add Comment Input */}
-                <form onSubmit={(e) => handleAddPostComment(e, post.id)} className="pt-2 border-t border-[#EADFC9]/20 flex gap-2 font-sans">
+                <form onSubmit={(e) => handleAddComment(e, post)} className="pt-2 border-t border-[#EADFC9]/20 flex gap-2 font-sans">
                   <input 
                     name="commentInputText"
                     type="text" 
@@ -3211,18 +1637,16 @@ function MyProfileWorkspace({ userProfile, profiles, setProfiles, categories, se
     }
   };
 
-  const saveProfileSettings = (e) => {
+  const saveProfileSettings = async (e) => {
     e.preventDefault();
-    if (!fullName.trim()) return;
+    if (!fullName.trim() || !userProfile) return;
 
-    const updatedProfile = {
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', userProfile.uid), {
       ...userProfile,
       name: fullName.trim(),
       workCategory: selectedCat,
       photoURL: uploadedPhotoUrl
-    };
-
-    setProfiles(prev => prev.map(p => p.uid === userProfile.uid ? updatedProfile : p));
+    });
     showToast("Your profile updates saved successfully!", "success");
   };
 
@@ -3236,7 +1660,7 @@ function MyProfileWorkspace({ userProfile, profiles, setProfiles, categories, se
       return;
     }
 
-    setCategories(prev => [...prev, refined]);
+    setCategories(refined);
     setSelectedCat(refined);
     setNewCatInp('');
     showToast("Category registered!", "success");
@@ -3323,56 +1747,15 @@ function MyProfileWorkspace({ userProfile, profiles, setProfiles, categories, se
 }
 
 // --- DEDICATED ADMIN CONTROL HUB PANEL ---
-function AdminPanel({ profiles, setProfiles, siteSettings, setSiteSettings, ytConfig, setYtConfig, syncYouTubeStats, userProfile, showToast }) {
+function AdminPanel({ profiles, handleToggleRole, handleRemoveProfile, handleSaveBrandLabel, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText);
-  const [logoUrlInput, setLogoUrlInput] = useState(siteSettings.logoUrl || '');
-  const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
-  const [apiKeyInput, setApiKeyInput] = useState(ytConfig.apiKey || '');
-  
-  // Custom states for editing other user details
   const [editingUserId, setEditingUserId] = useState(null);
-  const [editedPhoto, setEditedPhoto] = useState('');
 
-  const handleYtSave = (e) => {
+  const saveLogo = (e) => {
     e.preventDefault();
-    setYtConfig(prev => ({
-      ...prev,
-      channelId: channelIdInput,
-      apiKey: apiKeyInput
-    }));
-    showToast("YouTube Sync Engine configurations saved!", "success");
-    syncYouTubeStats(channelIdInput, apiKeyInput);
-  };
-
-  const handleAdminPhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEditedPhoto(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const saveMemberPhotoOverride = (userId) => {
-    if (!editedPhoto) return;
-    setProfiles(prev => prev.map(p => p.uid === userId ? { ...p, photoURL: editedPhoto } : p));
-    setEditingUserId(null);
-    setEditedPhoto('');
-    showToast("Crew member's profile picture modified successfully!", "success");
-  };
-
-  const triggerSiteLogoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoUrlInput(reader.result);
-        setSiteSettings(prev => ({ ...prev, logoUrl: reader.result }));
-        showToast("Dynamic Custom Logo Uploaded successfully!", "success");
-      };
-      reader.readAsDataURL(file);
+    if (logoTxt.trim()) {
+      handleSaveBrandLabel(logoTxt.trim());
+      showToast("Logo brand label custom settings modified!", "success");
     }
   };
 
@@ -3385,51 +1768,12 @@ function AdminPanel({ profiles, setProfiles, siteSettings, setSiteSettings, ytCo
         {/* Branding Configuration */}
         <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
           <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Studio Branding</h3>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase">Logo Brand Text</label>
-            <input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1" />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase font-sans">Logo Image (PFP Style)</label>
-            <input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-xs text-slate-500 mt-1 file:py-1 file:px-2" />
-          </div>
-
-          <button onClick={() => setSiteSettings(p => ({ ...p, logoText: logoTxt }))} className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
-        </div>
-
-        {/* Live YouTube Sync settings */}
-        <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans">
-          <h3 className="font-serif font-bold border-b pb-2 mb-2 text-slate-800">YouTube Auto-Sync Setup</h3>
-          <p className="text-[10px] text-slate-400 mb-3 font-sans">Supply credentials to sync live subscribers & views instantly.</p>
-          
-          <form onSubmit={handleYtSave} className="space-y-3 font-sans">
+          <form onSubmit={saveLogo} className="space-y-3">
             <div>
-              <label className="block text-[9px] font-bold text-slate-400 uppercase font-semibold">YouTube Channel ID / Handle</label>
-              <input 
-                type="text" 
-                value={channelIdInput} 
-                onChange={(e) => setChannelIdInput(e.target.value)}
-                placeholder="e.g. @naitik._.artist-16" 
-                className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans"
-                required
-              />
+              <label className="block text-[10px] font-bold text-slate-400 uppercase">Logo Brand Text</label>
+              <input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1" required />
             </div>
-
-            <div>
-              <label className="block text-[9px] font-bold text-slate-400 uppercase font-semibold">YouTube API v3 Key</label>
-              <input 
-                type="password" 
-                value={apiKeyInput} 
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                placeholder="AIzaSy..." 
-                className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans"
-              />
-            </div>
-
-            <button type="submit" className="w-full py-2 bg-gradient-to-r from-[#C5A03A] to-[#E3BE5C] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold rounded-lg font-sans">
-              Save & Synchronize Channel
-            </button>
+            <button type="submit" className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
           </form>
         </div>
 
@@ -3441,57 +1785,37 @@ function AdminPanel({ profiles, setProfiles, siteSettings, setSiteSettings, ytCo
           <thead>
             <tr className="text-slate-400 font-sans font-semibold">
               <th className="pb-2">Crew Profile</th>
-              <th className="pb-2">Status</th>
+              <th className="pb-2">Access Role</th>
               <th className="pb-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {profiles.map(p => {
-              const isEditing = editingUserId === p.uid;
-              return (
-                <tr key={p.uid} className="border-t font-sans animate-fadeIn">
-                  <td className="py-2.5 font-bold">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50">
-                        {renderAvatar(p.photoURL)}
-                      </div>
-                      <div className="flex flex-col font-sans">
-                        <span>{p.name}</span>
-                        <span className="text-[9px] text-slate-400 font-normal">{p.email}</span>
-                      </div>
+            {profiles.map((p, index) => (
+              <tr key={index} className="border-t font-sans animate-fadeIn">
+                <td className="py-2.5 font-bold">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50">
+                      {renderAvatar(p.photoURL)}
                     </div>
-                    
-                    {/* Admin Override Photo Picker Slot */}
-                    {isEditing && (
-                      <div className="mt-2 p-2 bg-slate-50 border rounded-lg space-y-2 animate-fadeIn font-sans">
-                        <span className="text-[9px] font-bold uppercase text-slate-400 block font-sans">Admin Photo Override</span>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleAdminPhotoUpload} 
-                          className="text-[9px] font-sans"
-                        />
-                        <div className="flex gap-1.5 justify-end">
-                          <button onClick={() => setEditingUserId(null)} className="text-[9px] bg-slate-200 px-2 py-0.5 rounded font-sans">Cancel</button>
-                          <button onClick={() => saveMemberPhotoOverride(p.uid)} className="text-[9px] bg-[#C5A03A] text-white px-2 py-0.5 rounded font-bold font-sans">Save PFP</button>
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2.5 uppercase font-mono text-[10px] font-semibold">{p.status} • {p.role}</td>
-                  <td className="py-2.5 text-right space-x-1.5 font-sans">
-                    {p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() ? (
-                      <div className="flex items-center justify-end gap-1 flex-wrap font-sans">
-                        <button onClick={() => setEditingUserId(p.uid)} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold hover:bg-blue-100">Edit PFP</button>
-                        <button onClick={() => setProfiles(prev => prev.map(x => x.uid === p.uid ? { ...x, status: 'approved' } : x))} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-bold hover:bg-emerald-100 font-sans">Approve</button>
-                        <button onClick={() => setProfiles(prev => prev.map(x => x.uid === p.uid ? { ...x, role: 'admin' } : x))} className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-bold hover:bg-amber-100 font-sans">Promote</button>
-                        <button onClick={() => setProfiles(prev => prev.filter(x => x.uid !== p.uid))} className="bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold hover:bg-rose-100 font-sans">Remove</button>
-                      </div>
-                    ) : <span className="text-slate-400 italic">Owner</span>}
-                  </td>
-                </tr>
-              );
-            })}
+                    <div className="flex flex-col font-sans">
+                      <span>{p.name}</span>
+                      <span className="text-[9px] text-slate-400 font-normal">{p.email}</span>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-2.5 uppercase font-mono text-[10px] font-semibold">{p.role}</td>
+                <td className="py-2.5 text-right space-x-1.5 font-sans">
+                  {p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() ? (
+                    <div className="flex items-center justify-end gap-1.5 flex-wrap font-sans">
+                      <button onClick={() => handleToggleRole(p)} className="bg-amber-50 text-amber-700 px-3 py-1 rounded font-bold hover:bg-amber-100 font-sans border border-amber-200">
+                        {p.role === 'admin' ? 'Demote' : 'Promote'}
+                      </button>
+                      <button onClick={() => handleRemoveProfile(p.uid)} className="bg-rose-50 text-rose-600 px-3 py-1 rounded font-bold hover:bg-rose-100 font-sans border border-rose-200">Remove</button>
+                    </div>
+                  ) : <span className="text-slate-400 italic">Owner</span>}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -3514,3 +1838,5 @@ function PendingScreen({ userProfile }) {
 function RejectedScreen({ userProfile }) {
   return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact Owner direct link.</div>;
 }
+
+```
