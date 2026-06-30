@@ -36,7 +36,6 @@ const PRESET_AVATARS = [
   { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#10B981" opacity="0.15"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"/></svg>` },
 ];
 
-// IMPORTANT: lower-cased once, compared lower-cased everywhere — avoids case-mismatch admin bugs
 const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
 
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
@@ -68,7 +67,7 @@ const WatercolorOverlay = () => (
   />
 );
 
-// --- NOTIFICATION BELL: unread badge + dropdown + optional browser alert permission toggle ---
+// --- NOTIFICATION BELL ---
 function NotificationBell({ notifications, userProfile, isAdmin }) {
   const [open, setOpen] = useState(false);
   const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
@@ -103,11 +102,12 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
         )}
       </button>
 
+      {/* FIX: Improved mobile max-width and negative right alignment so it doesn't bleed off screen */}
       {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn">
+        <div className="absolute right-[-2rem] sm:right-0 mt-2 w-80 max-w-[90vw] sm:w-72 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn">
           <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between">
             <span className="font-serif font-bold text-sm text-slate-800">Notifications</span>
-            <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold">✕</button>
+            <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold p-1">✕</button>
           </div>
 
           {permState !== 'granted' && permState !== 'unsupported' && (
@@ -132,9 +132,6 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
   );
 }
 
-// Source of truth lives in Firestore so every
-// device/browser sees the SAME data — this is what fixes "random crew" / "admin sees nothing".
-// =====================================================================================
 function useFirestoreCollection(name, orderField = null, limitN = null) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -179,7 +176,7 @@ export default function App() {
   const [threeReady, setThreeReady] = useState(false);
 
   const [currentPage, setCurrentPage] = useState('home');
-  const [authUser, setAuthUser] = useState(null); // Firebase Auth user object
+  const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -194,7 +191,6 @@ export default function App() {
 
   const ensureProfileDocRef = useRef(() => {});
 
-  // --- Real Firebase Auth (Google Sign-In, redirect-based — popups get silently blocked on most mobile browsers) ---
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
@@ -203,7 +199,6 @@ export default function App() {
       }
       setAuthLoading(false);
     });
-    // Catch the result when the browser redirects back from Google
     getRedirectResult(auth).catch((err) => {
       console.error('Redirect sign-in error:', err);
       if (err?.code) showToast(`Sign-in failed: ${err.code}`, 'warning');
@@ -211,7 +206,6 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // --- Realtime Firestore-backed collections (shared across every device) ---
   const [profiles] = useFirestoreCollection('profiles');
   const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES });
   const categories = categoriesDoc.list || DEFAULT_CATEGORIES;
@@ -225,7 +219,6 @@ export default function App() {
   const [videos] = useFirestoreCollection('videos', 'createdAt');
   const [scripts] = useFirestoreCollection('scripts', 'createdAt');
 
-  // --- Derived current user profile (doc id === auth uid, so lookup is exact, not email-string matching) ---
   const userProfile = useMemo(() => {
     if (!authUser) return null;
     return profiles.find(p => p.id === authUser.uid) || null;
@@ -237,22 +230,30 @@ export default function App() {
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
 
-  // Surface Firestore permission errors on the notifications feed so they're not silently swallowed.
-  // The #1 reason "notifications never show up" on a freshly deployed app is that Firestore
-  // security rules don't allow reads/writes on the 'notifications' collection for non-owner accounts.
   useEffect(() => {
     if (notifsError) {
-      showToast(`Notifications blocked: ${notifsError}. Check your Firestore security rules for the 'notifications' collection.`, 'warning');
+      showToast(`Notifications blocked: ${notifsError}. Check your Firestore security rules.`, 'warning');
     }
   }, [notifsError]);
 
-  // --- Browser pop-up alerts for new notifications (fires while the site tab is open, even if backgrounded/minimized) ---
+  // FIX: Unread Red Dots logic mapping
+  const unreadMap = useMemo(() => {
+    const lastSeen = userProfile?.lastSeenNotifAt || 0;
+    const unread = notifications.filter(n => n.timestamp > lastSeen);
+    
+    return {
+      vault: unread.some(n => n.message.toLowerCase().includes('video asset') || n.message.toLowerCase().includes('commented on video')),
+      projects: unread.some(n => n.message.toLowerCase().includes('concept whiteboard')),
+      scripts: unread.some(n => n.message.toLowerCase().includes('script topic')),
+      posts: unread.some(n => n.message.toLowerCase().includes('showroom draft')),
+    };
+  }, [notifications, userProfile]);
+
   const seenNotifIdsRef = useRef(new Set());
   const firstNotifLoadRef = useRef(true);
   useEffect(() => {
     if (!userProfile) return;
     if (firstNotifLoadRef.current) {
-      // Don't fire alerts for the whole history on first load — just remember what's already there
       notifications.forEach(n => seenNotifIdsRef.current.add(n.id));
       firstNotifLoadRef.current = false;
       return;
@@ -265,7 +266,7 @@ export default function App() {
       if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
           new Notification('Youtubers Studio', { body: n.message, icon: siteSettings.logoUrl || undefined });
-        } catch (e) { /* some mobile browsers restrict this — safe to ignore */ }
+        } catch (e) {}
       }
     });
   }, [notifications, userProfile, isAdmin]);
@@ -275,11 +276,9 @@ export default function App() {
       await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience });
     } catch (err) {
       console.error('Failed to push notification', err);
-      showToast(`Couldn't post notification: ${err.message}`, 'warning');
     }
   }, []);
 
-  // --- First-time sign-in: create the profile doc (id = uid) if missing ---
   const ensureProfileDoc = useCallback(async (user) => {
     const ref = doc(db, 'profiles', user.uid);
     const snap = await getDoc(ref);
@@ -306,13 +305,8 @@ export default function App() {
   ensureProfileDocRef.current = ensureProfileDoc;
 
   const handleGoogleSignIn = async () => {
-    try {
-      await signInWithRedirect(auth, googleProvider);
-      // Page will redirect to Google then back — result is handled in the onAuthStateChanged/getRedirectResult effect above.
-    } catch (err) {
-      console.error(err);
-      showToast('Sign-in failed — check Firebase Auth config.', 'warning');
-    }
+    try { await signInWithRedirect(auth, googleProvider); } 
+    catch (err) { showToast('Sign-in failed — check Firebase Auth config.', 'warning'); }
   };
 
   const handleSignOut = async () => {
@@ -328,20 +322,14 @@ export default function App() {
     setCurrentPage(targetPage);
   };
 
-  // --- Reactive routing based on approval status ---
   useEffect(() => {
     if (!authUser) return;
-    if (!userProfile) return; // still loading the profile doc
+    if (!userProfile) return;
     if (userProfile.status === 'pending' && currentPage !== 'pending-status') setCurrentPage('pending-status');
     else if (userProfile.status === 'rejected' && currentPage !== 'rejected-status') setCurrentPage('rejected-status');
     else if (userProfile.status === 'approved' && (currentPage === 'pending-status' || currentPage === 'rejected-status')) setCurrentPage('home');
   }, [userProfile, authUser, currentPage]);
 
-  // =====================================================================================
-  // YouTube sync — FIXED: writes the result to Firestore (meta/ytConfig) so every visitor
-  // sees the identical real number, and NEVER fabricates random numbers on failure anymore.
-  // On failure it just records the error and leaves the last real number untouched.
-  // =====================================================================================
   const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
     const activeChannelId = targetChannelId || ytConfig.channelId || DEFAULT_YT_CONFIG.channelId;
     const activeApiKey = targetApiKey || ytConfig.apiKey || DEFAULT_YT_CONFIG.apiKey;
@@ -366,9 +354,7 @@ export default function App() {
     try {
       const channelRes = await fetch(url);
       const channelData = await channelRes.json();
-      if (!channelRes.ok) {
-        throw new Error(channelData?.error?.message || `YouTube API error ${channelRes.status}`);
-      }
+      if (!channelRes.ok) throw new Error(channelData?.error?.message || `YouTube API error ${channelRes.status}`);
       const item = channelData.items?.[0];
       if (!item) throw new Error('Channel not found — check the handle/ID.');
 
@@ -376,7 +362,6 @@ export default function App() {
       const channelIdActual = item.id;
       const channelTitle = item.snippet.title;
 
-      // Most recent UPLOADED video only (excludes live streams) for accurate "latest video views"
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId=${channelIdActual}&maxResults=5&order=date&type=video&key=${activeApiKey}`;
       const searchRes = await fetch(searchUrl);
       const searchData = await searchRes.json();
@@ -404,8 +389,6 @@ export default function App() {
 
       if (!silent) showToast(`Synced with ${channelTitle}.`, 'success');
     } catch (err) {
-      console.error('YouTube sync failed:', err);
-      // Do NOT fabricate numbers — just record the error so the admin can see and fix it
       await setDoc(doc(db, 'meta/ytConfig'), { lastError: err.message, lastSyncedAt: Date.now() }, { merge: true }).catch(() => {});
       if (!silent) showToast(`Sync failed: ${err.message}`, 'warning');
     }
@@ -415,15 +398,14 @@ export default function App() {
   useEffect(() => { ytConfigRef.current = ytConfig; }, [ytConfig]);
 
   useEffect(() => {
-    if (loadingLibraries || !isAdmin) return; // only one role triggers the poll to save API quota
+    if (loadingLibraries || !isAdmin) return;
     syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true);
     const timer = setInterval(() => {
       syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true);
-    }, 5 * 60 * 1000); // every 5 min — frequent polling was burning API quota and masking errors
+    }, 5 * 60 * 1000);
     return () => clearInterval(timer);
   }, [loadingLibraries, isAdmin]);
 
-  // --- Safe CDN Loader Guard for Three.js ---
   useEffect(() => {
     injectArtStyleStyles();
     const loadScript = (src) => new Promise((resolve) => {
@@ -506,16 +488,36 @@ export default function App() {
               <span className="font-serif font-black text-lg text-[#C5A03A] tracking-wider uppercase">Navigation</span>
               <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">✕</button>
             </div>
-            <nav className="space-y-1.5 font-sans">
+            <nav className="space-y-1.5 font-sans relative">
               <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
               <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
               <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
-              <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎞️</span><span>Video Vault</span></button>
-              <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📌</span><span>Project Board</span></button>
-              <button onClick={() => handleNavigationChange('scripts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'scripts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📝</span><span>Scripts</span></button>
+              
+              {/* FIX: Red dots injected based on UnreadMap status */}
+              <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <span>🎞️</span><span>Video Vault</span>
+                {unreadMap.vault && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
+              </button>
+              
+              <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <span>📌</span><span>Project Board</span>
+                {unreadMap.projects && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
+              </button>
+              
+              <button onClick={() => handleNavigationChange('scripts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'scripts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <span>📝</span><span>Scripts</span>
+                {unreadMap.scripts && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
+              </button>
+              
               <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
-              <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📸</span><span>Insta Feed</span></button>
+              
+              <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <span>📸</span><span>Insta Feed</span>
+                {unreadMap.posts && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
+              </button>
+              
               {userProfile && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile</span></button>}
+              
               {isAdmin && (
                 <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1 font-sans">Admin Controls</span>
@@ -684,7 +686,7 @@ function ThreeArtBackground() {
   return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40 animate-fadeIn" />;
 }
 
-// --- SIGN IN MODAL — now real Firebase Auth (Google) instead of a free-text email box ---
+// --- SIGN IN MODAL ---
 function SignInModal({ handleGoogleSignIn, setShowSignInModal }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn font-sans">
@@ -707,6 +709,11 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal }) {
 
 // --- HOMEPAGE HUB ---
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications }) {
+  // FIX: Replaced Live Logs with Updates. Filtering out raw chat messages (which start with a quote).
+  const studioUpdates = useMemo(() => {
+    return notifications.filter(n => !n.message.startsWith('"'));
+  }, [notifications]);
+
   return (
     <section className="space-y-10 py-4 animate-fadeIn font-sans">
       <div className="text-center py-4">
@@ -745,18 +752,18 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
 
       <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md font-sans animate-fadeIn">
         <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-3 mb-4 font-serif">
-          <h3 className="font-serif text-lg font-bold text-[#C5A03A]">⚡ Production Stream Logs</h3>
-          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full font-sans">Live Logs</span>
+          <h3 className="font-serif text-lg font-bold text-[#C5A03A]">📢 Studio Updates</h3>
+          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full font-sans">Recent Activity</span>
         </div>
         <div className="space-y-3 max-h-56 overflow-y-auto custom-scrollbar font-sans pr-1">
-          {notifications.map(notif => (
+          {studioUpdates.map(notif => (
             <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-2 animate-fadeIn">
               <span className="font-bold text-slate-800 font-sans">{notif.actor}: </span>
               <span className="text-slate-600 font-sans">{notif.message}</span>
               <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
             </div>
           ))}
-          {notifications.length === 0 && <p className="text-xs text-slate-400 italic">No activity logged yet.</p>}
+          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No studio updates logged yet.</p>}
         </div>
       </div>
     </section>
@@ -879,7 +886,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   );
 }
 
-// --- VIDEO VAULT — files now upload to Firebase Storage so every viewer sees the same video ---
+// --- VIDEO VAULT ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [selectedVid, setSelectedVid] = useState(null);
   const [videoTitle, setVideoTitle] = useState('');
@@ -1087,8 +1094,6 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 }
 
 // --- SCRIPTS WORKSPACE ---
-// Anyone signed in & approved can create a new topic (a script doc). Once created, only the
-// person who wrote it OR an admin/owner can edit the body text. Everyone approved can read it.
 function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotification }) {
   const [selectedScriptId, setSelectedScriptId] = useState(null);
   const [showNewTopicModal, setShowNewTopicModal] = useState(false);
@@ -1231,6 +1236,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 }
 
 // --- CHATROOM PANEL ---
+// FIX: Converted to Flex Column structure on mobile so input isn't blocked by keyboard and height scrolls smoothly.
 function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification }) {
   const [inputText, setInputText] = useState('');
 
@@ -1250,29 +1256,29 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   };
 
   return (
-    <section className="grid grid-cols-4 border-2 border-[#EADFC9] rounded-[2rem] h-[400px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
-      <div className="col-span-1 bg-[#FFFDF9] p-3 space-y-2 border-r text-xs border-[#EADFC9]/50">
+    <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-[2rem] h-[75vh] sm:h-[500px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
+      <div className="sm:col-span-1 bg-[#FFFDF9] p-3 space-y-2 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 overflow-x-auto whitespace-nowrap sm:whitespace-normal">
         <button onClick={() => setChatChannel('general')} className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition ${chatChannel === 'general' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : ''}`}>🌍 Studio Room</button>
       </div>
-      <div className="col-span-3 flex flex-col h-full justify-between bg-slate-50/20 font-sans">
-        <div className="p-4 overflow-y-auto space-y-2 custom-scrollbar flex-1 font-sans">
+      <div className="sm:col-span-3 flex flex-col h-full bg-slate-50/20 font-sans min-h-0 flex-1">
+        <div className="p-4 overflow-y-auto space-y-2 custom-scrollbar flex-1 font-sans min-h-0">
           {chats.filter(c => c.projectId === chatChannel).slice().reverse().map((m) => (
-            <div key={m.id} className="text-xs p-3 bg-white border border-[#EADFC9]/40 rounded-2xl max-w-[70%] animate-fadeIn shadow-xs font-sans">
+            <div key={m.id} className="text-xs p-3 bg-white border border-[#EADFC9]/40 rounded-2xl max-w-[85%] sm:max-w-[70%] animate-fadeIn shadow-xs font-sans">
               <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{m.senderName}</span>
               {m.text}
             </div>
           ))}
         </div>
         <form onSubmit={commit} className="p-3 border-t flex gap-2 bg-white font-sans animate-fadeIn">
-          <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type studio track commentary..." className="flex-1 px-3 border rounded-xl text-xs focus:outline-none" />
-          <button type="submit" className="px-4 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold border-b-[4px] border-[#ab892c]">Send</button>
+          <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type studio track commentary..." className="flex-1 px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" />
+          <button type="submit" className="px-5 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold border-b-[4px] border-[#ab892c]">Send</button>
         </form>
       </div>
     </section>
   );
 }
 
-// --- INSTA SHOWCASE FEED — images now go to Firebase Storage instead of giant base64 strings ---
+// --- INSTA SHOWCASE FEED ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
   const [postTitle, setPostTitle] = useState('');
   const [postFile, setPostFile] = useState(null);
@@ -1506,8 +1512,8 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
   );
 }
 
-// --- ADMIN PANEL — pulls live from the SAME Firestore collection every visitor uses, so roster
-//     requests always show up here regardless of which device the applicant signed up on ---
+// --- ADMIN PANEL ---
+// FIX: Label Persistence Fixed through explicit try/catch and structured merge saving logic.
 function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText);
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
@@ -1515,7 +1521,12 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   const [editingUserId, setEditingUserId] = useState(null);
   const [editedFile, setEditedFile] = useState(null);
 
-  useEffect(() => setLogoTxt(siteSettings.logoText), [siteSettings.logoText]);
+  useEffect(() => {
+    if (siteSettings?.logoText) {
+      setLogoTxt(siteSettings.logoText);
+    }
+  }, [siteSettings]);
+
   useEffect(() => { setChannelIdInput(ytConfig.channelId || ''); setApiKeyInput(ytConfig.apiKey || ''); }, [ytConfig.channelId, ytConfig.apiKey]);
 
   const pendingCount = profiles.filter(p => p.status === 'pending').length;
@@ -1545,8 +1556,13 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   };
 
   const saveLogoText = async () => {
-    await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true });
-    showToast('Label saved!', 'success');
+    try {
+      await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true });
+      showToast('Label saved successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Error saving label. Check firestore permissions.', 'warning');
+    }
   };
 
   const approve = (uid) => updateDoc(doc(db, 'profiles', uid), { status: 'approved' });
@@ -1659,3 +1675,5 @@ function PendingScreen({ userProfile }) {
 function RejectedScreen({ userProfile }) {
   return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</div>;
 }
+
+```
