@@ -3,7 +3,7 @@ import {
   auth, db, googleProvider,
   doc, setDoc, updateDoc, deleteDoc, getDoc,
   collection, addDoc, onSnapshot, query, orderBy, fbLimit,
-  serverTimestamp, arrayUnion, arrayRemove,
+  serverTimestamp, arrayUnion,
   onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, fbSignOut,
   uploadToStorage,
 } from './firebase';
@@ -880,7 +880,6 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
 }
 
 // --- VIDEO VAULT ---
-// GOD MODE: Added Trash Icon for Comments so admins can moderate Vault comments
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [selectedVid, setSelectedVid] = useState(null);
   const [videoTitle, setVideoTitle] = useState('');
@@ -907,11 +906,9 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
   };
 
   const deleteVideoComment = async (commentId) => {
-      const commentToRemove = selectedVid.comments.find(c => c.id === commentId);
-      if(commentToRemove) {
-          await updateDoc(doc(db, 'videos', selectedVid.id), { comments: arrayRemove(commentToRemove) });
-          showToast('Comment deleted.', 'info');
-      }
+      const updatedComments = selectedVid.comments.filter(c => c.id !== commentId);
+      await updateDoc(doc(db, 'videos', selectedVid.id), { comments: updatedComments });
+      showToast('Comment deleted.', 'info');
   }
 
   const startUpload = async (e) => {
@@ -1038,7 +1035,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
 }
 
 // --- PROJECT BOARD ---
-// GOD MODE: Added Trash Icon so Admins can delete tasks and full projects
 function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin }) {
   const [newConcept, setNewConcept] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -1259,7 +1255,6 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 }
 
 // --- CHATROOM PANEL ---
-// GOD MODE: Admins can directly create and delete channels and delete any individual messages right here.
 function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast }) {
   const [inputText, setInputText] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
@@ -1351,7 +1346,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 }
 
 // --- INSTA SHOWCASE FEED ---
-// GOD MODE: Added Trash Icons for Admins to delete posts and individual comments
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin }) {
   const [postTitle, setPostTitle] = useState('');
   const [postFile, setPostFile] = useState(null);
@@ -1413,11 +1407,9 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   }
 
   const removePostComment = async (postId, postComments, commentId) => {
-      const c = postComments.find(x => x.id === commentId);
-      if(c) {
-          await updateDoc(doc(db, 'posts', postId), { comments: arrayRemove(c) });
-          showToast("Comment removed", "info");
-      }
+      const updatedComments = postComments.filter(x => x.id !== commentId);
+      await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
+      showToast("Comment removed", "info");
   }
 
   return (
@@ -1510,7 +1502,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 }
 
 // --- MY PROFILE WORKSPACE ---
-// FIX: Gracefully fails the image upload so the text still saves. Timeout prevents infinite Saving loop.
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
@@ -1543,7 +1534,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
       let photoURL = userProfile.photoURL;
       let uploadSuccess = true;
       
-      // Attempt image upload with a strict 6 second timeout to prevent infinite freezing
+      // Attempt image upload with a strict timeout to prevent infinite freezing
       if (pendingFile) {
         try {
           photoURL = await Promise.race([
@@ -1631,7 +1622,6 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
 }
 
 // --- ADMIN PANEL ---
-// FIX: Label Persistence Fixed. It explicitly ensures the setting doc is created/merged and alerts specifically on rule failures.
 function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText || '');
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
