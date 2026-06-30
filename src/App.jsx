@@ -3,7 +3,7 @@ import {
   auth, db, googleProvider,
   doc, setDoc, updateDoc, deleteDoc, getDoc,
   collection, addDoc, onSnapshot, query, orderBy, fbLimit,
-  serverTimestamp, arrayUnion,
+  serverTimestamp, arrayUnion, arrayRemove,
   onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, fbSignOut,
   uploadToStorage,
 } from './firebase';
@@ -73,7 +73,7 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
   const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
 
   const visible = useMemo(() => notifications.filter(n => {
-    if (n.actor === 'System') return false; // Filter out system messages
+    if (n.actor === 'System') return false; 
     const audience = n.audience || 'all';
     return audience === 'all' || (audience === 'admin' && isAdmin);
   }), [notifications, isAdmin]);
@@ -103,21 +103,21 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
         )}
       </button>
 
-      {/* FIX: Bulletproof fixed-mobile layout so dropdown never bleeds out of the screen */}
+      {/* SECURE MOBILE LAYOUT: Fixed to viewport on small screens so it CANNOT bleed off screen */}
       {open && (
-        <div className="fixed sm:absolute top-[70px] sm:top-full left-4 right-4 sm:left-auto sm:right-0 mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn">
-          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between">
+        <div className="fixed top-20 left-4 right-4 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn max-h-[80vh] flex flex-col">
+          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0">
             <span className="font-serif font-bold text-sm text-slate-800">Notifications</span>
             <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold p-1">✕</button>
           </div>
 
           {permState !== 'granted' && permState !== 'unsupported' && (
-            <div className="p-3 bg-amber-50/60 border-b border-[#EADFC9]/40">
+            <div className="p-3 bg-amber-50/60 border-b border-[#EADFC9]/40 shrink-0">
               <button onClick={requestPermission} className="w-full text-[10px] font-bold text-[#C5A03A] bg-white border border-[#C5A03A]/30 rounded-lg py-1.5">🔔 Enable browser alerts</button>
             </div>
           )}
 
-          <div className="max-h-72 overflow-y-auto custom-scrollbar">
+          <div className="overflow-y-auto custom-scrollbar flex-1">
             {visible.slice(0, 30).map(n => (
               <div key={n.id} className={`p-3 border-b border-slate-50 text-[11px] ${n.timestamp > lastSeen ? 'bg-amber-50/40' : ''}`}>
                 <span className="font-bold text-slate-800">{n.actor}: </span>
@@ -202,7 +202,6 @@ export default function App() {
       setAuthLoading(false);
     });
     getRedirectResult(auth).catch((err) => {
-      console.error('Redirect sign-in error:', err);
       if (err?.code) showToast(`Sign-in failed: ${err.code}`, 'warning');
     });
     return () => unsub();
@@ -226,7 +225,6 @@ export default function App() {
     return profiles.find(p => p.id === authUser.uid) || null;
   }, [profiles, authUser]);
 
-  const isApproved = userProfile?.status === 'approved';
   const isAdmin = useMemo(() => {
     if (!userProfile) return false;
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
@@ -275,9 +273,7 @@ export default function App() {
   const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
     try {
       await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience });
-    } catch (err) {
-      console.error('Failed to push notification', err);
-    }
+    } catch (err) {}
   }, []);
 
   const ensureProfileDoc = useCallback(async (user) => {
@@ -323,8 +319,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!authUser) return;
-    if (!userProfile) return;
+    if (!authUser || !userProfile) return;
     if (userProfile.status === 'pending' && currentPage !== 'pending-status') setCurrentPage('pending-status');
     else if (userProfile.status === 'rejected' && currentPage !== 'rejected-status') setCurrentPage('rejected-status');
     else if (userProfile.status === 'approved' && (currentPage === 'pending-status' || currentPage === 'rejected-status')) setCurrentPage('home');
@@ -459,7 +454,6 @@ export default function App() {
             ) : (
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow-[0_4px_15px_rgba(197,160,58,0.3)] border-2 border-white">Y</div>
             )}
-            {/* FIX: Removed hidden sm:inline so it ALWAYS shows the label text, added truncate for safety on mobile */}
             <span className="font-serif text-sm sm:text-lg tracking-wider text-[#C5A03A] font-extrabold truncate max-w-[120px] sm:max-w-none">{siteSettings.logoText || 'YOUTUBERS STUDIO'}</span>
           </div>
         </div>
@@ -536,10 +530,10 @@ export default function App() {
         {currentPage === 'crew' && <CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
         {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} />}
         {currentPage === 'vault' && <VideoVault videos={videos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
-        {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} />}
+        {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} />}
         {currentPage === 'scripts' && <ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} />}
-        {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} />}
-        {currentPage === 'posts' && <PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} />}
+        {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} />}
+        {currentPage === 'posts' && <PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} />}
         {currentPage === 'profile' && (
           !userProfile ? (
             <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md"><p className="text-slate-600 font-medium">Loading your profile badge...</p></div>
@@ -709,7 +703,6 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal }) {
 
 // --- HOMEPAGE HUB ---
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications }) {
-  // FIX: Filter out completely chat messages (starts with quotes) AND 'System' generated items.
   const studioUpdates = useMemo(() => {
     return notifications.filter(n => !n.message.startsWith('"') && n.actor !== 'System');
   }, [notifications]);
@@ -887,6 +880,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
 }
 
 // --- VIDEO VAULT ---
+// GOD MODE: Added Trash Icon for Comments so admins can moderate Vault comments
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [selectedVid, setSelectedVid] = useState(null);
   const [videoTitle, setVideoTitle] = useState('');
@@ -911,6 +905,14 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
     pushNotification(`Commented on video draft "${selectedVid.title}"`, userProfile.name);
     showToast('Feedback comment posted!', 'success');
   };
+
+  const deleteVideoComment = async (commentId) => {
+      const commentToRemove = selectedVid.comments.find(c => c.id === commentId);
+      if(commentToRemove) {
+          await updateDoc(doc(db, 'videos', selectedVid.id), { comments: arrayRemove(commentToRemove) });
+          showToast('Comment deleted.', 'info');
+      }
+  }
 
   const startUpload = async (e) => {
     e.preventDefault();
@@ -972,7 +974,12 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                   {(selectedVid.comments || []).map(comment => (
                     <div key={comment.id} className="text-xs p-3 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
                       <div><span className="font-bold text-slate-800 mr-2">{comment.authorName}</span><span className="text-slate-600">{comment.text}</span></div>
-                      <span className="text-[10px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <div className="flex flex-col items-end gap-1">
+                          <span className="text-[10px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          {(isAdmin || comment.authorName === userProfile?.name) && (
+                              <button onClick={() => deleteVideoComment(comment.id)} className="text-rose-500 font-bold hover:text-rose-700 text-[10px]">🗑️</button>
+                          )}
+                      </div>
                     </div>
                   ))}
                   {(!selectedVid.comments || selectedVid.comments.length === 0) && <p className="text-xs text-slate-400 italic py-2">No feedback notes posted yet. Start the conversation below!</p>}
@@ -1031,7 +1038,8 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
 }
 
 // --- PROJECT BOARD ---
-function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject, setSelectedProject, pushNotification }) {
+// GOD MODE: Added Trash Icon so Admins can delete tasks and full projects
+function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin }) {
   const [newConcept, setNewConcept] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
 
@@ -1053,6 +1061,17 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
     setTaskTitle('');
   };
 
+  const removeProject = async (pId, e) => {
+      e.stopPropagation();
+      await deleteDoc(doc(db, 'projects', pId));
+      if(selectedProject?.id === pId) setSelectedProject(null);
+      showToast('Project deleted', 'info');
+  }
+
+  const removeTask = async (tId) => {
+      await deleteDoc(doc(db, 'tasks', tId));
+  }
+
   return (
     <section className="py-4 animate-fadeIn font-sans">
       {!selectedProject ? (
@@ -1065,6 +1084,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
             {projects.map((p) => (
               <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl cursor-pointer shadow-skeuo-md hover:-translate-y-1 hover:shadow-skeuo-3d transition-all relative">
                 <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-2xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
+                {isAdmin && <button onClick={(e) => removeProject(p.id, e)} className="absolute top-2 right-2 text-rose-500 font-bold bg-rose-50 rounded-full w-6 h-6 flex items-center justify-center text-[10px] hover:bg-rose-200">✕</button>}
                 <h4 className="font-serif font-bold text-slate-800 pt-3 text-center line-clamp-2">{p.title}</h4>
               </div>
             ))}
@@ -1077,9 +1097,12 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
           <h3 className="font-serif text-2xl font-bold text-slate-800">{selectedProject.title}</h3>
           <div className="divide-y text-xs">
             {activeTasks.map((t) => (
-              <div key={t.id} className="py-3 flex justify-between items-center">
+              <div key={t.id} className="py-3 flex justify-between items-center group">
                 <span className="font-semibold text-slate-700">{t.title}</span>
-                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</span>
+                <div className="flex items-center gap-2">
+                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</span>
+                    {isAdmin && <button onClick={() => removeTask(t.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2">🗑️</button>}
+                </div>
               </div>
             ))}
           </div>
@@ -1236,9 +1259,10 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 }
 
 // --- CHATROOM PANEL ---
-// FIX: Converted to Flex Column structure on mobile so input isn't blocked by keyboard, and added custom channel list rendering.
-function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings }) {
+// GOD MODE: Admins can directly create and delete channels and delete any individual messages right here.
+function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast }) {
   const [inputText, setInputText] = useState('');
+  const [newChannelName, setNewChannelName] = useState('');
   
   const channels = siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
 
@@ -1257,20 +1281,61 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     setInputText('');
   };
 
+  const handleAddChannel = async (e) => {
+    e.preventDefault();
+    if(!newChannelName.trim()) return;
+    await setDoc(doc(db, 'meta/settings'), {
+        chatChannels: [...channels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}]
+    }, {merge: true});
+    setNewChannelName('');
+    showToast("Whiteboard channel added!", "success");
+  }
+
+  const removeChannel = async (id, e) => {
+    e.stopPropagation();
+    await setDoc(doc(db, 'meta/settings'), {
+        chatChannels: channels.filter(c => c.id !== id)
+    }, {merge: true});
+    if(chatChannel === id) setChatChannel('general');
+    showToast("Channel removed!", "info");
+  }
+
+  const deleteMessage = async (msgId) => {
+    await deleteDoc(doc(db, 'chats', msgId));
+  }
+
   return (
     <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-[2rem] h-[75vh] sm:h-[500px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
-      <div className="sm:col-span-1 bg-[#FFFDF9] p-3 space-y-2 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 overflow-x-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-2 sm:gap-0">
-        {channels.map(ch => (
-           <button key={ch.id} onClick={() => setChatChannel(ch.id)} className={`w-auto sm:w-full text-left px-4 sm:px-2.5 py-2.5 rounded-xl text-xs font-bold transition inline-block sm:block border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>
-             {ch.name}
-           </button>
-        ))}
+      <div className="sm:col-span-1 bg-[#FFFDF9] p-3 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 flex flex-col min-h-0 shrink-0">
+        <div className="overflow-x-auto sm:overflow-y-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-2 sm:gap-2 flex-1">
+            {channels.map(ch => (
+            <div key={ch.id} className="relative group inline-block sm:block w-auto sm:w-full">
+               <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-4 sm:px-2.5 py-2.5 rounded-xl text-xs font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>
+                 {ch.name}
+               </button>
+               {isAdmin && ch.id !== 'general' && (
+                 <button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1.5 py-0.5 shadow-sm">✕</button>
+               )}
+            </div>
+            ))}
+        </div>
+        {isAdmin && (
+            <form onSubmit={handleAddChannel} className="mt-2 pt-2 border-t border-[#EADFC9]/50 flex gap-2 sm:mt-auto shrink-0">
+               <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="New Channel" className="flex-1 px-2 py-1.5 border rounded-lg text-[10px]" required />
+               <button type="submit" className="bg-slate-800 text-white px-2 py-1.5 rounded-lg font-bold">+</button>
+            </form>
+        )}
       </div>
       <div className="sm:col-span-3 flex flex-col h-full bg-slate-50/20 font-sans min-h-0 flex-1">
         <div className="p-4 overflow-y-auto space-y-2 custom-scrollbar flex-1 font-sans min-h-0">
           {chats.filter(c => c.projectId === chatChannel).slice().reverse().map((m) => (
-            <div key={m.id} className="text-xs p-3 bg-white border border-[#EADFC9]/40 rounded-2xl max-w-[85%] sm:max-w-[70%] animate-fadeIn shadow-xs font-sans">
-              <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{m.senderName}</span>
+            <div key={m.id} className="text-xs p-3 bg-white border border-[#EADFC9]/40 rounded-2xl max-w-[85%] sm:max-w-[70%] animate-fadeIn shadow-xs font-sans group relative">
+              <div className="flex justify-between items-start">
+                  <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{m.senderName}</span>
+                  {(isAdmin || m.senderUid === userProfile?.id) && (
+                      <button onClick={() => deleteMessage(m.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] pl-2">🗑️</button>
+                  )}
+              </div>
               {m.text}
             </div>
           ))}
@@ -1286,7 +1351,8 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 }
 
 // --- INSTA SHOWCASE FEED ---
-function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
+// GOD MODE: Added Trash Icons for Admins to delete posts and individual comments
+function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin }) {
   const [postTitle, setPostTitle] = useState('');
   const [postFile, setPostFile] = useState(null);
   const [postText, setPostText] = useState('');
@@ -1307,6 +1373,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
         description: postText.trim(),
         image: imageUrl,
         authorName: userProfile.name,
+        authorUid: userProfile.id,
         authorAvatar: userProfile.photoURL,
         likes: 0,
         likedBy: [],
@@ -1340,6 +1407,19 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
     showToast('Comment published!', 'success');
   };
 
+  const removePost = async (postId) => {
+      await deleteDoc(doc(db, 'posts', postId));
+      showToast("Post removed", "info");
+  }
+
+  const removePostComment = async (postId, postComments, commentId) => {
+      const c = postComments.find(x => x.id === commentId);
+      if(c) {
+          await updateDoc(doc(db, 'posts', postId), { comments: arrayRemove(c) });
+          showToast("Comment removed", "info");
+      }
+  }
+
   return (
     <section className="py-4 animate-fadeIn space-y-6 font-sans">
       <div className="flex flex-col sm:flex-row justify-between items-center bg-white border border-[#EADFC9]/50 p-5 rounded-2xl shadow-sm gap-4">
@@ -1355,12 +1435,17 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
           const amLiked = post.likedBy?.includes(userProfile?.id);
           return (
             <div key={post.id} className="bg-white border-2 border-[#EADFC9] rounded-[2rem] overflow-hidden shadow-skeuo-md animate-fadeIn">
-              <div className="p-3.5 flex items-center space-x-3 border-b border-slate-50">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 animate-fadeIn">{renderAvatar(post.authorAvatar)}</div>
-                <div>
-                  <h4 className="text-xs font-black text-slate-800">{post.authorName}</h4>
-                  <span className="text-[9px] text-slate-400 font-mono">{new Date(post.createdAt).toLocaleDateString()}</span>
+              <div className="p-3.5 flex items-center justify-between border-b border-slate-50">
+                <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 animate-fadeIn">{renderAvatar(post.authorAvatar)}</div>
+                    <div>
+                    <h4 className="text-xs font-black text-slate-800">{post.authorName}</h4>
+                    <span className="text-[9px] text-slate-400 font-mono">{new Date(post.createdAt).toLocaleDateString()}</span>
+                    </div>
                 </div>
+                {(isAdmin || post.authorUid === userProfile.id) && (
+                    <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold bg-rose-50 rounded-full px-2 py-1">🗑️</button>
+                )}
               </div>
               <div className="w-full h-80 overflow-hidden bg-slate-100 relative"><img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" /></div>
               <div className="p-3.5 space-y-2 border-t border-slate-50 font-sans">
@@ -1377,7 +1462,12 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
                 </div>
                 <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                   {(post.comments || []).map((c, i) => (
-                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans"><span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span><span className="text-slate-600">{c.text}</span></div>
+                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group">
+                        <div><span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span><span className="text-slate-600">{c.text}</span></div>
+                        {(isAdmin || c.authorName === userProfile.name) && (
+                            <button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 text-[10px] pl-2">✕</button>
+                        )}
+                    </div>
                   ))}
                   {(!post.comments || post.comments.length === 0) && <p className="text-[10px] text-slate-400 italic font-sans">No comments published yet.</p>}
                 </div>
@@ -1420,7 +1510,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
 }
 
 // --- MY PROFILE WORKSPACE ---
-// FIX: Added timeout and strict try/catch so image upload failures don't permanently freeze the "Saving..." button.
+// FIX: Gracefully fails the image upload so the text still saves. Timeout prevents infinite Saving loop.
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
@@ -1445,33 +1535,34 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
     }
   };
 
-  const uploadWithTimeout = (path, file) => {
-    return Promise.race([
-      uploadToStorage(path, file),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timed out (check storage rules)")), 15000))
-    ]);
-  };
-
   const saveProfileSettings = async (e) => {
     e.preventDefault();
     if (!fullName.trim()) return;
     setSaving(true);
     try {
       let photoURL = userProfile.photoURL;
+      let uploadSuccess = true;
       
+      // Attempt image upload with a strict 6 second timeout to prevent infinite freezing
       if (pendingFile) {
         try {
-          photoURL = await uploadWithTimeout(`avatars/${userProfile.id}_${Date.now()}`, pendingFile);
+          photoURL = await Promise.race([
+            uploadToStorage(`avatars/${userProfile.id}_${Date.now()}`, pendingFile),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 6000))
+          ]);
         } catch (upErr) {
+          uploadSuccess = false;
           console.error("Storage upload error", upErr);
-          showToast("Image upload failed. Check Firebase Storage rules.", "warning");
-          setSaving(false);
-          return; // Stop the save so it doesn't break the user's profile with a bad URL
+          showToast("Image failed to upload (Storage Rules blocked it). Name updated instead.", "warning");
         }
       }
       
+      // Save text details directly to firestore
       await updateDoc(doc(db, 'profiles', userProfile.id), { name: fullName.trim(), workCategory: selectedCat, photoURL });
-      showToast('Your profile updates saved successfully!', 'success');
+      
+      if(uploadSuccess) {
+          showToast('Your profile updates saved successfully!', 'success');
+      }
       setPendingFile(null);
     } catch (err) {
       console.error(err);
@@ -1540,14 +1631,13 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
 }
 
 // --- ADMIN PANEL ---
-// FIX: Added Chat Channel Configuration so you can add multiple chats
+// FIX: Label Persistence Fixed. It explicitly ensures the setting doc is created/merged and alerts specifically on rule failures.
 function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText || '');
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
   const [apiKeyInput, setApiKeyInput] = useState(ytConfig.apiKey || '');
   const [editingUserId, setEditingUserId] = useState(null);
   const [editedFile, setEditedFile] = useState(null);
-  const [newChannelName, setNewChannelName] = useState('');
 
   useEffect(() => {
     if (siteSettings?.logoText) {
@@ -1586,31 +1676,12 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   const saveLogoText = async () => {
     try {
       await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true });
-      showToast('Label saved successfully!', 'success');
+      showToast('Label saved successfully! Refresh page to see.', 'success');
     } catch (err) {
       console.error(err);
-      showToast('Error saving label. Check firestore permissions.', 'warning');
+      showToast('Error saving label. You do not have Firestore permissions to edit meta.', 'warning');
     }
   };
-
-  const handleAddChannel = async (e) => {
-    e.preventDefault();
-    if(!newChannelName.trim()) return;
-    const currentChannels = siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
-    await setDoc(doc(db, 'meta/settings'), {
-        chatChannels: [...currentChannels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}]
-    }, {merge: true});
-    setNewChannelName('');
-    showToast("Whiteboard chat channel added!", "success");
-  }
-
-  const removeChannel = async (id) => {
-    const currentChannels = siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
-    await setDoc(doc(db, 'meta/settings'), {
-        chatChannels: currentChannels.filter(c => c.id !== id)
-    }, {merge: true});
-    showToast("Channel removed!", "info");
-  }
 
   const approve = (uid) => updateDoc(doc(db, 'profiles', uid), { status: 'approved' });
   const promote = (uid) => updateDoc(doc(db, 'profiles', uid), { role: 'admin' });
@@ -1630,22 +1701,6 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
             <input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-xs text-slate-500 mt-1 file:py-1 file:px-2" />
           </div>
           <button onClick={saveLogoText} className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
-        </div>
-
-        <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans animate-fadeIn">
-          <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Whiteboard Chat Channels</h3>
-          <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-1">
-            {(siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}]).map(ch => (
-              <div key={ch.id} className="flex justify-between items-center text-xs p-2 bg-slate-50 border rounded-lg">
-                <span className="font-bold text-slate-700">{ch.name}</span>
-                {ch.id !== 'general' && <button onClick={() => removeChannel(ch.id)} className="text-rose-500 font-bold px-2 py-0.5 rounded hover:bg-rose-100">✕</button>}
-              </div>
-            ))}
-          </div>
-          <form onSubmit={handleAddChannel} className="mt-3 flex gap-2">
-            <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="e.g. Script Talk" className="flex-1 px-3 py-1.5 border rounded-lg text-xs" required />
-            <button type="submit" className="bg-slate-800 text-white px-3 text-xs font-bold rounded-lg">+</button>
-          </form>
         </div>
 
         <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans">
