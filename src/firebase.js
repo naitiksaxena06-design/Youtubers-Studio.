@@ -5,24 +5,16 @@ import {
   GoogleAuthProvider, 
   onAuthStateChanged, 
   signInWithPopup, 
-  signInWithRedirect, 
-  getRedirectResult, 
   signOut as fbSignOut 
 } from "firebase/auth";
 import { 
   getFirestore, 
   doc, setDoc, updateDoc, deleteDoc, getDoc, 
   collection, addDoc, onSnapshot, query, orderBy, limit as fbLimit, 
-  serverTimestamp, arrayUnion, arrayRemove 
+  arrayUnion 
 } from "firebase/firestore";
-import { 
-  getStorage, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL 
-} from "firebase/storage";
 
-// Your NEW web app's Firebase configuration
+// Your Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDi1RdcZnzYQx7oGYmHsbOPU8wlnxlm6TY",
   authDomain: "rs-studio-c152d.firebaseapp.com",
@@ -38,22 +30,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Custom upload helper function used by App.jsx for PFPs, Video Vault, and Insta Posts
-const uploadToStorage = async (path, file) => {
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return await getDownloadURL(storageRef);
-};
-
-// Export everything App.jsx expects to import
 export {
-  auth, db, storage, googleProvider,
+  auth, db, googleProvider,
   doc, setDoc, updateDoc, deleteDoc, getDoc,
   collection, addDoc, onSnapshot, query, orderBy, fbLimit,
-  serverTimestamp, arrayUnion, arrayRemove,
-  onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, fbSignOut,
-  uploadToStorage
+  arrayUnion, onAuthStateChanged, signInWithPopup, fbSignOut
 };
