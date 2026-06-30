@@ -521,7 +521,7 @@ export default function App() {
         {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} />}
         {currentPage === 'vault' && <VideoVault videos={videos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
         {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} />}
-        {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
+        {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} />}
         {currentPage === 'posts' && <PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} />}
         {currentPage === 'profile' && (
           !userProfile ? (
@@ -1072,21 +1072,19 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 }
 
 // --- CHATROOM PANEL ---
-function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification }) {
+function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel }) {
   const [inputText, setInputText] = useState('');
 
   const commit = async (e) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    const text = inputText;
     await addDoc(collection(db, 'chats'), {
       projectId: chatChannel,
-      text,
+      text: inputText,
       senderName: userProfile?.name || 'Guest Creator',
       senderUid: userProfile?.id || 'guest-uid',
       createdAt: Date.now(),
     });
-    pushNotification(`"${text.length > 60 ? text.slice(0, 60) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'all');
     setInputText('');
   };
 
@@ -1496,4 +1494,4 @@ function PendingScreen({ userProfile }) {
 
 function RejectedScreen({ userProfile }) {
   return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</div>;
-}
+   }
