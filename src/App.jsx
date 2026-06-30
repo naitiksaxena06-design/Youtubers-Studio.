@@ -4,7 +4,7 @@ import {
   doc, setDoc, updateDoc, deleteDoc, getDoc,
   collection, addDoc, onSnapshot, query, orderBy, fbLimit,
   serverTimestamp, arrayUnion,
-  onAuthStateChanged, signInWithPopup, fbSignOut,
+  onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, fbSignOut,
   uploadToStorage,
 } from './firebase';
 
@@ -68,8 +68,71 @@ const WatercolorOverlay = () => (
   />
 );
 
-// =====================================================================================
-// Generic Firestore realtime-collection hook. Source of truth lives in Firestore so every
+// --- NOTIFICATION BELL: unread badge + dropdown + optional browser alert permission toggle ---
+function NotificationBell({ notifications, userProfile, isAdmin }) {
+  const [open, setOpen] = useState(false);
+  const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
+
+  const visible = useMemo(() => notifications.filter(n => {
+    const audience = n.audience || 'all';
+    return audience === 'all' || (audience === 'admin' && isAdmin);
+  }), [notifications, isAdmin]);
+
+  const lastSeen = userProfile.lastSeenNotifAt || 0;
+  const unreadCount = useMemo(() => visible.filter(n => n.timestamp > lastSeen).length, [visible, lastSeen]);
+
+  const openPanel = async () => {
+    setOpen(o => !o);
+    if (!open) {
+      try { await updateDoc(doc(db, 'profiles', userProfile.id), { lastSeenNotifAt: Date.now() }); } catch (e) {}
+    }
+  };
+
+  const requestPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+    const result = await Notification.requestPermission();
+    setPermState(result);
+  };
+
+  return (
+    <div className="relative font-sans">
+      <button onClick={openPanel} className="relative p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">{unreadCount > 9 ? '9+' : unreadCount}</span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-72 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn">
+          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between">
+            <span className="font-serif font-bold text-sm text-slate-800">Notifications</span>
+            <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold">✕</button>
+          </div>
+
+          {permState !== 'granted' && permState !== 'unsupported' && (
+            <div className="p-3 bg-amber-50/60 border-b border-[#EADFC9]/40">
+              <button onClick={requestPermission} className="w-full text-[10px] font-bold text-[#C5A03A] bg-white border border-[#C5A03A]/30 rounded-lg py-1.5">🔔 Enable browser alerts</button>
+            </div>
+          )}
+
+          <div className="max-h-72 overflow-y-auto custom-scrollbar">
+            {visible.slice(0, 30).map(n => (
+              <div key={n.id} className={`p-3 border-b border-slate-50 text-[11px] ${n.timestamp > lastSeen ? 'bg-amber-50/40' : ''}`}>
+                <span className="font-bold text-slate-800">{n.actor}: </span>
+                <span className="text-slate-600">{n.message}</span>
+                <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(n.timestamp).toLocaleString()}</p>
+              </div>
+            ))}
+            {visible.length === 0 && <p className="text-xs text-slate-400 italic p-4 text-center">No notifications yet.</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ Source of truth lives in Firestore so every
 // device/browser sees the SAME data — this is what fixes "random crew" / "admin sees nothing".
 // =====================================================================================
 function useFirestoreCollection(name, orderField = null, limitN = null) {
@@ -126,11 +189,21 @@ export default function App() {
     setTimeout(() => setCustomToast(null), 4000);
   }, []);
 
-  // --- Real Firebase Auth (Google Sign-In) ---
+  const ensureProfileDocRef = useRef(() => {});
+
+  // --- Real Firebase Auth (Google Sign-In, redirect-based — popups get silently blocked on most mobile browsers) ---
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
+      if (user) {
+        try { await ensureProfileDocRef.current(user); } catch (e) { console.error('Profile creation failed', e); }
+      }
       setAuthLoading(false);
+    });
+    // Catch the result when the browser redirects back from Google
+    getRedirectResult(auth).catch((err) => {
+      console.error('Redirect sign-in error:', err);
+      if (err?.code) showToast(`Sign-in failed: ${err.code}`, 'warning');
     });
     return () => unsub();
   }, []);
@@ -160,9 +233,33 @@ export default function App() {
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
 
-  const pushNotification = useCallback(async (message, actorName = 'Crew Member') => {
+  // --- Browser pop-up alerts for new notifications (fires while the site tab is open, even if backgrounded/minimized) ---
+  const seenNotifIdsRef = useRef(new Set());
+  const firstNotifLoadRef = useRef(true);
+  useEffect(() => {
+    if (!userProfile) return;
+    if (firstNotifLoadRef.current) {
+      // Don't fire alerts for the whole history on first load — just remember what's already there
+      notifications.forEach(n => seenNotifIdsRef.current.add(n.id));
+      firstNotifLoadRef.current = false;
+      return;
+    }
+    notifications.forEach(n => {
+      if (seenNotifIdsRef.current.has(n.id)) return;
+      seenNotifIdsRef.current.add(n.id);
+      const audience = n.audience || 'all';
+      const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
+      if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          new Notification('Youtubers Studio', { body: n.message, icon: siteSettings.logoUrl || undefined });
+        } catch (e) { /* some mobile browsers restrict this — safe to ignore */ }
+      }
+    });
+  }, [notifications, userProfile, isAdmin]);
+
+  const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
     try {
-      await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now() });
+      await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience });
     } catch (err) {
       console.error('Failed to push notification', err);
     }
@@ -185,23 +282,22 @@ export default function App() {
         createdAt: Date.now(),
       };
       await setDoc(ref, newProfile);
-      await pushNotification(`${newProfile.name} requested to join the roster.`, 'System');
+      await pushNotification(`${newProfile.name} requested to join the roster.`, 'System', 'admin');
       return newProfile;
     } else if (isOwner && snap.data().role !== 'owner') {
       await updateDoc(ref, { role: 'owner', status: 'approved' });
     }
     return snap.data();
   }, [categories, pushNotification]);
+  ensureProfileDocRef.current = ensureProfileDoc;
 
   const handleGoogleSignIn = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      await ensureProfileDoc(result.user);
-      setShowSignInModal(false);
-      showToast(`Welcome, ${result.user.displayName || result.user.email}!`, 'success');
+      await signInWithRedirect(auth, googleProvider);
+      // Page will redirect to Google then back — result is handled in the onAuthStateChanged/getRedirectResult effect above.
     } catch (err) {
       console.error(err);
-      showToast(err.code === 'auth/popup-closed-by-user' ? 'Sign-in cancelled.' : 'Sign-in failed — check Firebase Auth config.', 'warning');
+      showToast('Sign-in failed — check Firebase Auth config.', 'warning');
     }
   };
 
@@ -372,6 +468,7 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-4">
+          {userProfile && <NotificationBell notifications={notifications} userProfile={userProfile} isAdmin={isAdmin} />}
           {userProfile ? (
             <div className="flex items-center space-x-3">
               <div className="hidden sm:flex flex-col text-right">
