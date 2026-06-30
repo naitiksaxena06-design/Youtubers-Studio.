@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   auth, db, googleProvider,
   doc, setDoc, updateDoc, deleteDoc, getDoc,
-  collection, addDoc, onSnapshot, query, orderBy, fbLimit,
+  collection, addDoc, onSnapshot, query, orderBy, fbLimit, getDocs, where,
   arrayUnion, onAuthStateChanged, signInWithPopup, fbSignOut,
 } from './firebase';
 
@@ -14,6 +14,7 @@ const injectArtStyleStyles = () => {
   styleBlock.innerHTML = `
     .font-serif { font-family: 'Playfair Display', Georgia, serif; }
     .font-sans { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .font-handwritten { font-family: 'Oranienbaum', Georgia, serif; }
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: rgba(234, 223, 201, 0.2); border-radius: 8px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(197, 160, 58, 0.4); border-radius: 8px; }
@@ -26,17 +27,19 @@ const injectArtStyleStyles = () => {
   document.head.appendChild(styleBlock);
 };
 
+// --- PRESET AVATARS ---
 const PRESET_AVATARS = [
   { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
   { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.15"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#1D4ED8" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#1D4ED8"/></svg>` },
   { id: 'gold-palette', name: 'Golden Drop', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.15"/><path d="M30,40 A20,20 0 0,0 70,60 A20,20 0 0,0 30,40" fill="#C5A03A"/><circle cx="45" cy="48" r="3" fill="#ffffff"/></svg>` },
+  { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#10B981" opacity="0.15"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"/></svg>` },
 ];
 
 const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
 const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
-// --- IMAGES AND LIGHTWEIGHT ASSET COMPRESSION ---
+// --- FOOLPROOF LOCAL COMPRESSION UTILITY ---
 const compressAndConvertImage = (file, maxDim = 150) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -48,16 +51,18 @@ const compressAndConvertImage = (file, maxDim = 150) => {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
+        
         if (width > height) {
           if (width > maxDim) { height *= maxDim / width; width = maxDim; }
         } else {
           if (height > maxDim) { width *= maxDim / height; height = maxDim; }
         }
+        
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.65));
+        resolve(canvas.toDataURL('image/jpeg', 0.70));
       };
       img.onerror = (err) => reject(err);
     };
@@ -65,27 +70,25 @@ const compressAndConvertImage = (file, maxDim = 150) => {
   });
 };
 
-// --- DYNAMIC EMBED RESOLVER (Plays Drive, YouTube, or raw base64 / MP4 files) ---
+// --- SMART EMBEDDABLE PLAYER RESOLVER ---
 const resolvePlayableVideo = (url) => {
   if (!url) return { type: 'none', src: '' };
   const cleaned = url.trim();
 
-  // YouTube Links
   const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
   const ytMatch = cleaned.match(ytRegex);
   if (ytMatch) {
-    return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}` };
+    return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1` };
   }
 
-  // Google Drive
   const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
     return { type: 'drive', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview` };
   }
 
-  // Local File uploads / Direct URLs
-  if (cleaned.startsWith('data:video/') || /\.(mp4|webm|mov|m4v)(?:\?|$)/i.test(cleaned)) {
+  const isDirect = /\.(mp4|webm|mov|ogv|m4v)(?:\?|$)/i.test(cleaned) || cleaned.startsWith('data:video/');
+  if (isDirect) {
     return { type: 'direct', src: cleaned };
   }
 
@@ -102,14 +105,15 @@ const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
 
 const WatercolorOverlay = () => (
   <div
-    className="absolute inset-0 pointer-events-none opacity-[0.12] mix-blend-multiply z-10"
+    className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10"
     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }}
   />
 );
 
-// --- NOTIFICATION BELL WITH DISMISSAL ---
+// --- NOTIFICATION BELL WITH SCREEN-TAP DISMISSAL ---
 function NotificationBell({ notifications, userProfile, isAdmin }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
 
   const visible = useMemo(() => notifications.filter(n => {
     if (n.actor === 'System') return false; 
@@ -119,6 +123,13 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
 
   const lastSeen = userProfile.lastSeenNotifAt || 0;
   const unreadCount = useMemo(() => visible.filter(n => n.timestamp > lastSeen).length, [visible, lastSeen]);
+
+  const openPanel = async () => {
+    setOpen(o => !o);
+    if (!open) {
+      try { await updateDoc(doc(db, 'profiles', userProfile.id), { lastSeenNotifAt: Date.now() }); } catch (e) {}
+    }
+  };
 
   useEffect(() => {
     const handleClose = () => setOpen(false);
@@ -136,24 +147,27 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
   }, [open]);
 
   return (
-    <div className="relative font-sans">
-      <button onClick={() => setOpen(!open)} className="relative p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
+    <div className="relative font-sans" ref={containerRef}>
+      <button onClick={openPanel} className="relative p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-        {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">{unreadCount}</span>}
+        {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
 
       {open && (
         <div className="fixed top-20 left-4 right-4 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden max-h-[80vh] flex flex-col">
           <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0" onClick={(e) => e.stopPropagation()}>
             <span className="font-serif font-bold text-sm text-slate-800">Notifications</span>
+            <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold p-1">✕</button>
           </div>
           <div className="overflow-y-auto custom-scrollbar flex-1" onClick={(e) => e.stopPropagation()}>
             {visible.slice(0, 30).map(n => (
-              <div key={n.id} className="p-3 border-b text-[11px]">
+              <div key={n.id} className={`p-3 border-b border-slate-50 text-[11px] ${n.timestamp > lastSeen ? 'bg-amber-50/40' : ''}`}>
                 <span className="font-bold text-slate-800">{n.actor}: </span>
                 <span className="text-slate-600">{n.message}</span>
+                <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(n.timestamp).toLocaleString()}</p>
               </div>
             ))}
+            {visible.length === 0 && <p className="text-xs text-slate-400 italic p-4 text-center">No notifications yet.</p>}
           </div>
         </div>
       )}
@@ -165,6 +179,7 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
 function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!enabled) { setItems([]); setLoaded(false); return; }
@@ -172,12 +187,12 @@ function useFirestoreCollection(name, orderField = null, limitN = null, enabled 
     if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
     const unsub = onSnapshot(q, (snap) => {
       setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoaded(true);
-    }, () => setLoaded(true));
+      setLoaded(true); setError(null);
+    }, (err) => { setLoaded(true); setError(err.message); });
     return () => unsub();
   }, [name, orderField, limitN, enabled]);
 
-  return [items, loaded];
+  return [items, loaded, error];
 }
 
 function useFirestoreDoc(path, fallback, enabled = false) {
@@ -189,6 +204,7 @@ function useFirestoreDoc(path, fallback, enabled = false) {
     const ref = doc(db, path);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) setData({ ...fallback, ...snap.data() });
+      else setData(fallback);
       setLoaded(true);
     }, () => setLoaded(true));
     return () => unsub();
@@ -200,6 +216,7 @@ function useFirestoreDoc(path, fallback, enabled = false) {
 export default function App() {
   const [loadingLibraries, setLoadingLibraries] = useState(true);
   const [threeReady, setThreeReady] = useState(false);
+
   const [currentPage, setCurrentPage] = useState('home');
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -219,7 +236,9 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
-      if (user) { try { await ensureProfileDocRef.current(user); } catch (e) {} }
+      if (user) {
+        try { await ensureProfileDocRef.current(user); } catch (e) {}
+      }
       setAuthLoading(false);
     });
     return () => unsub();
@@ -230,7 +249,7 @@ export default function App() {
   const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES }, isAuthReady);
   const categories = categoriesDoc.list || DEFAULT_CATEGORIES;
   const [posts] = useFirestoreCollection('posts', 'createdAt', null, isAuthReady);
-  const [notifications] = useFirestoreCollection('notifications', 'timestamp', 50, isAuthReady);
+  const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50, isAuthReady);
   const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG, isAuthReady);
   const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] }, isAuthReady);
   const [projects] = useFirestoreCollection('projects', 'createdAt', null, isAuthReady);
@@ -249,61 +268,53 @@ export default function App() {
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
 
-  // --- CLIENT-SIDE 7-DAY AUTO-CLEANUP LOOP (100% Free Database Optimization) ---
+  // --- FEATURE: AUTO-CLEANUP (7 DAYS SWEER TASK) ---
   useEffect(() => {
-    if (!isAdmin || !isAuthReady) return;
-
-    const runCleanup = async () => {
-      const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-      let count = 0;
-
-      // Clean old chats
-      chats.forEach(async (c) => {
-        if (c.createdAt && c.createdAt < oneWeekAgo) {
-          await deleteDoc(doc(db, 'chats', c.id));
-          count++;
+    if (!isAuthReady || !userProfile) return;
+    const runSevenDaySweep = async () => {
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const cleanTargetCollections = ['chats', 'posts', 'notifications', 'videos', 'scripts'];
+      
+      for (const colName of cleanTargetCollections) {
+        try {
+          const fieldName = colName === 'notifications' ? 'timestamp' : 'createdAt';
+          const q = query(collection(db, colName), where(fieldName, '<', sevenDaysAgo));
+          const snapshot = await getDocs(q);
+          snapshot.forEach(async (documentSnapshot) => {
+            await deleteDoc(doc(db, colName, documentSnapshot.id));
+          });
+        } catch (e) {
+          console.warn(`Auto-sweep cleanup completed or skipped for ${colName}`);
         }
-      });
-
-      // Clean old videos
-      videos.forEach(async (v) => {
-        if (v.createdAt && v.createdAt < oneWeekAgo) {
-          await deleteDoc(doc(db, 'videos', v.id));
-          count++;
-        }
-      });
-
-      // Clean old posts
-      posts.forEach(async (p) => {
-        if (p.createdAt && p.createdAt < oneWeekAgo) {
-          await deleteDoc(doc(db, 'posts', p.id));
-          count++;
-        }
-      });
-
-      // Clean old notifications
-      notifications.forEach(async (n) => {
-        if (n.timestamp && n.timestamp < oneWeekAgo) {
-          await deleteDoc(doc(db, 'notifications', n.id));
-          count++;
-        }
-      });
-
-      if (count > 0) {
-        console.log(`[Auto-Clean] Successfully purged ${count} old database records from storage cache.`);
       }
     };
+    // Delay slightly after initialization to optimize boot cycle
+    const delayTimer = setTimeout(() => { runSevenDaySweep(); }, 6000);
+    return () => clearTimeout(delayTimer);
+  }, [isAuthReady, userProfile]);
 
-    // Run cleanups on site load & every 10 minutes
-    runCleanup();
-    const interval = setInterval(runCleanup, 10 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [isAdmin, isAuthReady, chats, videos, posts, notifications]);
+  useEffect(() => {
+    if (notifsError && isAuthReady) {
+      showToast(`Notifications blocked: ${notifsError}.`, 'warning');
+    }
+  }, [notifsError, isAuthReady]);
 
-  // --- SMART NOTIFICATION FILTERS (Only notify for events outside our current hub) ---
+  const unreadMap = useMemo(() => {
+    const lastSeen = userProfile?.lastSeenNotifAt || 0;
+    const unread = notifications.filter(n => n.timestamp > lastSeen && n.actor !== 'System');
+    
+    return {
+      vault: unread.some(n => n.message.toLowerCase().includes('video asset') || n.message.toLowerCase().includes('commented on video')),
+      projects: unread.some(n => n.message.toLowerCase().includes('concept whiteboard')),
+      scripts: unread.some(n => n.message.toLowerCase().includes('script topic')),
+      posts: unread.some(n => n.message.toLowerCase().includes('showroom draft')),
+    };
+  }, [notifications, userProfile]);
+
   const seenNotifIdsRef = useRef(new Set());
   const firstNotifLoadRef = useRef(true);
-
+  
+  // --- FEATURE: SMART NOTIFICATION FILTERS ---
   useEffect(() => {
     if (!userProfile) return;
     if (firstNotifLoadRef.current) {
@@ -314,17 +325,17 @@ export default function App() {
     notifications.forEach(n => {
       if (seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
       seenNotifIdsRef.current.add(n.id);
-
-      // Rule 1: Do not notify the user of their own actions
-      if (n.actorUid === userProfile.id || n.actor === userProfile.name) return;
-
-      // Rule 2: Do not notify if the user is currently looking at the matching hub
-      const category = n.category || 'all';
-      if (category === 'vault' && currentPage === 'vault') return;
-      if (category === 'posts' && currentPage === 'posts') return;
-      if (category === 'projects' && currentPage === 'projects') return;
-      if (category === 'scripts' && currentPage === 'scripts') return;
-      if (category === 'chat' && currentPage === 'chat') return;
+      
+      // Filter 1: Silence actions performed by the current user themselves
+      if (n.actor === userProfile.name) return;
+      
+      // Filter 2: Block notification alerts for sections currently being viewed
+      const msg = n.message.toLowerCase();
+      if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
+      if (currentPage === 'projects' && msg.includes('concept whiteboard')) return;
+      if (currentPage === 'scripts' && msg.includes('script topic')) return;
+      if (currentPage === 'posts' && msg.includes('showroom draft')) return;
+      if (currentPage === 'chat' && !msg.startsWith('"')) return;
 
       const audience = n.audience || 'all';
       const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
@@ -334,17 +345,8 @@ export default function App() {
     });
   }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage]);
 
-  const pushNotification = useCallback(async (message, actorName = 'Crew Member', category = 'all', audience = 'all') => {
-    try { 
-      await addDoc(collection(db, 'notifications'), { 
-        message, 
-        actor: actorName, 
-        actorUid: auth.currentUser?.uid || 'system',
-        category,
-        timestamp: Date.now(), 
-        audience 
-      }); 
-    } catch (err) {}
+  const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
+    try { await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience }); } catch (err) {}
   }, []);
 
   const ensureProfileDoc = useCallback(async (user) => {
@@ -375,7 +377,10 @@ export default function App() {
         showToast('Successfully authenticated!', 'success');
         setShowSignInModal(false);
       }
-    } catch (err) { showToast('Sign-in failed.', 'warning'); }
+    } 
+    catch (err) { 
+      showToast('Sign-in failed — check your connection.', 'warning'); 
+    }
   };
 
   const handleSignOut = async () => {
@@ -398,6 +403,75 @@ export default function App() {
     else if (userProfile.status === 'approved' && (currentPage === 'pending-status' || currentPage === 'rejected-status')) setCurrentPage('home');
   }, [userProfile, authUser, currentPage]);
 
+  const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
+    const activeChannelId = targetChannelId || ytConfig.channelId || DEFAULT_YT_CONFIG.channelId;
+    const activeApiKey = targetApiKey || ytConfig.apiKey || DEFAULT_YT_CONFIG.apiKey;
+
+    let url = '';
+    const trimmed = activeChannelId.trim();
+    if (trimmed.startsWith('UC') && !trimmed.includes('/') && !trimmed.includes('@')) {
+      url = `https://www.googleapis.com/official/youtube/v3/channels?part=statistics,snippet&id=${trimmed}&key=${activeApiKey}`;
+    } else {
+      let handle = trimmed;
+      const match = trimmed.match(/@([^/?#\s]+)/);
+      if (match) handle = match[1];
+      else if (trimmed.includes('youtube.com/')) {
+        const parts = trimmed.split('/');
+        handle = parts[parts.length - 1].replace('@', '').split('?')[0];
+      } else { handle = trimmed.replace('@', ''); }
+      url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=${encodeURIComponent(handle)}&key=${activeApiKey}`;
+    }
+
+    try {
+      const channelRes = await fetch(url);
+      const channelData = await channelRes.json();
+      if (!channelRes.ok) throw new Error(channelData?.error?.message || `YouTube API error ${channelRes.status}`);
+      const item = channelData.items?.[0];
+      if (!item) throw new Error('Channel not found — check the handle/ID.');
+
+      const subsCount = item.statistics.subscriberCount;
+      const channelIdActual = item.id;
+      const channelTitle = item.snippet.title;
+
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId=${channelIdActual}&maxResults=5&order=date&type=video&key=${activeApiKey}`;
+      const searchRes = await fetch(searchUrl);
+      const searchData = await searchRes.json();
+      let views = ytConfig.latestVideoViews;
+      let videoTitle = ytConfig.latestVideoTitle;
+
+      if (searchRes.ok && searchData.items?.length) {
+        const videoItem = searchData.items[0];
+        const videoId = videoItem.id.videoId;
+        videoTitle = videoItem.snippet.title;
+        const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoId}&key=${activeApiKey}`);
+        const videoData = await videoRes.json();
+        if (videoRes.ok) views = videoData.items?.[0]?.statistics?.viewCount ?? views;
+      }
+
+      await setDoc(doc(db, 'meta/ytConfig'), {
+        channelId: activeChannelId, apiKey: activeApiKey,
+        subscribers: parseInt(subsCount, 10).toLocaleString(),
+        latestVideoViews: typeof views === 'string' && views.includes(',') ? views : parseInt(views, 10).toLocaleString(),
+        latestVideoTitle: videoTitle, lastError: null, lastSyncedAt: Date.now(),
+      }, { merge: true });
+
+      if (!silent) showToast(`Synced with ${channelTitle}.`, 'success');
+    } catch (err) {
+      await setDoc(doc(db, 'meta/ytConfig'), { lastError: err.message, lastSyncedAt: Date.now() }, { merge: true }).catch(() => {});
+      if (!silent) showToast(`Sync failed: ${err.message}`, 'warning');
+    }
+  };
+
+  const ytConfigRef = useRef(ytConfig);
+  useEffect(() => { ytConfigRef.current = ytConfig; }, [ytConfig]);
+
+  useEffect(() => {
+    if (loadingLibraries || !isAdmin) return;
+    syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true);
+    const timer = setInterval(() => { syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true); }, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [loadingLibraries, isAdmin]);
+
   useEffect(() => {
     injectArtStyleStyles();
     const loadScript = (src) => new Promise((resolve) => {
@@ -408,7 +482,7 @@ export default function App() {
       try {
         const loadedThree = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
         if (loadedThree) setThreeReady(true);
-      } catch (e) { console.warn('Visual layout loaded.'); } finally { setLoadingLibraries(false); }
+      } catch (e) { console.warn('Studio visual engine fallback.'); } finally { setLoadingLibraries(false); }
     })();
   }, []);
 
@@ -427,7 +501,7 @@ export default function App() {
       {threeReady && <ThreeArtBackground />}
 
       {customToast && (
-        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white transition-all animate-bounce bg-[#C5A03A]`}>
+        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white transition-all animate-bounce ${customToast.type === 'success' ? 'bg-[#2ba640]' : 'bg-[#C5A03A]'}`}>
           {customToast.message}
         </div>
       )}
@@ -468,7 +542,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* --- SIDEBAR --- */}
+      {/* --- SIDEBAR DRAWER --- */}
       <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
         <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
           <div className="space-y-6 pb-20">
@@ -516,8 +590,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* --- PAGES MAIN WRAPPER --- */}
-      <main className="max-w-5xl mx-auto px-4 py-4 relative z-20">
+      {/* --- MAIN PAGE CONTENT --- */}
+      <main className="relative z-20 max-w-7xl mx-auto px-4 py-6 studio-page-wrap animate-fadeIn">
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} />}
         {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} />}
         {currentPage === 'rejected-status' && <RejectedScreen userProfile={userProfile} />}
@@ -528,7 +602,13 @@ export default function App() {
         {currentPage === 'scripts' && <ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} />}
         {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} />}
         {currentPage === 'posts' && <PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} />}
-        {currentPage === 'profile' && <MyProfileWorkspace userProfile={userProfile} categories={categories} showToast={showToast} handleSignOut={handleSignOut} />}
+        {currentPage === 'profile' && (
+          !userProfile ? (
+            <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md"><p className="text-slate-600 font-medium">Loading profile badge...</p></div>
+          ) : (
+            <MyProfileWorkspace userProfile={userProfile} categories={categories} showToast={showToast} handleSignOut={handleSignOut} />
+          )
+        )}
         {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
       </main>
 
@@ -659,255 +739,391 @@ function ThreeArtBackground() {
   return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40 animate-fadeIn" />;
 }
 
-// --- INSTAGRAM-STYLE DYNAMIC VIDEO VAULT ---
+// --- SIGN IN MODAL ---
+function SignInModal({ handleGoogleSignIn, setShowSignInModal }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn font-sans">
+      <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative font-sans text-center animate-fadeIn">
+        <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600 transition">✕</button>
+        <h3 className="font-serif text-xl font-bold text-slate-800 mb-2">Crew Member Sign In</h3>
+        <p className="text-xs text-slate-400 mb-6">Sign in with your Google account to verify your identity and get approved on the roster.</p>
+        <button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-3 py-3 bg-white border-2 border-[#EADFC9] hover:border-[#C5A03A] rounded-xl text-sm font-bold text-slate-700 shadow-sm transition">
+          <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.2 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.3 5.3C40.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+          Continue with Google
+        </button>
+        <p className="text-[10px] text-slate-400 mt-4">New here? Your account will be routed to the pending roster for owner approval.</p>
+      </div>
+    </div>
+  );
+}
+
+// --- HOMEPAGE HUB ---
+function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications }) {
+  const studioUpdates = useMemo(() => notifications.filter(n => !n.message.startsWith('"') && n.actor !== 'System'), [notifications]);
+
+  return (
+    <section className="space-y-8 py-2 animate-fadeIn font-sans">
+      <div className="text-center py-2">
+        <h1 className="font-serif text-2xl sm:text-3xl md:text-5xl font-black text-slate-800 uppercase tracking-tight leading-tight">
+          {siteSettings.logoText || 'YOUTUBERS STUDIO'}
+        </h1>
+        <p className="text-slate-500 font-serif italic text-xs sm:text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: 'YouTube Subscribers', value: ytConfig.subscribers, icon: '📈', change: ytConfig.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
+          { label: 'Latest Video Views', value: ytConfig.latestVideoViews, icon: '📺', change: ytConfig.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
+          { label: 'Vault Records', value: `${videos.length} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
+          { label: 'Active Ideas', value: `${projects.length} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
+        ].map((stat, idx) => (
+          <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-4 shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-36">
+            <div>
+              <div className="flex justify-between items-center text-slate-400 mb-1">
+                <span className="text-[9px] uppercase font-bold tracking-wider font-sans">{stat.label}</span>
+                <span className="text-base">{stat.icon}</span>
+              </div>
+              <p className="text-lg md:text-xl font-black text-slate-800 font-sans leading-none">{stat.value}</p>
+            </div>
+            <div className="mt-1 font-sans">
+              <span className="text-[9px] text-[#C5A03A] font-semibold block truncate leading-tight">{stat.change}</span>
+              {stat.action}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans">
+        <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-2 mb-3 font-serif">
+          <h3 className="font-serif text-sm font-bold text-[#C5A03A]">📢 Studio Updates</h3>
+          <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans border border-emerald-200">Recent Activity</span>
+        </div>
+        <div className="space-y-2.5 max-h-48 overflow-y-auto custom-scrollbar font-sans pr-1">
+          {studioUpdates.map(notif => (
+            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-1.5 animate-fadeIn">
+              <span className="font-bold text-slate-800 font-sans">{notif.actor}: </span>
+              <span className="text-slate-600 font-sans">{notif.message}</span>
+              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
+            </div>
+          ))}
+          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No updates mapped to log yet.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// --- CREW DIRECTORY SECTION ---
+function CrewSection({ profiles, userProfile, showToast, isAdmin }) {
+  const [focusIdx, setFocusIdx] = useState(0);
+  const approvedProfiles = useMemo(() => profiles.filter(p => p.status === 'approved'), [profiles]);
+
+  const removeMember = async (uid) => {
+    try { await deleteDoc(doc(db, 'profiles', uid)); showToast('Crew member removed.', 'success'); } catch (err) { showToast('Failed to remove.', 'warning'); }
+  };
+
+  if (approvedProfiles.length === 0) return <div className="text-center text-slate-400 py-20">No approved crew members yet.</div>;
+
+  return (
+    <section className="py-2 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+      <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl text-center shadow-skeuo-md animate-fadeIn h-fit">
+        <div className="w-24 h-24 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">{renderAvatar(approvedProfiles[focusIdx]?.photoURL)}</div>
+        <h3 className="font-serif text-xl font-bold text-slate-800">{approvedProfiles[focusIdx]?.name}</h3>
+        <p className="text-xs text-slate-400 mt-1 font-sans">{approvedProfiles[focusIdx]?.email}</p>
+        <span className="bg-[#C5A03A] text-white text-[9px] px-3 py-1 rounded-full font-bold mt-2 inline-block font-sans shadow-sm">{approvedProfiles[focusIdx]?.role}</span>
+      </div>
+
+      <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md max-h-[450px] overflow-y-auto custom-scrollbar animate-fadeIn">
+        <h4 className="font-serif font-bold text-sm border-b pb-2 mb-3 text-slate-700">Production Team Members</h4>
+        <div className="space-y-2 font-sans">
+          {profiles.map((p, i) => (
+            <div key={p.id} className="flex justify-between items-center p-2.5 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer shrink-0" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}>{renderAvatar(p.photoURL)}</div>
+                <div className="cursor-pointer min-w-0" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}>
+                  <p className="text-xs font-bold text-slate-800 truncate">{p.name}</p>
+                  <span className="text-[9px] font-mono text-slate-400 block truncate">{p.email} • {p.role} • {p.workCategory}</span>
+                </div>
+              </div>
+              {isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL && (
+                <button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2.5 py-1 rounded-full hover:bg-rose-100 font-sans whitespace-nowrap">Remove</button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// --- CATEGORIES VIEW ---
+function CategoriesViewSection({ profiles, categories, showToast }) {
+  const [activeCategory, setActiveCategory] = useState(categories[0] || 'Editing');
+  const [newCatInput, setNewCustomCategory] = useState('');
+
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    const clean = newCatInput.trim();
+    if (!clean) return;
+    if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) { showToast('Category exists.', 'warning'); return; }
+    await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(clean) }, { merge: true });
+    setActiveCategory(clean); setNewCustomCategory(''); showToast(`Category added.`, 'success');
+  };
+
+  const matchedMembers = useMemo(() => profiles.filter(p => p.status === 'approved' && p.workCategory === activeCategory), [profiles, activeCategory]);
+
+  return (
+    <section className="py-2 animate-fadeIn space-y-4 font-sans">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 font-sans">
+        <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-4 rounded-2xl shadow-skeuo-md space-y-4 animate-fadeIn">
+          <div>
+            <h4 className="font-serif text-xs font-bold text-slate-800 mb-1.5">Add Custom Category</h4>
+            <form onSubmit={handleAddCategory} className="space-y-1.5 font-sans font-semibold">
+              <input type="text" value={newCatInput} onChange={(e) => setNewCustomCategory(e.target.value)} placeholder="e.g. 3D Matte Shader" className="w-full px-3 py-1.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
+              <button type="submit" className="w-full py-1 bg-[#C5A03A] text-white text-[9px] font-bold uppercase rounded-lg border-b-[3px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] shadow-sm">Add Role Tag</button>
+            </form>
+          </div>
+          <div className="pt-3 border-t border-slate-100 space-y-1">
+            <span className="text-[9px] font-bold text-[#C5A03A] uppercase tracking-wider block mb-1.5 font-sans">Role tags</span>
+            {categories.map((cat, idx) => (<button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>))}
+          </div>
+        </div>
+
+        <div className="lg:col-span-3 bg-white/70 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md space-y-3 animate-fadeIn">
+          <div className="flex justify-between items-center border-b pb-2 border-slate-100 font-serif">
+            <h3 className="font-serif text-base font-bold text-slate-800">Specialization: <span className="text-[#C5A03A]">{activeCategory}</span></h3>
+            <span className="text-xs bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500 font-sans">{matchedMembers.length} Specialists</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-sans animate-fadeIn">
+            {matchedMembers.map((member) => (
+              <div key={member.id} className="flex items-center space-x-2.5 p-3 border bg-white rounded-xl shadow-sm animate-fadeIn">
+                <div className="w-9 h-9 rounded-full border bg-white overflow-hidden p-0.5 flex items-center justify-center shrink-0">{renderAvatar(member.photoURL)}</div>
+                <div className="min-w-0">
+                  <h5 className="font-bold text-xs text-slate-800 font-sans truncate">{member.name}</h5>
+                  <p className="text-[9px] text-slate-400 font-sans truncate">{member.email}</p>
+                  <span className="inline-block bg-amber-50 text-[#C5A03A] text-[8px] font-bold px-1.5 py-0.5 rounded mt-0.5 font-sans">{member.role}</span>
+                </div>
+              </div>
+            ))}
+            {matchedMembers.length === 0 && <div className="col-span-full py-12 text-center text-slate-400 italic text-xs">"No crew member is currently assigned to this specialization."</div>}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// --- FEATURE: VIDEO VAULT PREMIUM INSTAGRAM-STYLE INTERACTIVE DUAL FEED & ENGINE ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
+  const [uploadMode, setUploadMode] = useState('link'); // 'link' | 'gallery'
+  const [galleryBase64, setGalleryBase64] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const [openCommentsId, setOpenCommentsId] = useState(null);
-  const fileInputRef = useRef(null);
+  const [uploadingState, setUploadingState] = useState(false);
+  const [expandedComments, setExpandedComments] = useState({});
 
-  // Handles either base64 compress uploads OR external links
+  const toggleComments = (id) => {
+    setExpandedComments(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleGalleryFileSelect = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      showToast('Video file size shouldn\'t exceed 15MB for direct free base64 ingestion.', 'warning');
+      return;
+    }
+    setUploadingState(true);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      setGalleryBase64(reader.result);
+      setUploadingState(false);
+      showToast('Gallery video compressed & ready to inject!', 'success');
+    };
+    reader.onerror = () => {
+      setUploadingState(false);
+      showToast('Error parsing file string.', 'warning');
+    };
+  };
+
   const startUpload = async (e) => {
     e.preventDefault();
-    const file = fileInputRef.current?.files?.[0];
-    
     if (!videoTitle.trim()) return;
-    setPublishing(true);
+    
+    let targetSrcLocation = '';
+    let metricSize = '';
+    
+    if (uploadMode === 'link') {
+      if (!videoUrlInput.trim()) return;
+      targetSrcLocation = videoUrlInput.trim();
+      metricSize = "External URL Link";
+    } else {
+      if (!galleryBase64) { showToast('Please capture or select a gallery asset first.', 'warning'); return; }
+      targetSrcLocation = galleryBase64;
+      metricSize = `Direct Gallery Payload (${(galleryBase64.length / 1024 / 1024).toFixed(2)} MB)`;
+    }
 
     try {
-      let finalVideoSrc = videoUrlInput.trim();
-
-      // If user provided a local gallery file, convert to a compact compressed Base64 video string!
-      if (file) {
-        if (file.size > 8 * 1024 * 1024) {
-          showToast('Keep video files under 8MB to stay within free tier boundaries!', 'warning');
-          setPublishing(false);
-          return;
-        }
-        
-        const fileReader = new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = (err) => reject(err);
-        });
-        finalVideoSrc = await fileReader;
-      }
-
-      if (!finalVideoSrc) {
-        showToast('Please upload a file or paste a working URL link!', 'warning');
-        setPublishing(false);
-        return;
-      }
-
       await addDoc(collection(db, 'videos'), {
         title: videoTitle.trim(),
-        hlsUrl: finalVideoSrc, 
+        hlsUrl: targetSrcLocation,
         uploaderUid: userProfile.id,
         uploaderName: userProfile.name,
-        uploaderAvatar: userProfile.photoURL || PRESET_AVATARS[0].svg,
-        size: file ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : "External Link",
+        uploaderAvatar: userProfile.photoURL || '',
+        size: metricSize,
         comments: [],
         createdAt: Date.now(),
       });
+      pushNotification(`Added tracked video workspace: "${videoTitle}"`, userProfile.name);
+      setVideoTitle(''); setVideoUrlInput(''); setGalleryBase64(''); setShowUploadModal(false);
+      showToast('Video registered to feed feed successfully!', 'success');
+    } catch (err) { showToast('Upload engine authorization failure.', 'warning'); }
+  };
 
-      pushNotification(`Uploaded a new video timeline draft: "${videoTitle}"`, userProfile.name, 'vault');
-      setVideoTitle('');
-      setVideoUrlInput('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setShowUploadModal(false);
-      showToast('Video published successfully!', 'success');
-    } catch (err) {
-      showToast('Failed to post video metadata.', 'warning');
-    } finally {
-      setPublishing(false);
-    }
+  const removeVideo = async (id, e) => {
+    if (e) e.stopPropagation();
+    await deleteDoc(doc(db, 'videos', id));
+    showToast('Video removed from Vault.', 'info');
   };
 
   const handlePostVideoComment = async (e, videoId) => {
     e.preventDefault();
     const commentText = e.target.commentInput.value.trim();
     if (!commentText) return;
-    
-    const newComment = { 
-      id: 'c_' + Date.now(), 
-      authorName: userProfile.name, 
-      text: commentText, 
-      timestamp: Date.now() 
-    };
-    
+    const newComment = { id: 'c_' + Date.now(), authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
     e.target.commentInput.value = '';
-    pushNotification(`Commented on video draft`, userProfile.name, 'vault');
-    showToast('Feedback comment posted!', 'success');
+    showToast('Feedback note published!', 'success');
   };
 
-  const deleteVideoComment = async (videoId, videoComments, commentId) => {
-    const updatedComments = videoComments.filter(c => c.id !== commentId);
+  const deleteVideoComment = async (videoId, currentComments, commentId) => {
+    const updatedComments = currentComments.filter(c => c.id !== commentId);
     await updateDoc(doc(db, 'videos', videoId), { comments: updatedComments });
     showToast('Comment deleted.', 'info');
   };
 
-  const removeVideo = async (id) => {
-    await deleteDoc(doc(db, 'videos', id));
-    showToast('Video removed from Vault.', 'info');
-  };
-
   return (
-    <section className="py-2 space-y-6 font-sans max-w-lg mx-auto animate-fadeIn">
-      {/* Feed Title Panel */}
-      <div className="flex justify-between items-center bg-white border-2 border-[#EADFC9] p-4 rounded-2xl shadow-skeuo-md">
-        <div>
-          <h2 className="font-serif text-lg font-bold text-slate-800">🎞️ Video Vault Feed</h2>
-          <p className="text-[10px] text-slate-400">All draft feeds will automatically self-clean after 7 days.</p>
-        </div>
-        <button onClick={() => setShowUploadModal(true)} className="bg-gradient-to-r from-red-600 to-amber-600 text-white font-bold text-xs px-4 py-2 rounded-full border-b-[3px] border-amber-700 active:translate-y-[1px] active:border-b-0 shadow transition whitespace-nowrap">
-          + Add Video
-        </button>
+    <section className="py-2 space-y-6 font-sans animate-fadeIn">
+      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans">
+        <h3 className="font-serif font-bold text-slate-800 text-sm sm:text-base">🎞️ Premium Video Vault Feed</h3>
+        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">➕ Upload Dual Asset</button>
       </div>
 
-      {/* Main Video Instagram Feed Layout */}
-      <div className="space-y-6">
-        {videos.map(video => {
-          const embedData = resolvePlayableVideo(video.hlsUrl);
-          const isCommentsOpen = openCommentsId === video.id;
-
+      {/* --- INSTAGRAM-STYLE CARD FEED PLATFORM --- */}
+      <div className="max-w-xl mx-auto space-y-8">
+        {videos.map((vid) => {
+          const embed = resolvePlayableVideo(vid.hlsUrl);
           return (
-            <div key={video.id} className="bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn">
+            <div key={vid.id} className="bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn flex flex-col">
               
-              {/* Card Header (Uploader metadata) */}
-              <div className="p-3.5 flex items-center justify-between border-b border-[#EADFC9]/50">
+              {/* Card Header */}
+              <div className="p-3 flex items-center justify-between border-b border-slate-50 bg-slate-50/40">
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">
-                    {renderAvatar(video.uploaderAvatar || PRESET_AVATARS[0].svg)}
+                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shrink-0">
+                    {renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg)}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs font-black text-slate-800 truncate">{video.uploaderName}</h4>
-                    <span className="text-[8px] text-slate-400 font-mono block">
-                      {new Date(video.createdAt).toLocaleDateString()} at {new Date(video.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                    <h4 className="text-xs font-black text-slate-800 truncate">{vid.uploaderName}</h4>
+                    <span className="text-[8px] text-slate-400 font-mono block">{new Date(vid.createdAt).toLocaleDateString()} • {vid.size}</span>
                   </div>
                 </div>
-                {(isAdmin || video.uploaderUid === userProfile?.id) && (
-                  <button onClick={() => removeVideo(video.id)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-lg transition">
-                    Delete Draft
+                {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE */}
+                {(isAdmin || vid.uploaderUid === userProfile?.id) && (
+                  <button onClick={(e) => removeVideo(vid.id, e)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2 py-1 rounded-md hover:bg-rose-100 transition whitespace-nowrap">
+                    🗑️ Delete Item
                   </button>
                 )}
               </div>
 
-              {/* Card Video Player Frame Container (Strict Aspect Ratio) */}
-              <div className="w-full bg-black relative flex items-center justify-center" style={{ minHeight: '320px' }}>
-                {embedData.type === 'youtube' || embedData.type === 'drive' ? (
-                  <iframe 
-                    src={embedData.src} 
-                    className="w-full h-80 border-none" 
-                    allow="autoplay; encrypted-media; picture-in-picture" 
-                    allowFullScreen 
-                  />
-                ) : embedData.type === 'direct' ? (
-                  <video 
-                    src={embedData.src} 
-                    className="w-full h-80 object-contain" 
-                    controls 
-                  />
+              {/* Card Aspect Ratio Video Workspace */}
+              <div className="w-full bg-black relative aspect-video flex items-center justify-center">
+                {embed.type === 'youtube' || embed.type === 'drive' ? (
+                  <iframe src={embed.src} className="w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
+                ) : embed.type === 'direct' ? (
+                  <video src={embed.src} className="w-full h-full object-contain" controls />
                 ) : (
-                  <div className="p-6 text-center text-white">
-                    <p className="text-amber-400 font-bold mb-2">🎞️ External Project Reference</p>
-                    <a href={embedData.src} target="_blank" rel="noreferrer" className="underline break-all text-xs text-blue-300 hover:text-blue-200">
-                      {embedData.src}
-                    </a>
+                  <div className="p-6 text-center text-xs font-mono text-white space-y-2">
+                    <p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p>
+                    <a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[11px]">{embed.src}</a>
                   </div>
                 )}
               </div>
 
-              {/* Card Actions & Caption Area */}
-              <div className="p-3.5 space-y-2">
+              {/* Action Bar & Metadata */}
+              <div className="p-4 border-t border-slate-50 space-y-2">
                 <div className="flex justify-between items-center text-xs">
-                  <div className="font-sans font-bold text-slate-800">{video.title}</div>
-                  <span className="bg-[#C5A03A]/10 text-[#C5A03A] text-[9px] font-bold px-2.5 py-0.5 rounded-full">
-                    {video.size || "Direct Upload"}
-                  </span>
-                </div>
-
-                {/* Direct Comments Expand Trigger */}
-                <div className="pt-1.5 border-t border-slate-50 flex items-center justify-between">
-                  <button 
-                    onClick={() => setOpenCommentsId(isCommentsOpen ? null : video.id)} 
-                    className="text-[#C5A03A] font-bold text-[10px] hover:underline"
-                  >
-                    💬 View Comments ({video.comments?.length || 0})
+                  <h5 className="font-serif font-bold text-slate-800 text-sm">{vid.title}</h5>
+                  <button onClick={() => toggleComments(vid.id)} className="text-[#C5A03A] font-bold hover:underline">
+                    💬 Feedback Notes ({vid.comments?.length || 0})
                   </button>
                 </div>
 
-                {/* Interactive Comments Drawer Container */}
-                {isCommentsOpen && (
-                  <div className="pt-2 mt-2 space-y-2 animate-fadeIn border-t border-[#EADFC9]/30">
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                      {(video.comments || []).map(comment => (
-                        <div key={comment.id} className="text-[11px] p-2 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
+                {/* Expandable Comments Section */}
+                {expandedComments[vid.id] && (
+                  <div className="pt-2 mt-2 border-t border-[#EADFC9]/20 space-y-2 animate-fadeIn">
+                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1 custom-scrollbar">
+                      {(vid.comments || []).map((comment) => (
+                        <div key={comment.id} className="text-[11px] p-2 bg-slate-50 rounded-xl border flex justify-between items-start">
                           <div className="min-w-0 pr-2">
-                            <span className="font-bold text-slate-800 mr-1.5">{comment.authorName}</span>
+                            <span className="font-bold text-slate-800 mr-1">{comment.authorName}:</span>
                             <span className="text-slate-600 break-words">{comment.text}</span>
                           </div>
-                          <div className="flex items-center space-x-2 shrink-0">
-                            <span className="text-[8px] text-slate-400 font-mono">
-                              {new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                            {(isAdmin || comment.authorName === userProfile?.name) && (
-                              <button onClick={() => deleteVideoComment(video.id, video.comments, comment.id)} className="text-rose-500 font-bold">✕</button>
-                            )}
-                          </div>
+                          {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE */}
+                          {(isAdmin || comment.authorName === userProfile?.name) && (
+                            <button onClick={() => deleteVideoComment(vid.id, vid.comments, comment.id)} className="text-rose-500 hover:text-rose-700 text-[8px] border rounded bg-white px-1">✕</button>
+                          )}
                         </div>
                       ))}
-                      {(!video.comments || video.comments.length === 0) && (
-                        <p className="text-[10px] text-slate-400 italic py-1">No comments posted yet. Write one below!</p>
-                      )}
+                      {(!vid.comments || vid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic">No timeline markup feedback posted.</p>}
                     </div>
 
-                    <form onSubmit={(e) => handlePostVideoComment(e, video.id)} className="flex gap-2 pt-1.5">
-                      <input type="text" name="commentInput" placeholder="Scribble video comment..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
-                      <button type="submit" className="bg-[#C5A03A] text-white text-xs px-3.5 py-1.5 rounded-xl font-bold">Post</button>
+                    <form onSubmit={(e) => handlePostVideoComment(e, vid.id)} className="flex gap-2 pt-1.5">
+                      <input type="text" name="commentInput" placeholder="Add showroom feedback Note..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:outline-none" required />
+                      <button type="submit" className="bg-[#C5A03A] text-white text-[10px] px-2.5 rounded-lg font-bold">Post</button>
                     </form>
                   </div>
                 )}
               </div>
+
             </div>
           );
         })}
-        {videos.length === 0 && (
-          <p className="text-center text-slate-400 italic py-16">No draft videos posted on the hub yet.</p>
-        )}
+        {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs">The Instagram Video Vault showcase is currently empty.</div>}
       </div>
 
-      {/* Upload/Add Link Dialog Overlay */}
       {showUploadModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-5 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
-            <h4 className="font-serif font-bold text-slate-800">Add Video Asset Draft</h4>
+          <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg">
+            <h4 className="font-serif font-bold text-slate-800 text-sm">Ingest Video Content</h4>
             
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+              <button type="button" onClick={() => setUploadMode('link')} className={`flex-1 text-center py-1 rounded-lg text-[11px] font-bold transition ${uploadMode === 'link' ? 'bg-white shadow text-[#C5A03A]' : 'text-slate-500'}`}>🔗 Paste Link</button>
+              <button type="button" onClick={() => setUploadMode('gallery')} className={`flex-1 text-center py-1 rounded-lg text-[11px] font-bold transition ${uploadMode === 'gallery' ? 'bg-white shadow text-[#C5A03A]' : 'text-slate-500'}`}>📁 Gallery Ingestion</button>
+            </div>
+
             <div>
-              <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Title</label>
-              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1 font-sans focus:outline-none" placeholder="e.g. Episode 10 Final Cut" required />
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Showcase Label</label>
+              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1" placeholder="e.g. Director Cut Segment V2" required />
             </div>
 
-            <div className="border-t border-[#EADFC9]/30 pt-3">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Option A: Upload Video File</span>
-              <input type="file" ref={fileInputRef} accept="video/*" className="w-full text-xs text-slate-500" onChange={() => setVideoUrlInput("")} />
-              <p className="text-[8px] text-slate-400 mt-1 italic">Note: Keep video file under 8MB to bypass storage limits.</p>
-            </div>
+            {uploadMode === 'link' ? (
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 uppercase">External Asset URL (YT, Drive share, direct video link)</label>
+                <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1" placeholder="https://..." />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 uppercase">Select Gallery Video Payload</label>
+                <input type="file" accept="video/*" onChange={handleGalleryFileSelect} className="w-full text-xs text-slate-500 mt-1" />
+                {uploadingState && <p className="text-[9px] text-[#C5A03A] animate-pulse mt-1">Compressing payload string...</p>}
+              </div>
+            )}
 
-            <div className="border-t border-[#EADFC9]/30 pt-3">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Option B: Link Video URL</span>
-              <input type="url" value={videoUrlInput} onChange={e => { setVideoUrlInput(e.target.value); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs font-sans focus:outline-none" placeholder="https://drive.google.com/file/d/... or YouTube Link" />
-            </div>
-
-            <div className="flex gap-2 justify-end pt-2 border-t">
+            <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" disabled={publishing} className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px] disabled:opacity-50">
-                {publishing ? 'Processing Asset…' : 'Add Draft'}
-              </button>
+              <button type="submit" disabled={uploadingState} className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 disabled:opacity-40">Track Asset</button>
             </div>
           </form>
         </div>
@@ -925,8 +1141,8 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
     e.preventDefault();
     if (!newConcept.trim()) return;
     await addDoc(collection(db, 'projects'), { title: newConcept, creatorName: userProfile.name, createdAt: Date.now() });
-    pushNotification(`Created video concept whiteboard: "${newConcept}"`, userProfile.name, 'projects');
-    setNewConcept(''); showToast('Whiteboard concept pinned!', 'success');
+    pushNotification(`Created video concept whiteboard: "${newConcept}"`, userProfile.name);
+    setNewConcept(''); showToast('Artboard concept mapped!', 'success');
   };
 
   const activeTasks = useMemo(() => tasks.filter(t => t.projectId === selectedProject?.id), [tasks, selectedProject]);
@@ -934,7 +1150,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
   const addTask = async (e) => {
     e.preventDefault();
     if (!taskTitle.trim()) return;
-    await addDoc(collection(db, 'tasks'), { projectId: selectedProject.id, title: taskTitle, status: 'To Do', createdAt: Date.now() });
+    await addDoc(collection(db, 'tasks'), { projectId: selectedProject.id, title: taskTitle, status: 'To Do' });
     setTaskTitle('');
   };
 
@@ -945,12 +1161,23 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
     showToast('Project deleted', 'info');
   };
 
+  const removeTask = async (tId) => { 
+    await deleteDoc(doc(db, 'tasks', tId)); 
+    showToast('Task card removed.', 'info');
+  };
+
+  const toggleTaskStatus = async (task) => {
+    const nextStatus = task.status === 'To Do' ? 'Completed' : 'To Do';
+    await updateDoc(doc(db, 'tasks', task.id), { status: nextStatus });
+    showToast(`Task status updated to ${nextStatus}`, 'success');
+  };
+
   return (
     <section className="py-2 animate-fadeIn font-sans">
       {!selectedProject ? (
         <div className="space-y-4 font-sans">
           <form onSubmit={createConcept} className="max-w-md mx-auto flex gap-2 bg-white border border-[#EADFC9] p-3 rounded-xl shadow-skeuo-sm">
-            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New video conceptual sprint..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
+            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New video conceptual whiteboard sprint..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
             <button type="submit" className="px-4 bg-[#C5A03A] text-white text-[11px] rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow">Pin Board</button>
           </form>
           
@@ -958,6 +1185,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
             {projects.map((p) => (
               <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl cursor-pointer shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all relative">
                 <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
+                {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                 {isAdmin && (
                   <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>
                 )}
@@ -970,6 +1198,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
         <div className="space-y-4 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn font-sans">
           <div className="flex justify-between items-center border-b pb-2">
             <button onClick={() => setSelectedProject(null)} className="text-[11px] font-bold text-[#C5A03A] hover:underline transition">◀ Back to Cork Board</button>
+            {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
             {isAdmin && (
               <button onClick={(e) => removeProject(selectedProject.id, e)} className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg font-bold hover:bg-rose-100 transition">
                 🗑 Delete Entire Whiteboard
@@ -983,11 +1212,12 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
               <div key={t.id} className="py-2.5 flex justify-between items-center group">
                 <span className="font-semibold text-slate-700">{t.title}</span>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => updateDoc(doc(db, 'tasks', t.id), { status: t.status === 'To Do' ? 'Completed' : 'To Do' })} className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>
+                  <button onClick={() => toggleTaskStatus(t)} className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>
                     {t.status}
                   </button>
+                  {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                   {isAdmin && (
-                    <button onClick={() => deleteDoc(doc(db, 'tasks', t.id))} className="text-rose-500 hover:text-rose-700 text-xs font-bold px-1.5 border rounded" title="Delete Task card">✕</button>
+                    <button onClick={() => removeTask(t.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold px-1.5 border rounded" title="Delete Task card">✕</button>
                   )}
                 </div>
               </div>
@@ -1023,7 +1253,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     const clean = newTopicTitle.trim();
     if (!clean) return;
     const ref = await addDoc(collection(db, 'scripts'), { title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now() });
-    pushNotification(`Started a new script topic: "${clean}"`, userProfile.name, 'scripts');
+    pushNotification(`Started a new script topic: "${clean}"`, userProfile.name);
     setNewTopicTitle(''); setShowNewTopicModal(false); setSelectedScriptId(ref.id); showToast('Topic created!', 'success');
   };
 
@@ -1058,6 +1288,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                 <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
                 <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName}</span>
               </div>
+              {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
               {(isAdmin || s.authorUid === userProfile?.id) && (
                 <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>
               )}
@@ -1079,6 +1310,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                   {canEditSelected && !isEditingBody && (
                     <button onClick={() => setIsEditingBody(true)} className="text-[9px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-2.5 py-1.5">✎ Edit Script</button>
                   )}
+                  {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                   {isAdmin && (
                     <button onClick={(e) => removeTopic(selectedScript.id, e)} className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-100">🗑 Delete</button>
                   )}
@@ -1131,13 +1363,9 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     if (!inputText.trim()) return;
     const text = inputText;
     await addDoc(collection(db, 'chats'), {
-      projectId: chatChannel, 
-      text, 
-      senderName: userProfile?.name || 'Guest Creator', 
-      senderUid: userProfile?.id || 'guest-uid', 
-      createdAt: Date.now(),
+      projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
     });
-    pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'chat', 'all');
+    pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'all');
     setInputText('');
   };
 
@@ -1155,13 +1383,18 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     showToast("Channel removed!", "info");
   };
 
+  const deleteMessage = async (msgId) => { 
+    await deleteDoc(doc(db, 'chats', msgId)); 
+    showToast("Message deleted.", "info");
+  };
+
   return (
     <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-2xl h-[70vh] sm:h-[450px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
       <div className="sm:col-span-1 bg-[#FFFDF9] p-2.5 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 flex flex-col min-h-0 shrink-0">
         <div className="overflow-x-auto sm:overflow-y-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-1.5 sm:gap-2 flex-1">
           {channels.map(ch => (
             <div key={ch.id} className="relative group inline-block sm:block w-auto sm:w-full">
-              <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-3 sm:px-2.5 py-2 rounded-xl text-[11px] font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
+              <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-3 sm:px-2.5 py-2 rounded-xl text-[11px] font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
               {isAdmin && ch.id !== 'general' && (
                 <button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1 py-0.5 border shadow-sm text-[8px]">✕</button>
               )}
@@ -1182,8 +1415,9 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
             <div key={m.id} className="text-xs p-2.5 bg-white border border-[#EADFC9]/40 rounded-xl max-w-[85%] sm:max-w-[75%] animate-fadeIn shadow-xs font-sans group relative">
               <div className="flex justify-between items-start">
                 <span className="text-[9px] text-[#C5A03A] font-bold block mb-0.5">{m.senderName}</span>
+                {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                 {(isAdmin || m.senderUid === userProfile?.id) && (
-                  <button onClick={() => deleteDoc(doc(db, 'chats', m.id))} className="text-rose-500 text-[9px] font-bold pl-3" title="Delete Message">✕ Delete</button>
+                  <button onClick={() => deleteMessage(m.id)} className="text-rose-500 text-[9px] font-bold pl-3" title="Delete Message">✕ Delete</button>
                 )}
               </div>
               <p className="text-slate-700 font-medium leading-relaxed font-sans">{m.text}</p>
@@ -1210,21 +1444,19 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
   const publishPost = async (e) => {
     e.preventDefault();
-    const file = fileInputRef.current?.files?.[0];
+    const file = fileInputRef.current?.files[0];
     if (!postTitle.trim() || !file) return;
     setPublishing(true);
     try {
-      const compressedBase64 = await compressAndConvertImage(file, 500);
+      const compressedString = await compressAndConvertImage(file, 500);
       await addDoc(collection(db, 'posts'), {
-        title: postTitle.trim(), description: postText.trim(), image: compressedBase64,
-        authorName: userProfile.name, authorUid: userProfile.id, authorAvatar: userProfile.photoURL,
+        title: postTitle.trim(), description: postText.trim(), image: compressedString,
+        authorName: userProfile.name, authorAvatar: userProfile.photoURL,
         likes: 0, likedBy: [], comments: [], createdAt: Date.now(),
       });
-      pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name, 'posts');
-      setPostTitle(''); setPostText(''); setShowCreatePostModal(false); showToast('Showcase published to Insta Feed!', 'success');
-    } catch (err) {
-      showToast('Publish failed.', 'warning'); 
-    } finally { setPublishing(false); }
+      pushNotification(`Shared showroom feed display card: "${postTitle}"`, userProfile.name);
+      setPostTitle(''); setPostText(''); setShowCreatePostModal(false); showToast('Showcase uploaded to feed!', 'success');
+    } catch (err) { showToast('Upload failed — check size.', 'warning'); } finally { setPublishing(false); }
   };
 
   const toggleLikePost = async (post) => {
@@ -1239,6 +1471,17 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     if (!commentVal) return;
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion({ id: 'pc_' + Date.now(), authorName: userProfile.name, text: commentVal }) });
     e.target.commentInputText.value = ''; showToast('Comment published!', 'success');
+  };
+
+  const removePost = async (postId) => { 
+    await deleteDoc(doc(db, 'posts', postId)); 
+    showToast("Post removed from feed.", "info"); 
+  };
+
+  const removePostComment = async (postId, postComments, commentId) => {
+    const updatedComments = postComments.filter(x => x.id !== commentId);
+    await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
+    showToast("Comment removed.", "info");
   };
 
   return (
@@ -1258,8 +1501,9 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                   <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(post.authorAvatar)}</div>
                   <div className="min-w-0"><h4 className="text-xs font-black text-slate-800 truncate">{post.authorName}</h4><span className="text-[8px] text-slate-400 font-mono block">{new Date(post.createdAt).toLocaleDateString()}</span></div>
                 </div>
+                {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                 {isAdmin && (
-                  <button onClick={() => deleteDoc(doc(db, 'posts', post.id))} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete Post</button>
+                  <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete Post</button>
                 )}
               </div>
               <div className="w-full h-72 overflow-hidden bg-slate-100 relative"><img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" /></div>
@@ -1282,6 +1526,10 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                   {(post.comments || []).map((c, i) => (
                     <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
                       <div className="min-w-0 pr-2"><span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span><span className="text-slate-600 break-words">{c.text}</span></div>
+                      {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
+                      {(isAdmin || c.authorName === userProfile.name) && (
+                        <button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 hover:text-rose-700 text-[9px] shrink-0 font-bold px-1.5">✕ Delete</button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1321,6 +1569,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(userProfile?.photoURL || '');
+  const [newCatInp, setNewCatInp] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1340,14 +1589,18 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
         photoURL: uploadedPhotoUrl 
       });
       showToast('Profile updated successfully!', 'success');
-    } catch (err) { showToast('Save failed.', 'warning'); } finally { setSaving(false); }
+    } catch (err) { 
+      showToast('Save failed.', 'warning'); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const handleRegisterCategory = async (e) => {
     e.preventDefault(); const refined = newCatInp.trim(); if (!refined) return;
     if (categories.some(c => c.toLowerCase() === refined.toLowerCase())) { showToast('Category tag already exists.', 'warning'); return; }
     await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(refined) }, { merge: true });
-    setSelectedCat(refined); showToast('Category registered!', 'success');
+    setSelectedCat(refined); setNewCatInp(''); showToast('Category registered!', 'success');
   };
 
   return (
@@ -1380,6 +1633,14 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
         </div>
         <button type="submit" disabled={saving} className="w-full py-2.5 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold uppercase rounded-xl tracking-wider hover:bg-[#ae8b30] shadow transition disabled:opacity-50">{saving ? 'Saving…' : 'Save Profile Details'}</button>
       </form>
+      <div className="border-t border-[#EADFC9]/50 mt-5 pt-5 font-sans">
+        <h4 className="font-serif text-xs font-bold text-slate-800 mb-1.5">Register Custom Specialization Tag</h4>
+        <form onSubmit={handleRegisterCategory} className="flex gap-2 font-sans">
+          <input type="text" value={newCatInp} onChange={(e) => setNewCatInp(e.target.value)} placeholder="e.g. 3D Animator" className="flex-1 px-3 py-1.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:outline-none" required />
+          <button type="submit" className="px-3.5 py-1.5 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Tag</button>
+        </form>
+      </div>
+      <div className="border-t border-[#EADFC9]/50 mt-5 pt-5 text-center"><button onClick={handleSignOut} className="text-xs font-bold text-rose-500 hover:text-rose-700 transition bg-rose-50 hover:bg-rose-100 px-5 py-2 rounded-full border border-rose-200">🚪 Sign Out</button></div>
     </section>
   );
 }
@@ -1434,6 +1695,8 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
 
   const approve = (uid) => updateDoc(doc(db, 'profiles', uid), { status: 'approved' });
   const promote = (uid) => updateDoc(doc(db, 'profiles', uid), { role: 'admin' });
+  
+  // --- FEATURE: ROSTER DEMOTION WORKSPACE TRIGGER ---
   const demote = (uid) => updateDoc(doc(db, 'profiles', uid), { role: 'member' });
   const remove = (uid) => deleteDoc(doc(db, 'profiles', uid));
 
@@ -1496,7 +1759,8 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                           {p.role !== 'admin' && p.role !== 'owner' ? (
                             <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 border rounded hover:bg-amber-100 text-[9px]">Promote</button>
                           ) : (
-                            p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-purple-50 text-purple-700 px-2 py-0.5 border rounded hover:bg-purple-100 text-[9px]">Demote</button>
+                            /* --- FEATURE: ROSTER DEMOTION CONTROL FOR ADMIN/OWNERS --- */
+                            p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-purple-50 text-purple-700 px-2 py-0.5 border rounded hover:bg-purple-100 text-[9px]">Demote back to Member</button>
                           )}
                           
                           <button onClick={() => remove(p.id)} className="bg-rose-50 text-rose-600 px-2 py-0.5 border rounded hover:bg-rose-100 text-[9px]">Remove</button>
