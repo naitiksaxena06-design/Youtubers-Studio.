@@ -132,25 +132,28 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
   );
 }
 
- Source of truth lives in Firestore so every
+// Source of truth lives in Firestore so every
 // device/browser sees the SAME data — this is what fixes "random crew" / "admin sees nothing".
 // =====================================================================================
 function useFirestoreCollection(name, orderField = null, limitN = null) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(null);
   useEffect(() => {
     let q = collection(db, name);
     if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
     const unsub = onSnapshot(q, (snap) => {
       setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoaded(true);
+      setError(null);
     }, (err) => {
       console.error(`Firestore listener error on '${name}':`, err);
       setLoaded(true);
+      setError(err.message);
     });
     return () => unsub();
   }, [name, orderField, limitN]);
-  return [items, loaded];
+  return [items, loaded, error];
 }
 
 function useFirestoreDoc(path, fallback) {
@@ -213,13 +216,14 @@ export default function App() {
   const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES });
   const categories = categoriesDoc.list || DEFAULT_CATEGORIES;
   const [posts] = useFirestoreCollection('posts', 'createdAt');
-  const [notifications] = useFirestoreCollection('notifications', 'timestamp', 50);
+  const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50);
   const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG);
   const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '' });
   const [projects] = useFirestoreCollection('projects', 'createdAt');
   const [tasks] = useFirestoreCollection('tasks');
   const [chats] = useFirestoreCollection('chats', 'createdAt', 200);
   const [videos] = useFirestoreCollection('videos', 'createdAt');
+  const [scripts] = useFirestoreCollection('scripts', 'createdAt');
 
   // --- Derived current user profile (doc id === auth uid, so lookup is exact, not email-string matching) ---
   const userProfile = useMemo(() => {
@@ -232,6 +236,15 @@ export default function App() {
     if (!userProfile) return false;
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
+
+  // Surface Firestore permission errors on the notifications feed so they're not silently swallowed.
+  // The #1 reason "notifications never show up" on a freshly deployed app is that Firestore
+  // security rules don't allow reads/writes on the 'notifications' collection for non-owner accounts.
+  useEffect(() => {
+    if (notifsError) {
+      showToast(`Notifications blocked: ${notifsError}. Check your Firestore security rules for the 'notifications' collection.`, 'warning');
+    }
+  }, [notifsError]);
 
   // --- Browser pop-up alerts for new notifications (fires while the site tab is open, even if backgrounded/minimized) ---
   const seenNotifIdsRef = useRef(new Set());
@@ -262,6 +275,7 @@ export default function App() {
       await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience });
     } catch (err) {
       console.error('Failed to push notification', err);
+      showToast(`Couldn't post notification: ${err.message}`, 'warning');
     }
   }, []);
 
@@ -478,7 +492,6 @@ export default function App() {
               <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
                 {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
               </div>
-              <button onClick={handleSignOut} className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition">Sign out</button>
             </div>
           ) : (
             <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-5 py-2.5 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95">🔑 Crew Sign In</button>
@@ -499,6 +512,7 @@ export default function App() {
               <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
               <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎞️</span><span>Video Vault</span></button>
               <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📌</span><span>Project Board</span></button>
+              <button onClick={() => handleNavigationChange('scripts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'scripts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📝</span><span>Scripts</span></button>
               <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
               <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📸</span><span>Insta Feed</span></button>
               {userProfile && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile</span></button>}
@@ -521,13 +535,14 @@ export default function App() {
         {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} />}
         {currentPage === 'vault' && <VideoVault videos={videos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
         {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} />}
+        {currentPage === 'scripts' && <ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} />}
         {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
         {currentPage === 'posts' && <PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} />}
         {currentPage === 'profile' && (
           !userProfile ? (
             <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md"><p className="text-slate-600 font-medium">Loading your profile badge...</p></div>
           ) : (
-            <MyProfileWorkspace userProfile={userProfile} categories={categories} showToast={showToast} />
+            <MyProfileWorkspace userProfile={userProfile} categories={categories} showToast={showToast} handleSignOut={handleSignOut} />
           )
         )}
         {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
@@ -1071,6 +1086,150 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
   );
 }
 
+// --- SCRIPTS WORKSPACE ---
+// Anyone signed in & approved can create a new topic (a script doc). Once created, only the
+// person who wrote it OR an admin/owner can edit the body text. Everyone approved can read it.
+function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotification }) {
+  const [selectedScriptId, setSelectedScriptId] = useState(null);
+  const [showNewTopicModal, setShowNewTopicModal] = useState(false);
+  const [newTopicTitle, setNewTopicTitle] = useState('');
+  const [draftText, setDraftText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [isEditingBody, setIsEditingBody] = useState(false);
+
+  const selectedScript = useMemo(() => scripts.find(s => s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
+
+  useEffect(() => {
+    if (selectedScript) setDraftText(selectedScript.content || '');
+  }, [selectedScriptId, selectedScript?.content]);
+
+  const canEditSelected = selectedScript && userProfile && (isAdmin || selectedScript.authorUid === userProfile.id);
+
+  const createTopic = async (e) => {
+    e.preventDefault();
+    const clean = newTopicTitle.trim();
+    if (!clean) return;
+    const ref = await addDoc(collection(db, 'scripts'), {
+      title: clean,
+      content: '',
+      authorUid: userProfile.id,
+      authorName: userProfile.name,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    pushNotification(`Started a new script topic: "${clean}"`, userProfile.name);
+    setNewTopicTitle('');
+    setShowNewTopicModal(false);
+    setSelectedScriptId(ref.id);
+    showToast('Topic created! Start writing the script below.', 'success');
+  };
+
+  const saveScriptBody = async () => {
+    if (!selectedScript || !canEditSelected) return;
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'scripts', selectedScript.id), { content: draftText, updatedAt: Date.now(), lastEditedBy: userProfile.name });
+      setIsEditingBody(false);
+      showToast('Script saved!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Save failed — check Firestore rules.', 'warning');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeTopic = async (id) => {
+    await deleteDoc(doc(db, 'scripts', id));
+    if (selectedScriptId === id) setSelectedScriptId(null);
+    showToast('Script topic deleted.', 'info');
+  };
+
+  return (
+    <section className="py-4 animate-fadeIn font-sans space-y-4">
+      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans animate-fadeIn">
+        <div>
+          <h3 className="font-serif font-bold text-slate-800 text-lg">📝 Script Topics</h3>
+          <p className="text-xs text-slate-400 font-sans">Pick a topic to write or edit its script. Only the writer and admins can edit a script.</p>
+        </div>
+        <button onClick={() => setShowNewTopicModal(true)} className="bg-[#C5A03A] text-white font-bold text-xs px-4 py-2 rounded-full shadow hover:bg-[#b08d32] transition font-sans font-semibold">+ New Topic</button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+        <div className="lg:col-span-1 bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-2xl shadow-skeuo-md space-y-2 max-h-[560px] overflow-y-auto custom-scrollbar animate-fadeIn">
+          <h4 className="font-serif font-bold text-sm text-slate-700 border-b pb-2 mb-1">Topics ({scripts.length})</h4>
+          {scripts.map(s => (
+            <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-3 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
+                <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName} • {s.content ? 'Written' : 'Empty draft'}</span>
+              </div>
+              {(isAdmin || s.authorUid === userProfile?.id) && (
+                <button onClick={(e) => { e.stopPropagation(); removeTopic(s.id); }} className="text-rose-500 text-[10px] font-bold shrink-0">✕</button>
+              )}
+            </div>
+          ))}
+          {scripts.length === 0 && <p className="text-xs text-slate-400 italic p-4 text-center">No script topics yet. Create one to get started.</p>}
+        </div>
+
+        <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md animate-fadeIn">
+          {!selectedScript ? (
+            <div className="text-center text-slate-400 py-24 italic">Select a topic on the left to read or write its script.</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex justify-between items-start border-b pb-3">
+                <div>
+                  <h3 className="font-serif text-xl font-bold text-slate-800">{selectedScript.title}</h3>
+                  <p className="text-[10px] text-slate-400 font-mono mt-1">Written by {selectedScript.authorName}{selectedScript.lastEditedBy ? ` • last edited by ${selectedScript.lastEditedBy}` : ''}</p>
+                </div>
+                {canEditSelected && !isEditingBody && (
+                  <button onClick={() => setIsEditingBody(true)} className="text-[10px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-3 py-1.5">✎ Edit Script</button>
+                )}
+              </div>
+
+              {isEditingBody ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={draftText}
+                    onChange={(e) => setDraftText(e.target.value)}
+                    rows={14}
+                    placeholder="Write the script here..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-[#EADFC9] rounded-xl text-sm focus:ring-1 focus:ring-[#C5A03A] focus:outline-none font-sans leading-relaxed"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => { setIsEditingBody(false); setDraftText(selectedScript.content || ''); }} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
+                    <button onClick={saveScriptBody} disabled={saving} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] disabled:opacity-50">{saving ? 'Saving…' : 'Save Script'}</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed min-h-[200px] font-sans">
+                  {selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet{canEditSelected ? ' — click "Edit Script" to start writing.' : '.'}</span>}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showNewTopicModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <form onSubmit={createTopic} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
+            <h4 className="font-serif font-bold text-slate-800">New Script Topic</h4>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase">Topic Title</label>
+              <input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowNewTopicModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
+              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px]">Create Topic</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // --- CHATROOM PANEL ---
 function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification }) {
   const [inputText, setInputText] = useState('');
@@ -1248,7 +1407,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
 }
 
 // --- MY PROFILE WORKSPACE ---
-function MyProfileWorkspace({ userProfile, categories, showToast }) {
+function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(userProfile?.photoURL || '');
@@ -1339,6 +1498,9 @@ function MyProfileWorkspace({ userProfile, categories, showToast }) {
           <input type="text" value={newCatInp} onChange={(e) => setNewCatInp(e.target.value)} placeholder="e.g. 3D Animation Specialist" className="flex-1 px-4 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:outline-none" required />
           <button type="submit" className="px-4 py-2 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Role Tag</button>
         </form>
+      </div>
+      <div className="border-t border-[#EADFC9]/50 mt-6 pt-6 text-center">
+        <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 hover:text-rose-700 transition bg-rose-50 hover:bg-rose-100 px-5 py-2.5 rounded-full border border-rose-200">🚪 Sign Out</button>
       </div>
     </section>
   );
@@ -1454,46 +1616,4 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                         <input type="file" accept="image/*" onChange={(e) => setEditedFile(e.target.files[0])} className="text-[9px] font-sans" />
                         <div className="flex gap-1.5 justify-end">
                           <button onClick={() => setEditingUserId(null)} className="text-[9px] bg-slate-200 px-2 py-0.5 rounded font-sans">Cancel</button>
-                          <button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[9px] bg-[#C5A03A] text-white px-2 py-0.5 rounded font-bold font-sans">Save PFP</button>
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2.5 uppercase font-mono text-[10px] font-semibold">
-                    <span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}
-                  </td>
-                  <td className="py-2.5 text-right space-x-1.5 font-sans">
-                    {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
-                      <div className="flex items-center justify-end gap-1 flex-wrap font-sans">
-                        <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold hover:bg-blue-100">Edit PFP</button>
-                        {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-bold hover:bg-emerald-100 font-sans">Approve</button>}
-                        {p.role !== 'admin' && p.role !== 'owner' && <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-bold hover:bg-amber-100 font-sans">Promote</button>}
-                        <button onClick={() => remove(p.id)} className="bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold hover:bg-rose-100 font-sans">Remove</button>
-                      </div>
-                    ) : <span className="text-slate-400 italic">Owner</span>}
-                  </td>
-                </tr>
-              );
-            })}
-            {profiles.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-slate-400 italic">No crew members yet.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function PendingScreen({ userProfile }) {
-  return (
-    <div className="min-h-[60vh] flex items-center justify-center text-center p-4">
-      <div className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl max-w-sm shadow-skeuo-md animate-fadeIn font-sans">
-        <h3 className="font-serif font-bold text-xl mb-2">Roster Waiting Room</h3>
-        <p className="text-xs text-slate-500 mb-4 font-sans">Hello {userProfile?.name}! Your account request has been routed to the pending list for review. The studio owner will see it on the Admin panel.</p>
-      </div>
-    </div>
-  );
-}
-
-function RejectedScreen({ userProfile }) {
-  return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</div>;
-}
+                          <button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[9px] bg-[#C5A03A] text-white px-2 py-0.5 round
