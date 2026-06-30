@@ -8,7 +8,6 @@ import {
   uploadToStorage,
 } from './firebase';
 
-// --- INJECT CUSTOM TAILWIND TAILORED STYLES ---
 const injectArtStyleStyles = () => {
   if (document.getElementById('studio-aurum-styles')) return;
   const styleBlock = document.createElement('style');
@@ -37,19 +36,9 @@ const PRESET_AVATARS = [
 ];
 
 const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
-
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
-const DEFAULT_YT_CONFIG = {
-  channelId: '@naitik._.artist-16',
-  apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
-  subscribers: '—',
-  latestVideoViews: '—',
-  latestVideoTitle: 'Not synced yet',
-  lastError: null,
-  lastSyncedAt: null,
-};
+const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
-// --- CUSTOM AVATAR RENDERER ---
 const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
   if (!photoURL || typeof photoURL !== 'string') return <div className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans">?</div>;
   if (photoURL.startsWith('<svg') || photoURL.includes('<circle') || photoURL.includes('<path')) {
@@ -61,16 +50,15 @@ const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
 const WatercolorOverlay = () => (
   <div
     className="absolute inset-0 pointer-events-none opacity-[0.22] mix-blend-multiply z-10"
-    style={{
-      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")`
-    }}
+    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }}
   />
 );
 
-// --- NOTIFICATION BELL ---
+// --- NOTIFICATION BELL WITH CLICK OUTSIDE ---
 function NotificationBell({ notifications, userProfile, isAdmin }) {
   const [open, setOpen] = useState(false);
   const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
+  const containerRef = useRef(null);
 
   const visible = useMemo(() => notifications.filter(n => {
     if (n.actor === 'System') return false; 
@@ -94,16 +82,23 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
     setPermState(result);
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
   return (
-    <div className="relative font-sans">
+    <div className="relative font-sans" ref={containerRef}>
       <button onClick={openPanel} className="relative p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">{unreadCount > 9 ? '9+' : unreadCount}</span>
-        )}
+        {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
 
-      {/* SECURE MOBILE LAYOUT: Fixed to viewport on small screens so it CANNOT bleed off screen */}
       {open && (
         <div className="fixed top-20 left-4 right-4 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn max-h-[80vh] flex flex-col">
           <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0">
@@ -143,13 +138,8 @@ function useFirestoreCollection(name, orderField = null, limitN = null) {
     if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
     const unsub = onSnapshot(q, (snap) => {
       setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoaded(true);
-      setError(null);
-    }, (err) => {
-      console.error(`Firestore listener error on '${name}':`, err);
-      setLoaded(true);
-      setError(err.message);
-    });
+      setLoaded(true); setError(null);
+    }, (err) => { setLoaded(true); setError(err.message); });
     return () => unsub();
   }, [name, orderField, limitN]);
   return [items, loaded, error];
@@ -164,10 +154,7 @@ function useFirestoreDoc(path, fallback) {
       if (snap.exists()) setData({ ...fallback, ...snap.data() });
       else setData(fallback);
       setLoaded(true);
-    }, (err) => {
-      console.error(`Firestore doc listener error on '${path}':`, err);
-      setLoaded(true);
-    });
+    }, (err) => { setLoaded(true); });
     return () => unsub();
   }, [path]);
   return [data, loaded];
@@ -197,7 +184,7 @@ export default function App() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (user) {
-        try { await ensureProfileDocRef.current(user); } catch (e) { console.error('Profile creation failed', e); }
+        try { await ensureProfileDocRef.current(user); } catch (e) {}
       }
       setAuthLoading(false);
     });
@@ -263,17 +250,13 @@ export default function App() {
       const audience = n.audience || 'all';
       const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
       if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try {
-          new Notification('Youtubers Studio', { body: n.message, icon: siteSettings.logoUrl || undefined });
-        } catch (e) {}
+        try { new Notification('Youtubers Studio', { body: n.message, icon: siteSettings.logoUrl || undefined }); } catch (e) {}
       }
     });
   }, [notifications, userProfile, isAdmin, siteSettings.logoUrl]);
 
   const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
-    try {
-      await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience });
-    } catch (err) {}
+    try { await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience }); } catch (err) {}
   }, []);
 
   const ensureProfileDoc = useCallback(async (user) => {
@@ -283,13 +266,9 @@ export default function App() {
     const isOwner = emailLower === ADMIN_EMAIL;
     if (!snap.exists()) {
       const newProfile = {
-        name: user.displayName || user.email.split('@')[0],
-        email: user.email,
-        role: isOwner ? 'owner' : 'member',
-        status: isOwner ? 'approved' : 'pending',
-        workCategory: categories[0] || 'Editing',
-        photoURL: user.photoURL || PRESET_AVATARS[0].svg,
-        createdAt: Date.now(),
+        name: user.displayName || user.email.split('@')[0], email: user.email, role: isOwner ? 'owner' : 'member',
+        status: isOwner ? 'approved' : 'pending', workCategory: categories[0] || 'Editing',
+        photoURL: user.photoURL || PRESET_AVATARS[0].svg, createdAt: Date.now(),
       };
       await setDoc(ref, newProfile);
       return newProfile;
@@ -340,9 +319,7 @@ export default function App() {
       else if (trimmed.includes('youtube.com/')) {
         const parts = trimmed.split('/');
         handle = parts[parts.length - 1].replace('@', '').split('?')[0];
-      } else {
-        handle = trimmed.replace('@', '');
-      }
+      } else { handle = trimmed.replace('@', ''); }
       url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=${encodeURIComponent(handle)}&key=${activeApiKey}`;
     }
 
@@ -373,13 +350,10 @@ export default function App() {
       }
 
       await setDoc(doc(db, 'meta/ytConfig'), {
-        channelId: activeChannelId,
-        apiKey: activeApiKey,
+        channelId: activeChannelId, apiKey: activeApiKey,
         subscribers: parseInt(subsCount, 10).toLocaleString(),
         latestVideoViews: typeof views === 'string' && views.includes(',') ? views : parseInt(views, 10).toLocaleString(),
-        latestVideoTitle: videoTitle,
-        lastError: null,
-        lastSyncedAt: Date.now(),
+        latestVideoTitle: videoTitle, lastError: null, lastSyncedAt: Date.now(),
       }, { merge: true });
 
       if (!silent) showToast(`Synced with ${channelTitle}.`, 'success');
@@ -395,9 +369,7 @@ export default function App() {
   useEffect(() => {
     if (loadingLibraries || !isAdmin) return;
     syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true);
-    const timer = setInterval(() => {
-      syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true);
-    }, 5 * 60 * 1000);
+    const timer = setInterval(() => { syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true); }, 5 * 60 * 1000);
     return () => clearInterval(timer);
   }, [loadingLibraries, isAdmin]);
 
@@ -405,20 +377,13 @@ export default function App() {
     injectArtStyleStyles();
     const loadScript = (src) => new Promise((resolve) => {
       const script = document.createElement('script');
-      script.src = src;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.head.appendChild(script);
+      script.src = src; script.onload = () => resolve(true); script.onerror = () => resolve(false); document.head.appendChild(script);
     });
     (async () => {
       try {
         const loadedThree = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
         if (loadedThree) setThreeReady(true);
-      } catch (e) {
-        console.warn('Studio visual engine fallback mode.');
-      } finally {
-        setLoadingLibraries(false);
-      }
+      } catch (e) { console.warn('Studio visual engine fallback mode.'); } finally { setLoadingLibraries(false); }
     })();
   }, []);
 
@@ -427,7 +392,6 @@ export default function App() {
       <div className="min-h-screen bg-[#FCFAF2] flex flex-col items-center justify-center font-serif text-[#C5A03A]">
         <div className="w-16 h-16 border-4 border-dashed border-[#C5A03A] rounded-full animate-spin mb-4" />
         <h2 className="text-2xl font-bold tracking-widest animate-pulse font-serif">SYNCING TIMELINES</h2>
-        <p className="text-xs font-sans tracking-wide text-slate-500 mt-1">Booting Studio Workspace Engines...</p>
       </div>
     );
   }
@@ -643,23 +607,14 @@ function ThreeArtBackground() {
     const animate = () => {
       frameId = requestAnimationFrame(animate);
       const elapsed = clock.getElapsedTime();
-      outerRing.rotation.y = elapsed * 0.14;
-      outerRing.rotation.x = elapsed * 0.07;
-      innerRing.rotation.x = elapsed * 0.22;
-      innerRing.rotation.z = elapsed * 0.16;
-      lensBarrel.rotation.y = elapsed * 0.28;
-      cameraRigGroup.position.y = 1.5 + Math.sin(elapsed * 0.45) * 0.2;
-      reelGroup.rotation.z = elapsed * 0.35;
-      reelGroup.rotation.y = elapsed * 0.15;
-      reelGroup.position.y = -1 + Math.cos(elapsed * 0.5) * 0.15;
-      mouseX += (targetMouse.x - mouseX) * 0.05;
-      mouseY += (targetMouse.y - mouseY) * 0.05;
-      specularSpot.position.x = 5 + mouseX * 4;
-      specularSpot.position.y = 5 + mouseY * 4;
-      camera.position.x = mouseX * 0.8;
-      camera.position.y = mouseY * 0.8;
-      camera.lookAt(scene.position);
-      renderer.render(scene, camera);
+      outerRing.rotation.y = elapsed * 0.14; outerRing.rotation.x = elapsed * 0.07;
+      innerRing.rotation.x = elapsed * 0.22; innerRing.rotation.z = elapsed * 0.16;
+      lensBarrel.rotation.y = elapsed * 0.28; cameraRigGroup.position.y = 1.5 + Math.sin(elapsed * 0.45) * 0.2;
+      reelGroup.rotation.z = elapsed * 0.35; reelGroup.rotation.y = elapsed * 0.15; reelGroup.position.y = -1 + Math.cos(elapsed * 0.5) * 0.15;
+      mouseX += (targetMouse.x - mouseX) * 0.05; mouseY += (targetMouse.y - mouseY) * 0.05;
+      specularSpot.position.x = 5 + mouseX * 4; specularSpot.position.y = 5 + mouseY * 4;
+      camera.position.x = mouseX * 0.8; camera.position.y = mouseY * 0.8;
+      camera.lookAt(scene.position); renderer.render(scene, camera);
     };
     animate();
 
@@ -688,10 +643,7 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal }) {
         <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600 transition">✕</button>
         <h3 className="font-serif text-xl font-bold text-slate-800 mb-2">Crew Member Sign In</h3>
         <p className="text-xs text-slate-400 mb-6">Sign in with your real Google account — this is what verifies your identity and lets the studio owner approve you.</p>
-        <button
-          onClick={handleGoogleSignIn}
-          className="w-full flex items-center justify-center gap-3 py-3 bg-white border-2 border-[#EADFC9] hover:border-[#C5A03A] rounded-xl text-sm font-bold text-slate-700 shadow-sm transition"
-        >
+        <button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-3 py-3 bg-white border-2 border-[#EADFC9] hover:border-[#C5A03A] rounded-xl text-sm font-bold text-slate-700 shadow-sm transition">
           <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.2 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.3 5.3C40.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
           Continue with Google
         </button>
@@ -703,9 +655,7 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal }) {
 
 // --- HOMEPAGE HUB ---
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications }) {
-  const studioUpdates = useMemo(() => {
-    return notifications.filter(n => !n.message.startsWith('"') && n.actor !== 'System');
-  }, [notifications]);
+  const studioUpdates = useMemo(() => notifications.filter(n => !n.message.startsWith('"') && n.actor !== 'System'), [notifications]);
 
   return (
     <section className="space-y-10 py-4 animate-fadeIn font-sans">
@@ -716,29 +666,14 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {[
-          {
-            label: 'YouTube Subscribers', value: ytConfig.subscribers, icon: '📈',
-            change: ytConfig.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'),
-            action: isAdmin ? (
-              <button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>
-            ) : null
-          },
+          { label: 'YouTube Subscribers', value: ytConfig.subscribers, icon: '📈', change: ytConfig.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
           { label: 'Latest Video Views', value: ytConfig.latestVideoViews, icon: '📺', change: ytConfig.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 32)}"` : '—', action: null },
           { label: 'Vault Records', value: `${videos.length} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
           { label: 'Active Ideas', value: `${projects.length} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
         ].map((stat, idx) => (
           <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-5 shadow-skeuo-md hover:-translate-y-1 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-40">
-            <div>
-              <div className="flex justify-between items-center text-slate-400 mb-2">
-                <span className="text-[10px] uppercase font-bold tracking-wider font-sans">{stat.label}</span>
-                <span className="text-xl">{stat.icon}</span>
-              </div>
-              <p className="text-xl md:text-2xl font-black text-slate-800 font-sans">{stat.value}</p>
-            </div>
-            <div className="mt-2 font-sans">
-              <span className="text-[9px] text-[#C5A03A] font-semibold block truncate">{stat.change}</span>
-              {stat.action}
-            </div>
+            <div><div className="flex justify-between items-center text-slate-400 mb-2"><span className="text-[10px] uppercase font-bold tracking-wider font-sans">{stat.label}</span><span className="text-xl">{stat.icon}</span></div><p className="text-xl md:text-2xl font-black text-slate-800 font-sans">{stat.value}</p></div>
+            <div className="mt-2 font-sans"><span className="text-[9px] text-[#C5A03A] font-semibold block truncate">{stat.change}</span>{stat.action}</div>
           </div>
         ))}
       </div>
@@ -750,11 +685,7 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
         </div>
         <div className="space-y-3 max-h-56 overflow-y-auto custom-scrollbar font-sans pr-1">
           {studioUpdates.map(notif => (
-            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-2 animate-fadeIn">
-              <span className="font-bold text-slate-800 font-sans">{notif.actor}: </span>
-              <span className="text-slate-600 font-sans">{notif.message}</span>
-              <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
-            </div>
+            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-2 animate-fadeIn"><span className="font-bold text-slate-800 font-sans">{notif.actor}: </span><span className="text-slate-600 font-sans">{notif.message}</span><p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p></div>
           ))}
           {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No project updates mapped to log yet.</p>}
         </div>
@@ -769,12 +700,7 @@ function CrewSection({ profiles, userProfile, showToast, isAdmin }) {
   const approvedProfiles = useMemo(() => profiles.filter(p => p.status === 'approved'), [profiles]);
 
   const removeMember = async (uid) => {
-    try {
-      await deleteDoc(doc(db, 'profiles', uid));
-      showToast('Crew member removed.', 'success');
-    } catch (err) {
-      showToast('Failed to remove — check Firestore rules.', 'warning');
-    }
+    try { await deleteDoc(doc(db, 'profiles', uid)); showToast('Crew member removed.', 'success'); } catch (err) { showToast('Failed to remove.', 'warning'); }
   };
 
   if (approvedProfiles.length === 0) return <div className="text-center text-slate-400 py-20">No approved crew members yet.</div>;
@@ -782,9 +708,7 @@ function CrewSection({ profiles, userProfile, showToast, isAdmin }) {
   return (
     <section className="py-4 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
       <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl text-center shadow-skeuo-md animate-fadeIn">
-        <div className="w-28 h-28 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">
-          {renderAvatar(approvedProfiles[focusIdx]?.photoURL)}
-        </div>
+        <div className="w-28 h-28 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">{renderAvatar(approvedProfiles[focusIdx]?.photoURL)}</div>
         <h3 className="font-serif text-2xl font-bold text-slate-800">{approvedProfiles[focusIdx]?.name}</h3>
         <p className="text-xs text-slate-400 mt-1 font-sans">{approvedProfiles[focusIdx]?.email}</p>
         <span className="bg-[#C5A03A] text-white text-[10px] px-3 py-1 rounded-full font-bold mt-3 inline-block font-sans shadow-sm">{approvedProfiles[focusIdx]?.role}</span>
@@ -796,17 +720,10 @@ function CrewSection({ profiles, userProfile, showToast, isAdmin }) {
           {profiles.map((p, i) => (
             <div key={p.id} className="flex justify-between items-center p-3 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}>
-                  {renderAvatar(p.photoURL)}
-                </div>
-                <div className="cursor-pointer" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}>
-                  <p className="text-xs font-bold text-slate-800">{p.name}</p>
-                  <span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role} • {p.workCategory} • {p.status}</span>
-                </div>
+                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}>{renderAvatar(p.photoURL)}</div>
+                <div className="cursor-pointer" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}><p className="text-xs font-bold text-slate-800">{p.name}</p><span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role} • {p.workCategory} • {p.status}</span></div>
               </div>
-              {isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL && (
-                <button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full transition hover:bg-rose-100 font-sans">Remove</button>
-              )}
+              {isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL && (<button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full transition hover:bg-rose-100 font-sans">Remove</button>)}
             </div>
           ))}
         </div>
@@ -824,14 +741,9 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
     e.preventDefault();
     const clean = newCatInput.trim();
     if (!clean) return;
-    if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) {
-      showToast('Category tag already exists.', 'warning');
-      return;
-    }
+    if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) { showToast('Category exists.', 'warning'); return; }
     await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(clean) }, { merge: true });
-    setActiveCategory(clean);
-    setNewCustomCategory('');
-    showToast(`Category "${clean}" added for everyone.`, 'success');
+    setActiveCategory(clean); setNewCustomCategory(''); showToast(`Category added.`, 'success');
   };
 
   const matchedMembers = useMemo(() => profiles.filter(p => p.status === 'approved' && p.workCategory === activeCategory), [profiles, activeCategory]);
@@ -849,9 +761,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
           </div>
           <div className="pt-4 border-t border-slate-100 space-y-1">
             <span className="text-[10px] font-bold text-[#C5A03A] uppercase tracking-wider block mb-2 font-sans">Role tags</span>
-            {categories.map((cat, idx) => (
-              <button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>
-            ))}
+            {categories.map((cat, idx) => (<button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>))}
           </div>
         </div>
 
@@ -864,11 +774,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
             {matchedMembers.map((member) => (
               <div key={member.id} className="flex items-center space-x-3 p-4 border bg-white rounded-xl shadow-sm animate-fadeIn">
                 <div className="w-10 h-10 rounded-full border bg-white overflow-hidden p-0.5 flex items-center justify-center animate-fadeIn">{renderAvatar(member.photoURL)}</div>
-                <div>
-                  <h5 className="font-bold text-xs text-slate-800 font-sans">{member.name}</h5>
-                  <p className="text-[10px] text-slate-400 font-sans">{member.email}</p>
-                  <span className="inline-block bg-amber-50 text-[#C5A03A] text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 font-sans">{member.role}</span>
-                </div>
+                <div><h5 className="font-bold text-xs text-slate-800 font-sans">{member.name}</h5><p className="text-[10px] text-slate-400 font-sans">{member.email}</p><span className="inline-block bg-amber-50 text-[#C5A03A] text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 font-sans">{member.role}</span></div>
               </div>
             ))}
             {matchedMembers.length === 0 && <div className="col-span-full py-16 text-center text-slate-400 italic">"No crew member is currently assigned to this specialization."</div>}
@@ -918,25 +824,13 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
     try {
       const url = await uploadToStorage(`videos/${Date.now()}_${selectedFile.name}`, selectedFile);
       await addDoc(collection(db, 'videos'), {
-        title: videoTitle,
-        uploaderUid: userProfile.id,
-        uploaderName: userProfile.name,
-        hlsUrl: url,
-        size: `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`,
-        comments: [],
-        createdAt: Date.now(),
+        title: videoTitle, uploaderUid: userProfile.id, uploaderName: userProfile.name, hlsUrl: url,
+        size: `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`, comments: [], createdAt: Date.now(),
       });
       pushNotification(`Uploaded video asset: "${videoTitle}"`, userProfile.name);
-      setVideoTitle('');
-      setSelectedFile(null);
-      setShowUploadModal(false);
+      setVideoTitle(''); setSelectedFile(null); setShowUploadModal(false);
       showToast('Video uploaded and shared with the whole crew!', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Upload failed — check Firebase Storage rules/quota.', 'warning');
-    } finally {
-      setUploading(false);
-    }
+    } catch (err) { showToast('Upload failed — check Firebase Storage rules.', 'warning'); } finally { setUploading(false); }
   };
 
   const removeVideo = async (id) => {
@@ -947,10 +841,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
   return (
     <section className="py-4 space-y-4 font-sans animate-fadeIn">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans animate-fadeIn">
-        <div>
-          <h3 className="font-serif font-bold text-slate-800 text-lg">Timeline Asset Vault</h3>
-          <p className="text-xs text-slate-400 font-sans">Shared cloud storage — visible to the whole crew, not just your browser</p>
-        </div>
+        <div><h3 className="font-serif font-bold text-slate-800 text-lg">Timeline Asset Vault</h3></div>
         <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans font-semibold">+ Upload Track</button>
       </div>
 
@@ -958,25 +849,15 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
         <div className="lg:col-span-2 space-y-4 animate-fadeIn font-sans">
           {selectedVid ? (
             <div className="space-y-4 animate-fadeIn font-sans">
-              <div className="bg-[#1b1915] rounded-2xl overflow-hidden relative border-4 border-white shadow-skeuo-md">
-                <video key={selectedVid.id} src={selectedVid.hlsUrl} className="w-full h-64 md:h-80 object-cover animate-fadeIn" controls autoPlay />
-              </div>
-              <div className="p-4 bg-white border-b-[4px] border-[#EADFC9] rounded-xl shadow-sm">
-                <h4 className="font-serif font-bold text-slate-800 text-base">{selectedVid.title}</h4>
-                <p className="text-xs text-slate-400 font-sans">Uploaded by {selectedVid.uploaderName} • {selectedVid.size}</p>
-              </div>
+              <div className="bg-[#1b1915] rounded-2xl overflow-hidden relative border-4 border-white shadow-skeuo-md"><video key={selectedVid.id} src={selectedVid.hlsUrl} className="w-full h-64 md:h-80 object-cover animate-fadeIn" controls autoPlay /></div>
+              <div className="p-4 bg-white border-b-[4px] border-[#EADFC9] rounded-xl shadow-sm"><h4 className="font-serif font-bold text-slate-800 text-base">{selectedVid.title}</h4><p className="text-xs text-slate-400 font-sans">Uploaded by {selectedVid.uploaderName} • {selectedVid.size}</p></div>
               <div className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
                 <h4 className="font-serif font-bold text-slate-800 text-sm border-b pb-2">Crew Feedback ({selectedVid.comments?.length || 0})</h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                   {(selectedVid.comments || []).map(comment => (
                     <div key={comment.id} className="text-xs p-3 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
                       <div><span className="font-bold text-slate-800 mr-2">{comment.authorName}</span><span className="text-slate-600">{comment.text}</span></div>
-                      <div className="flex flex-col items-end gap-1">
-                          <span className="text-[10px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          {(isAdmin || comment.authorName === userProfile?.name) && (
-                              <button onClick={() => deleteVideoComment(comment.id)} className="text-rose-500 font-bold hover:text-rose-700 text-[10px]">🗑️</button>
-                          )}
-                      </div>
+                      <div className="flex flex-col items-end gap-1"><span className="text-[10px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{(isAdmin || comment.authorName === userProfile?.name) && (<button onClick={() => deleteVideoComment(comment.id)} className="text-rose-500 font-bold hover:text-rose-700 text-[10px]">🗑️</button>)}</div>
                     </div>
                   ))}
                   {(!selectedVid.comments || selectedVid.comments.length === 0) && <p className="text-xs text-slate-400 italic py-2">No feedback notes posted yet. Start the conversation below!</p>}
@@ -987,9 +868,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                 </form>
               </div>
             </div>
-          ) : (
-            <div className="bg-white/60 border-2 border-dashed border-[#EADFC9] p-16 text-center rounded-2xl text-slate-400 font-sans shadow-inner">Select any video draft below to open timeline player & comments feed.</div>
-          )}
+          ) : (<div className="bg-white/60 border-2 border-dashed border-[#EADFC9] p-16 text-center rounded-2xl text-slate-400 font-sans shadow-inner">Select any video draft below to open timeline player & comments feed.</div>)}
         </div>
 
         <div className="lg:col-span-1 space-y-4 font-sans animate-fadeIn">
@@ -997,16 +876,10 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
           <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
             {videos.map((v) => (
               <div key={v.id} className={`bg-white border-b-[4px] border-[#EADFC9] border-r border-l border-t p-3 rounded-xl hover:-translate-y-1 hover:shadow-skeuo-sm transition-all flex justify-between items-center animate-fadeIn ${selectedVid?.id === v.id ? 'border-[#C5A03A] bg-amber-50/20' : ''}`}>
-                <div onClick={() => setSelectedVid(v)} className="cursor-pointer flex-1 min-w-0 pr-2">
-                  <h5 className="font-bold text-xs text-slate-800 truncate">{v.title}</h5>
-                  <span className="text-[10px] text-slate-400 font-sans">Uploaded by {v.uploaderName} • {v.comments?.length || 0} Comments</span>
-                </div>
-                {(isAdmin || v.uploaderUid === userProfile?.id) && (
-                  <button onClick={() => removeVideo(v.id)} className="text-rose-550 font-bold p-1 hover:text-rose-700 transition" title="Delete Video">🗑️</button>
-                )}
+                <div onClick={() => setSelectedVid(v)} className="cursor-pointer flex-1 min-w-0 pr-2"><h5 className="font-bold text-xs text-slate-800 truncate">{v.title}</h5><span className="text-[10px] text-slate-400 font-sans">Uploaded by {v.uploaderName} • {v.comments?.length || 0} Comments</span></div>
+                {(isAdmin || v.uploaderUid === userProfile?.id) && (<button onClick={() => removeVideo(v.id)} className="text-rose-550 font-bold p-1 hover:text-rose-700 transition" title="Delete Video">🗑️</button>)}
               </div>
             ))}
-            {videos.length === 0 && <p className="text-xs text-slate-400 italic py-6 text-center">No video track segments uploaded yet.</p>}
           </div>
         </div>
       </div>
@@ -1015,18 +888,9 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
             <h4 className="font-serif font-bold text-slate-800">Upload Real Video File</h4>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase">Video Title</label>
-              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} placeholder="e.g. My Watercolor Vlog" className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase">Select File</label>
-              <input type="file" accept="video/*" onChange={e => setSelectedFile(e.target.files[0])} className="w-full text-xs text-slate-500 mt-1 font-sans" required />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" disabled={uploading} className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px] hover:bg-red-700 transition disabled:opacity-50">{uploading ? 'Uploading…' : 'Ingest Video'}</button>
-            </div>
+            <div><label className="block text-[10px] font-bold text-slate-500 uppercase">Video Title</label><input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required /></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 uppercase">Select File</label><input type="file" accept="video/*" onChange={e => setSelectedFile(e.target.files[0])} className="w-full text-xs text-slate-500 mt-1 font-sans" required /></div>
+            <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button><button type="submit" disabled={uploading} className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px] hover:bg-red-700 transition disabled:opacity-50">{uploading ? 'Uploading…' : 'Ingest Video'}</button></div>
           </form>
         </div>
       )}
@@ -1044,8 +908,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
     if (!newConcept.trim()) return;
     await addDoc(collection(db, 'projects'), { title: newConcept, creatorName: userProfile.name, createdAt: Date.now() });
     pushNotification(`Created video concept whiteboard: "${newConcept}"`, userProfile.name);
-    setNewConcept('');
-    showToast('Artboard concept mapped!', 'success');
+    setNewConcept(''); showToast('Artboard concept mapped!', 'success');
   };
 
   const activeTasks = useMemo(() => tasks.filter(t => t.projectId === selectedProject?.id), [tasks, selectedProject]);
@@ -1058,15 +921,10 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
   };
 
   const removeProject = async (pId, e) => {
-      e.stopPropagation();
-      await deleteDoc(doc(db, 'projects', pId));
-      if(selectedProject?.id === pId) setSelectedProject(null);
-      showToast('Project deleted', 'info');
+      e.stopPropagation(); await deleteDoc(doc(db, 'projects', pId));
+      if(selectedProject?.id === pId) setSelectedProject(null); showToast('Project deleted', 'info');
   }
-
-  const removeTask = async (tId) => {
-      await deleteDoc(doc(db, 'tasks', tId));
-  }
+  const removeTask = async (tId) => { await deleteDoc(doc(db, 'tasks', tId)); }
 
   return (
     <section className="py-4 animate-fadeIn font-sans">
@@ -1084,7 +942,6 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
                 <h4 className="font-serif font-bold text-slate-800 pt-3 text-center line-clamp-2">{p.title}</h4>
               </div>
             ))}
-            {projects.length === 0 && <p className="text-center text-slate-700 italic col-span-full py-12">Roster Corkboard is currently pristine. Pin down a concept to start!</p>}
           </div>
         </div>
       ) : (
@@ -1095,10 +952,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
             {activeTasks.map((t) => (
               <div key={t.id} className="py-3 flex justify-between items-center group">
                 <span className="font-semibold text-slate-700">{t.title}</span>
-                <div className="flex items-center gap-2">
-                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</span>
-                    {isAdmin && <button onClick={() => removeTask(t.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2">🗑️</button>}
-                </div>
+                <div className="flex items-center gap-2"><span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</span>{isAdmin && <button onClick={() => removeTask(t.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2">🗑️</button>}</div>
               </div>
             ))}
           </div>
@@ -1122,30 +976,16 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   const [isEditingBody, setIsEditingBody] = useState(false);
 
   const selectedScript = useMemo(() => scripts.find(s => s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
-
-  useEffect(() => {
-    if (selectedScript) setDraftText(selectedScript.content || '');
-  }, [selectedScriptId, selectedScript?.content]);
-
+  useEffect(() => { if (selectedScript) setDraftText(selectedScript.content || ''); }, [selectedScriptId, selectedScript?.content]);
   const canEditSelected = selectedScript && userProfile && (isAdmin || selectedScript.authorUid === userProfile.id);
 
   const createTopic = async (e) => {
     e.preventDefault();
     const clean = newTopicTitle.trim();
     if (!clean) return;
-    const ref = await addDoc(collection(db, 'scripts'), {
-      title: clean,
-      content: '',
-      authorUid: userProfile.id,
-      authorName: userProfile.name,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    const ref = await addDoc(collection(db, 'scripts'), { title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now() });
     pushNotification(`Started a new script topic: "${clean}"`, userProfile.name);
-    setNewTopicTitle('');
-    setShowNewTopicModal(false);
-    setSelectedScriptId(ref.id);
-    showToast('Topic created! Start writing the script below.', 'success');
+    setNewTopicTitle(''); setShowNewTopicModal(false); setSelectedScriptId(ref.id); showToast('Topic created!', 'success');
   };
 
   const saveScriptBody = async () => {
@@ -1153,14 +993,8 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     setSaving(true);
     try {
       await updateDoc(doc(db, 'scripts', selectedScript.id), { content: draftText, updatedAt: Date.now(), lastEditedBy: userProfile.name });
-      setIsEditingBody(false);
-      showToast('Script saved!', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Save failed — check Firestore rules.', 'warning');
-    } finally {
-      setSaving(false);
-    }
+      setIsEditingBody(false); showToast('Script saved!', 'success');
+    } catch (err) { showToast('Save failed.', 'warning'); } finally { setSaving(false); }
   };
 
   const removeTopic = async (id) => {
@@ -1172,64 +1006,33 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   return (
     <section className="py-4 animate-fadeIn font-sans space-y-4">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans animate-fadeIn">
-        <div>
-          <h3 className="font-serif font-bold text-slate-800 text-lg">📝 Script Topics</h3>
-          <p className="text-xs text-slate-400 font-sans">Pick a topic to write or edit its script. Only the writer and admins can edit a script.</p>
-        </div>
+        <div><h3 className="font-serif font-bold text-slate-800 text-lg">📝 Script Topics</h3></div>
         <button onClick={() => setShowNewTopicModal(true)} className="bg-[#C5A03A] text-white font-bold text-xs px-4 py-2 rounded-full shadow hover:bg-[#b08d32] transition font-sans font-semibold">+ New Topic</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
         <div className="lg:col-span-1 bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-2xl shadow-skeuo-md space-y-2 max-h-[560px] overflow-y-auto custom-scrollbar animate-fadeIn">
-          <h4 className="font-serif font-bold text-sm text-slate-700 border-b pb-2 mb-1">Topics ({scripts.length})</h4>
           {scripts.map(s => (
             <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-3 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
-                <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName} • {s.content ? 'Written' : 'Empty draft'}</span>
-              </div>
-              {(isAdmin || s.authorUid === userProfile?.id) && (
-                <button onClick={(e) => { e.stopPropagation(); removeTopic(s.id); }} className="text-rose-500 text-[10px] font-bold shrink-0">✕</button>
-              )}
+              <div className="min-w-0"><p className="text-xs font-bold text-slate-800 truncate">{s.title}</p><span className="text-[9px] text-slate-400 font-mono block">By {s.authorName}</span></div>
+              {(isAdmin || s.authorUid === userProfile?.id) && (<button onClick={(e) => { e.stopPropagation(); removeTopic(s.id); }} className="text-rose-500 text-[10px] font-bold shrink-0">✕</button>)}
             </div>
           ))}
-          {scripts.length === 0 && <p className="text-xs text-slate-400 italic p-4 text-center">No script topics yet. Create one to get started.</p>}
         </div>
 
         <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md animate-fadeIn">
-          {!selectedScript ? (
-            <div className="text-center text-slate-400 py-24 italic">Select a topic on the left to read or write its script.</div>
-          ) : (
+          {!selectedScript ? (<div className="text-center text-slate-400 py-24 italic">Select a topic on the left to read or write its script.</div>) : (
             <div className="space-y-4">
               <div className="flex justify-between items-start border-b pb-3">
-                <div>
-                  <h3 className="font-serif text-xl font-bold text-slate-800">{selectedScript.title}</h3>
-                  <p className="text-[10px] text-slate-400 font-mono mt-1">Written by {selectedScript.authorName}{selectedScript.lastEditedBy ? ` • last edited by ${selectedScript.lastEditedBy}` : ''}</p>
-                </div>
-                {canEditSelected && !isEditingBody && (
-                  <button onClick={() => setIsEditingBody(true)} className="text-[10px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-3 py-1.5">✎ Edit Script</button>
-                )}
+                <div><h3 className="font-serif text-xl font-bold text-slate-800">{selectedScript.title}</h3></div>
+                {canEditSelected && !isEditingBody && (<button onClick={() => setIsEditingBody(true)} className="text-[10px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-3 py-1.5">✎ Edit Script</button>)}
               </div>
-
               {isEditingBody ? (
                 <div className="space-y-3">
-                  <textarea
-                    value={draftText}
-                    onChange={(e) => setDraftText(e.target.value)}
-                    rows={14}
-                    placeholder="Write the script here..."
-                    className="w-full px-4 py-3 bg-slate-50 border border-[#EADFC9] rounded-xl text-sm focus:ring-1 focus:ring-[#C5A03A] focus:outline-none font-sans leading-relaxed"
-                  />
-                  <div className="flex gap-2 justify-end">
-                    <button onClick={() => { setIsEditingBody(false); setDraftText(selectedScript.content || ''); }} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-                    <button onClick={saveScriptBody} disabled={saving} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] disabled:opacity-50">{saving ? 'Saving…' : 'Save Script'}</button>
-                  </div>
+                  <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={14} placeholder="Write the script here..." className="w-full px-4 py-3 bg-slate-50 border border-[#EADFC9] rounded-xl text-sm focus:ring-1 focus:ring-[#C5A03A] focus:outline-none font-sans leading-relaxed" />
+                  <div className="flex gap-2 justify-end"><button onClick={() => { setIsEditingBody(false); setDraftText(selectedScript.content || ''); }} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button><button onClick={saveScriptBody} disabled={saving} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] disabled:opacity-50">{saving ? 'Saving…' : 'Save Script'}</button></div>
                 </div>
-              ) : (
-                <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed min-h-[200px] font-sans">
-                  {selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet{canEditSelected ? ' — click "Edit Script" to start writing.' : '.'}</span>}
-                </div>
-              )}
+              ) : (<div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed min-h-[200px] font-sans">{selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet{canEditSelected ? ' — click "Edit Script" to start writing.' : '.'}</span>}</div>)}
             </div>
           )}
         </div>
@@ -1239,14 +1042,8 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={createTopic} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
             <h4 className="font-serif font-bold text-slate-800">New Script Topic</h4>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase">Topic Title</label>
-              <input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowNewTopicModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px]">Create Topic</button>
-            </div>
+            <div><input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required /></div>
+            <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowNewTopicModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button><button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px]">Create Topic</button></div>
           </form>
         </div>
       )}
@@ -1266,11 +1063,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     if (!inputText.trim()) return;
     const text = inputText;
     await addDoc(collection(db, 'chats'), {
-      projectId: chatChannel,
-      text,
-      senderName: userProfile?.name || 'Guest Creator',
-      senderUid: userProfile?.id || 'guest-uid',
-      createdAt: Date.now(),
+      projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
     });
     pushNotification(`"${text.length > 60 ? text.slice(0, 60) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'all');
     setInputText('');
@@ -1279,25 +1072,18 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const handleAddChannel = async (e) => {
     e.preventDefault();
     if(!newChannelName.trim()) return;
-    await setDoc(doc(db, 'meta/settings'), {
-        chatChannels: [...channels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}]
-    }, {merge: true});
-    setNewChannelName('');
-    showToast("Whiteboard channel added!", "success");
+    await setDoc(doc(db, 'meta/settings'), { chatChannels: [...channels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}] }, {merge: true});
+    setNewChannelName(''); showToast("Whiteboard channel added!", "success");
   }
 
   const removeChannel = async (id, e) => {
     e.stopPropagation();
-    await setDoc(doc(db, 'meta/settings'), {
-        chatChannels: channels.filter(c => c.id !== id)
-    }, {merge: true});
+    await setDoc(doc(db, 'meta/settings'), { chatChannels: channels.filter(c => c.id !== id) }, {merge: true});
     if(chatChannel === id) setChatChannel('general');
     showToast("Channel removed!", "info");
   }
 
-  const deleteMessage = async (msgId) => {
-    await deleteDoc(doc(db, 'chats', msgId));
-  }
+  const deleteMessage = async (msgId) => { await deleteDoc(doc(db, 'chats', msgId)); }
 
   return (
     <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-[2rem] h-[75vh] sm:h-[500px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
@@ -1305,12 +1091,8 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
         <div className="overflow-x-auto sm:overflow-y-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-2 sm:gap-2 flex-1">
             {channels.map(ch => (
             <div key={ch.id} className="relative group inline-block sm:block w-auto sm:w-full">
-               <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-4 sm:px-2.5 py-2.5 rounded-xl text-xs font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>
-                 {ch.name}
-               </button>
-               {isAdmin && ch.id !== 'general' && (
-                 <button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1.5 py-0.5 shadow-sm">✕</button>
-               )}
+               <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-4 sm:px-2.5 py-2.5 rounded-xl text-xs font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
+               {isAdmin && ch.id !== 'general' && (<button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1.5 py-0.5 shadow-sm">✕</button>)}
             </div>
             ))}
         </div>
@@ -1327,9 +1109,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
             <div key={m.id} className="text-xs p-3 bg-white border border-[#EADFC9]/40 rounded-2xl max-w-[85%] sm:max-w-[70%] animate-fadeIn shadow-xs font-sans group relative">
               <div className="flex justify-between items-start">
                   <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{m.senderName}</span>
-                  {(isAdmin || m.senderUid === userProfile?.id) && (
-                      <button onClick={() => deleteMessage(m.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] pl-2">🗑️</button>
-                  )}
+                  {(isAdmin || m.senderUid === userProfile?.id) && (<button onClick={() => deleteMessage(m.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] pl-2">🗑️</button>)}
               </div>
               {m.text}
             </div>
@@ -1355,35 +1135,18 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
   const publishPost = async (e) => {
     e.preventDefault();
-    if (!postTitle.trim() || !postFile) {
-      showToast('Please provide a title and an image.', 'warning');
-      return;
-    }
+    if (!postTitle.trim() || !postFile) return;
     setPublishing(true);
     try {
       const imageUrl = await uploadToStorage(`posts/${Date.now()}_${postFile.name}`, postFile);
       await addDoc(collection(db, 'posts'), {
-        title: postTitle.trim(),
-        description: postText.trim(),
-        image: imageUrl,
-        authorName: userProfile.name,
-        authorUid: userProfile.id,
-        authorAvatar: userProfile.photoURL,
-        likes: 0,
-        likedBy: [],
-        comments: [],
-        createdAt: Date.now(),
+        title: postTitle.trim(), description: postText.trim(), image: imageUrl,
+        authorName: userProfile.name, authorUid: userProfile.id, authorAvatar: userProfile.photoURL,
+        likes: 0, likedBy: [], comments: [], createdAt: Date.now(),
       });
       pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name);
-      setPostTitle(''); setPostText(''); setPostFile(null);
-      setShowCreatePostModal(false);
-      showToast('Showcase published to Insta Feed!', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Publish failed — check Firebase Storage rules.', 'warning');
-    } finally {
-      setPublishing(false);
-    }
+      setPostTitle(''); setPostText(''); setPostFile(null); setShowCreatePostModal(false); showToast('Showcase published to Insta Feed!', 'success');
+    } catch (err) { showToast('Publish failed — check Firebase Storage rules.', 'warning'); } finally { setPublishing(false); }
   };
 
   const toggleLikePost = async (post) => {
@@ -1397,15 +1160,10 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     const commentVal = e.target.commentInputText.value.trim();
     if (!commentVal) return;
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion({ id: 'pc_' + Date.now(), authorName: userProfile.name, text: commentVal }) });
-    e.target.commentInputText.value = '';
-    showToast('Comment published!', 'success');
+    e.target.commentInputText.value = ''; showToast('Comment published!', 'success');
   };
 
-  const removePost = async (postId) => {
-      await deleteDoc(doc(db, 'posts', postId));
-      showToast("Post removed", "info");
-  }
-
+  const removePost = async (postId) => { await deleteDoc(doc(db, 'posts', postId)); showToast("Post removed", "info"); }
   const removePostComment = async (postId, postComments, commentId) => {
       const updatedComments = postComments.filter(x => x.id !== commentId);
       await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
@@ -1415,10 +1173,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   return (
     <section className="py-4 animate-fadeIn space-y-6 font-sans">
       <div className="flex flex-col sm:flex-row justify-between items-center bg-white border border-[#EADFC9]/50 p-5 rounded-2xl shadow-sm gap-4">
-        <div>
-          <h2 className="font-serif text-2xl font-bold text-slate-800">📸 Insta Showroom Feed</h2>
-          <p className="text-xs text-slate-400">Publish video thumbnails, design drafts, and timeline assets</p>
-        </div>
+        <div><h2 className="font-serif text-2xl font-bold text-slate-800">📸 Insta Showroom Feed</h2></div>
         <button onClick={() => setShowCreatePostModal(true)} className="bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 text-white font-bold text-xs px-5 py-2.5 rounded-full border-b-[4px] border-amber-700 active:border-b-[1px] active:translate-y-[3px] shadow transition-all font-sans">➕ Create Post</button>
       </div>
 
@@ -1430,38 +1185,21 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
               <div className="p-3.5 flex items-center justify-between border-b border-slate-50">
                 <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 animate-fadeIn">{renderAvatar(post.authorAvatar)}</div>
-                    <div>
-                    <h4 className="text-xs font-black text-slate-800">{post.authorName}</h4>
-                    <span className="text-[9px] text-slate-400 font-mono">{new Date(post.createdAt).toLocaleDateString()}</span>
-                    </div>
+                    <div><h4 className="text-xs font-black text-slate-800">{post.authorName}</h4><span className="text-[9px] text-slate-400 font-mono">{new Date(post.createdAt).toLocaleDateString()}</span></div>
                 </div>
-                {(isAdmin || post.authorUid === userProfile.id) && (
-                    <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold bg-rose-50 rounded-full px-2 py-1">🗑️</button>
-                )}
+                {(isAdmin || post.authorUid === userProfile.id) && (<button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold bg-rose-50 rounded-full px-2 py-1">🗑️</button>)}
               </div>
               <div className="w-full h-80 overflow-hidden bg-slate-100 relative"><img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" /></div>
               <div className="p-3.5 space-y-2 border-t border-slate-50 font-sans">
-                <div className="flex items-center justify-between font-sans">
-                  <div className="flex items-center space-x-3 font-sans">
-                    <button onClick={() => toggleLikePost(post)} className="text-xl transition-transform active:scale-150">{amLiked ? '❤️' : '🤍'}</button>
-                    <span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span>
-                  </div>
-                </div>
-                <div className="text-xs">
-                  <span className="font-bold text-slate-800 mr-2">{post.authorName}</span>
-                  <span className="font-semibold text-slate-700">{post.title}</span>
-                  {post.description && <p className="text-slate-500 mt-1 leading-relaxed font-sans">{post.description}</p>}
-                </div>
+                <div className="flex items-center justify-between font-sans"><div className="flex items-center space-x-3 font-sans"><button onClick={() => toggleLikePost(post)} className="text-xl transition-transform active:scale-150">{amLiked ? '❤️' : '🤍'}</button><span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span></div></div>
+                <div className="text-xs"><span className="font-bold text-slate-800 mr-2">{post.authorName}</span><span className="font-semibold text-slate-700">{post.title}</span>{post.description && <p className="text-slate-500 mt-1 leading-relaxed font-sans">{post.description}</p>}</div>
                 <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
                   {(post.comments || []).map((c, i) => (
                     <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group">
                         <div><span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span><span className="text-slate-600">{c.text}</span></div>
-                        {(isAdmin || c.authorName === userProfile.name) && (
-                            <button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 text-[10px] pl-2">✕</button>
-                        )}
+                        {(isAdmin || c.authorName === userProfile.name) && (<button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 text-[10px] pl-2">✕</button>)}
                     </div>
                   ))}
-                  {(!post.comments || post.comments.length === 0) && <p className="text-[10px] text-slate-400 italic font-sans">No comments published yet.</p>}
                 </div>
                 <form onSubmit={(e) => handleAddPostComment(e, post.id)} className="pt-2 border-t border-[#EADFC9]/20 flex gap-2 font-sans">
                   <input name="commentInputText" type="text" placeholder="Add comment..." className="flex-1 text-[11px] px-3 py-1.5 bg-slate-50 border rounded-lg focus:outline-none" required />
@@ -1471,30 +1209,17 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
             </div>
           );
         })}
-        {posts.length === 0 && <div className="py-24 text-center text-slate-400 font-handwritten text-xl bg-white/50 border-2 border-dashed rounded-2xl p-8 animate-fadeIn">"No showroom posts loaded yet. Publish your completed B-rolls, thumbnails, or scripts above!"</div>}
       </div>
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="w-full max-w-md animate-fadeIn bg-white border border-[#EADFC9] rounded-[2.5rem] p-6 shadow-2xl relative">
-            <button onClick={() => setShowCreatePostModal(false)} className="absolute top-4 right-4 font-bold text-slate-400">✕</button>
-            <h3 className="font-serif text-lg font-bold border-b pb-2 mb-4 font-serif">Create Roster Post</h3>
-            <form onSubmit={publishPost} className="space-y-4 text-xs font-sans">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Post Title</label>
-                <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="e.g. Episode Thumbnail Cut 1" className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none" required />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Context details</label>
-                <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Scribble context details..." className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none" rows="2" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Screenshot upload</label>
-                <input type="file" accept="image/*" onChange={e => setPostFile(e.target.files[0])} className="w-full text-xs text-slate-500 mt-2 font-sans" required />
-              </div>
-              <button type="submit" disabled={publishing} className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold uppercase rounded-xl font-sans disabled:opacity-50">{publishing ? 'Publishing…' : 'Share Post'}</button>
-            </form>
-          </div>
+          <form onSubmit={publishPost} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
+            <h4 className="font-serif font-bold text-slate-800">Create Roster Post</h4>
+            <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="Title" className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none text-xs" required />
+            <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Scribble context details..." className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none text-xs" rows="2" />
+            <input type="file" accept="image/*" onChange={e => setPostFile(e.target.files[0])} className="w-full text-xs text-slate-500 mt-2 font-sans" required />
+            <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowCreatePostModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button><button type="submit" disabled={publishing} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] disabled:opacity-50">{publishing ? 'Publishing…' : 'Share Post'}</button></div>
+          </form>
         </div>
       )}
     </section>
@@ -1512,98 +1237,48 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
 
   useEffect(() => {
     if (userProfile) {
-      setFullName(userProfile.name || '');
-      setSelectedCat(userProfile.workCategory || categories[0] || 'Editing');
-      setUploadedPhotoUrl(userProfile.photoURL || '');
+      setFullName(userProfile.name || ''); setSelectedCat(userProfile.workCategory || categories[0] || 'Editing'); setUploadedPhotoUrl(userProfile.photoURL || '');
     }
   }, [userProfile, categories]);
 
-  const triggerPfpUpdate = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setPendingFile(file);
-      setUploadedPhotoUrl(URL.createObjectURL(file));
-    }
-  };
+  const triggerPfpUpdate = (e) => { const file = e.target.files[0]; if (file) { setPendingFile(file); setUploadedPhotoUrl(URL.createObjectURL(file)); } };
 
   const saveProfileSettings = async (e) => {
-    e.preventDefault();
-    if (!fullName.trim()) return;
-    setSaving(true);
+    e.preventDefault(); if (!fullName.trim()) return; setSaving(true);
     try {
-      let photoURL = userProfile.photoURL;
-      let uploadSuccess = true;
-      
-      // Attempt image upload with a strict timeout to prevent infinite freezing
+      let photoURL = userProfile.photoURL; let uploadSuccess = true;
       if (pendingFile) {
         try {
-          photoURL = await Promise.race([
-            uploadToStorage(`avatars/${userProfile.id}_${Date.now()}`, pendingFile),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 6000))
-          ]);
-        } catch (upErr) {
-          uploadSuccess = false;
-          console.error("Storage upload error", upErr);
-          showToast("Image failed to upload (Storage Rules blocked it). Name updated instead.", "warning");
-        }
+          photoURL = await Promise.race([ uploadToStorage(`avatars/${userProfile.id}_${Date.now()}`, pendingFile), new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 6000)) ]);
+        } catch (upErr) { uploadSuccess = false; showToast("Image failed to upload. Name updated instead.", "warning"); }
       }
-      
-      // Save text details directly to firestore
       await updateDoc(doc(db, 'profiles', userProfile.id), { name: fullName.trim(), workCategory: selectedCat, photoURL });
-      
-      if(uploadSuccess) {
-          showToast('Your profile updates saved successfully!', 'success');
-      }
+      if(uploadSuccess) showToast('Your profile updates saved successfully!', 'success');
       setPendingFile(null);
-    } catch (err) {
-      console.error(err);
-      showToast('Save failed.', 'warning');
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { showToast('Save failed.', 'warning'); } finally { setSaving(false); }
   };
 
   const handleRegisterCategory = async (e) => {
-    e.preventDefault();
-    const refined = newCatInp.trim();
-    if (!refined) return;
-    if (categories.some(c => c.toLowerCase() === refined.toLowerCase())) {
-      showToast('Category tag already exists.', 'warning');
-      return;
-    }
+    e.preventDefault(); const refined = newCatInp.trim(); if (!refined) return;
+    if (categories.some(c => c.toLowerCase() === refined.toLowerCase())) { showToast('Category tag already exists.', 'warning'); return; }
     await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(refined) }, { merge: true });
-    setSelectedCat(refined);
-    setNewCatInp('');
-    showToast('Category registered!', 'success');
+    setSelectedCat(refined); setNewCatInp(''); showToast('Category registered!', 'success');
   };
 
   return (
     <section className="max-w-2xl mx-auto bg-white border border-[#EADFC9] rounded-[2.5rem] p-8 shadow-lg relative animate-fadeIn font-sans">
       <WatercolorOverlay />
       <div className="text-center mb-6">
-        <span className="text-xs font-bold uppercase tracking-wider text-[#C5A03A]">My Badge Profile</span>
         <h2 className="font-serif text-3xl font-bold text-slate-800">Configure Profile Details</h2>
       </div>
       <div className="flex flex-col items-center mb-6 font-sans">
         <div className="w-24 h-24 rounded-full border-4 border-[#C5A03A]/20 bg-white overflow-hidden shadow-md flex items-center justify-center mb-2 font-sans">{renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-full")}</div>
-        <p className="text-xs text-slate-400 font-sans">Live PFP Preview</p>
       </div>
       <form onSubmit={saveProfileSettings} className="space-y-4 font-sans animate-fadeIn">
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 uppercase">Display Name</label>
-          <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
-        </div>
+        <div><label className="block text-[10px] font-bold text-slate-500 uppercase">Display Name</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]" required /></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase font-sans">Specialization Category</label>
-            <select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]">
-              {categories.map((cat, idx) => <option key={idx} value={cat}>{cat}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase">Upload New PFP (Image file)</label>
-            <input type="file" accept="image/*" onChange={triggerPfpUpdate} className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-amber-50 file:text-amber-700" />
-          </div>
+          <div><label className="block text-[10px] font-bold text-slate-500 uppercase font-sans">Specialization Category</label><select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]">{categories.map((cat, idx) => <option key={idx} value={cat}>{cat}</option>)}</select></div>
+          <div><label className="block text-[10px] font-bold text-slate-500 uppercase">Upload New PFP</label><input type="file" accept="image/*" onChange={triggerPfpUpdate} className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-amber-50 file:text-amber-700" /></div>
         </div>
         <button type="submit" disabled={saving} className="w-full py-3 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-serif font-bold uppercase rounded-xl tracking-wider hover:bg-[#ae8b30] shadow transition disabled:opacity-50">{saving ? 'Saving…' : 'Save Profile Details'}</button>
       </form>
@@ -1614,9 +1289,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
           <button type="submit" className="px-4 py-2 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Role Tag</button>
         </form>
       </div>
-      <div className="border-t border-[#EADFC9]/50 mt-6 pt-6 text-center">
-        <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 hover:text-rose-700 transition bg-rose-50 hover:bg-rose-100 px-5 py-2.5 rounded-full border border-rose-200">🚪 Sign Out</button>
-      </div>
+      <div className="border-t border-[#EADFC9]/50 mt-6 pt-6 text-center"><button onClick={handleSignOut} className="text-xs font-bold text-rose-500 hover:text-rose-700 transition bg-rose-50 hover:bg-rose-100 px-5 py-2.5 rounded-full border border-rose-200">🚪 Sign Out</button></div>
     </section>
   );
 }
@@ -1629,12 +1302,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   const [editingUserId, setEditingUserId] = useState(null);
   const [editedFile, setEditedFile] = useState(null);
 
-  useEffect(() => {
-    if (siteSettings?.logoText) {
-      setLogoTxt(siteSettings.logoText);
-    }
-  }, [siteSettings]);
-
+  useEffect(() => { if (siteSettings?.logoText) setLogoTxt(siteSettings.logoText); }, [siteSettings]);
   useEffect(() => { setChannelIdInput(ytConfig.channelId || ''); setApiKeyInput(ytConfig.apiKey || ''); }, [ytConfig.channelId, ytConfig.apiKey]);
 
   const pendingCount = profiles.filter(p => p.status === 'pending').length;
@@ -1650,27 +1318,18 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
     if (!editedFile) return;
     const url = await uploadToStorage(`avatars/${userId}_${Date.now()}_admin`, editedFile);
     await updateDoc(doc(db, 'profiles', userId), { photoURL: url });
-    setEditingUserId(null);
-    setEditedFile(null);
-    showToast("Crew member's profile picture modified successfully!", 'success');
+    setEditingUserId(null); setEditedFile(null); showToast("Crew member's profile picture modified successfully!", 'success');
   };
 
   const triggerSiteLogoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files[0]; if (!file) return;
     const url = await uploadToStorage(`branding/logo_${Date.now()}`, file);
-    await setDoc(doc(db, 'meta/settings'), { logoUrl: url }, { merge: true });
-    showToast('Dynamic Custom Logo Uploaded successfully!', 'success');
+    await setDoc(doc(db, 'meta/settings'), { logoUrl: url }, { merge: true }); showToast('Dynamic Custom Logo Uploaded successfully!', 'success');
   };
 
   const saveLogoText = async () => {
-    try {
-      await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true });
-      showToast('Label saved successfully! Refresh page to see.', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Error saving label. You do not have Firestore permissions to edit meta.', 'warning');
-    }
+    try { await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); showToast('Label saved successfully!', 'success'); } 
+    catch (err) { showToast('Error saving label. You do not have Firestore permissions to edit meta.', 'warning'); }
   };
 
   const approve = (uid) => updateDoc(doc(db, 'profiles', uid), { status: 'approved' });
@@ -1682,30 +1341,17 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
       <div className="col-span-1 space-y-6">
         <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
           <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Studio Branding</h3>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase">Logo Brand Text</label>
-            <input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase font-sans">Logo Image</label>
-            <input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-xs text-slate-500 mt-1 file:py-1 file:px-2" />
-          </div>
+          <div><label className="block text-[10px] font-bold text-slate-400 uppercase">Logo Brand Text</label><input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1" /></div>
+          <div><label className="block text-[10px] font-bold text-slate-400 uppercase font-sans">Logo Image</label><input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-xs text-slate-500 mt-1 file:py-1 file:px-2" /></div>
           <button onClick={saveLogoText} className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
         </div>
 
         <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans">
           <h3 className="font-serif font-bold border-b pb-2 mb-2 text-slate-800">YouTube Auto-Sync Setup</h3>
           {ytConfig.lastError && <p className="text-[10px] text-rose-600 mb-2 font-bold">⚠ Last error: {ytConfig.lastError}</p>}
-          <p className="text-[10px] text-slate-400 mb-3 font-sans">Make sure this API key is unrestricted (or allows YouTube Data API v3 + your Vercel domain referrer).</p>
           <form onSubmit={handleYtSave} className="space-y-3 font-sans">
-            <div>
-              <label className="block text-[9px] font-bold text-slate-400 uppercase font-semibold">YouTube Channel ID / Handle</label>
-              <input type="text" value={channelIdInput} onChange={(e) => setChannelIdInput(e.target.value)} placeholder="e.g. @naitik._.artist-16" className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" required />
-            </div>
-            <div>
-              <label className="block text-[9px] font-bold text-slate-400 uppercase font-semibold">YouTube API v3 Key</label>
-              <input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" />
-            </div>
+            <div><label className="block text-[9px] font-bold text-slate-400 uppercase font-semibold">YouTube Channel ID / Handle</label><input type="text" value={channelIdInput} onChange={(e) => setChannelIdInput(e.target.value)} placeholder="e.g. @naitik._.artist-16" className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" required /></div>
+            <div><label className="block text-[9px] font-bold text-slate-400 uppercase font-semibold">YouTube API v3 Key</label><input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" /></div>
             <button type="submit" className="w-full py-2 bg-gradient-to-r from-[#C5A03A] to-[#E3BE5C] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold rounded-lg font-sans">Save & Synchronize Channel</button>
           </form>
         </div>
@@ -1719,11 +1365,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left font-sans min-w-[400px]">
             <thead>
-              <tr className="text-slate-400 font-sans font-semibold">
-                <th className="pb-2">Crew Profile</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2 text-right">Actions</th>
-              </tr>
+              <tr className="text-slate-400 font-sans font-semibold"><th className="pb-2">Crew Profile</th><th className="pb-2">Status</th><th className="pb-2 text-right">Actions</th></tr>
             </thead>
             <tbody>
               {profiles.map(p => {
@@ -1739,16 +1381,11 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                         <div className="mt-2 p-2 bg-slate-50 border rounded-lg space-y-2 animate-fadeIn font-sans">
                           <span className="text-[9px] font-bold uppercase text-slate-400 block font-sans">Admin Photo Override</span>
                           <input type="file" accept="image/*" onChange={(e) => setEditedFile(e.target.files[0])} className="text-[9px] font-sans" />
-                          <div className="flex gap-1.5 justify-end">
-                            <button onClick={() => setEditingUserId(null)} className="text-[9px] bg-slate-200 px-2 py-0.5 rounded font-sans">Cancel</button>
-                            <button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[9px] bg-[#C5A03A] text-white px-2 py-0.5 rounded font-bold font-sans">Save PFP</button>
-                          </div>
+                          <div className="flex gap-1.5 justify-end"><button onClick={() => setEditingUserId(null)} className="text-[9px] bg-slate-200 px-2 py-0.5 rounded font-sans">Cancel</button><button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[9px] bg-[#C5A03A] text-white px-2 py-0.5 rounded font-bold font-sans">Save PFP</button></div>
                         </div>
                       )}
                     </td>
-                    <td className="py-2.5 uppercase font-mono text-[10px] font-semibold">
-                      <span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}
-                    </td>
+                    <td className="py-2.5 uppercase font-mono text-[10px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
                     <td className="py-2.5 text-right space-x-1.5 font-sans">
                       {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
                         <div className="flex items-center justify-end gap-1 flex-wrap font-sans">
