@@ -73,6 +73,7 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
   const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
 
   const visible = useMemo(() => notifications.filter(n => {
+    if (n.actor === 'System') return false; // Filter out system messages
     const audience = n.audience || 'all';
     return audience === 'all' || (audience === 'admin' && isAdmin);
   }), [notifications, isAdmin]);
@@ -102,9 +103,9 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
         )}
       </button>
 
-      {/* FIX: Improved mobile max-width and negative right alignment so it doesn't bleed off screen */}
+      {/* FIX: Bulletproof fixed-mobile layout so dropdown never bleeds out of the screen */}
       {open && (
-        <div className="absolute right-[-2rem] sm:right-0 mt-2 w-80 max-w-[90vw] sm:w-72 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn">
+        <div className="fixed sm:absolute top-[70px] sm:top-full left-4 right-4 sm:left-auto sm:right-0 mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn">
           <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between">
             <span className="font-serif font-bold text-sm text-slate-800">Notifications</span>
             <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold p-1">✕</button>
@@ -132,6 +133,7 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
   );
 }
 
+// --- FIRESTORE HOOKS ---
 function useFirestoreCollection(name, orderField = null, limitN = null) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -212,7 +214,7 @@ export default function App() {
   const [posts] = useFirestoreCollection('posts', 'createdAt');
   const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50);
   const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG);
-  const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '' });
+  const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] });
   const [projects] = useFirestoreCollection('projects', 'createdAt');
   const [tasks] = useFirestoreCollection('tasks');
   const [chats] = useFirestoreCollection('chats', 'createdAt', 200);
@@ -236,10 +238,9 @@ export default function App() {
     }
   }, [notifsError]);
 
-  // FIX: Unread Red Dots logic mapping
   const unreadMap = useMemo(() => {
     const lastSeen = userProfile?.lastSeenNotifAt || 0;
-    const unread = notifications.filter(n => n.timestamp > lastSeen);
+    const unread = notifications.filter(n => n.timestamp > lastSeen && n.actor !== 'System');
     
     return {
       vault: unread.some(n => n.message.toLowerCase().includes('video asset') || n.message.toLowerCase().includes('commented on video')),
@@ -259,7 +260,7 @@ export default function App() {
       return;
     }
     notifications.forEach(n => {
-      if (seenNotifIdsRef.current.has(n.id)) return;
+      if (seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
       seenNotifIdsRef.current.add(n.id);
       const audience = n.audience || 'all';
       const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
@@ -269,7 +270,7 @@ export default function App() {
         } catch (e) {}
       }
     });
-  }, [notifications, userProfile, isAdmin]);
+  }, [notifications, userProfile, isAdmin, siteSettings.logoUrl]);
 
   const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
     try {
@@ -295,13 +296,12 @@ export default function App() {
         createdAt: Date.now(),
       };
       await setDoc(ref, newProfile);
-      await pushNotification(`${newProfile.name} requested to join the roster.`, 'System', 'admin');
       return newProfile;
     } else if (isOwner && snap.data().role !== 'owner') {
       await updateDoc(ref, { role: 'owner', status: 'approved' });
     }
     return snap.data();
-  }, [categories, pushNotification]);
+  }, [categories]);
   ensureProfileDocRef.current = ensureProfileDoc;
 
   const handleGoogleSignIn = async () => {
@@ -448,22 +448,23 @@ export default function App() {
         </div>
       )}
 
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-4 sm:px-6 py-4 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
         <div className="flex items-center space-x-3">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 sm:p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
           </button>
           <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => handleNavigationChange('home')}>
             {siteSettings.logoUrl ? (
-              <img src={siteSettings.logoUrl} alt="Logo" className="w-10 h-10 object-cover rounded-xl shadow-[0_4px_15px_rgba(135,112,58,0.25)] border-2 border-white transform hover:scale-105 transition" />
+              <img src={siteSettings.logoUrl} alt="Logo" className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded-xl shadow-[0_4px_15px_rgba(135,112,58,0.25)] border-2 border-white transform hover:scale-105 transition" />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow-[0_4px_15px_rgba(197,160,58,0.3)] border-2 border-white">Y</div>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow-[0_4px_15px_rgba(197,160,58,0.3)] border-2 border-white">Y</div>
             )}
-            <span className="font-serif text-lg tracking-wider text-[#C5A03A] font-extrabold hidden sm:inline">{siteSettings.logoText}</span>
+            {/* FIX: Removed hidden sm:inline so it ALWAYS shows the label text, added truncate for safety on mobile */}
+            <span className="font-serif text-sm sm:text-lg tracking-wider text-[#C5A03A] font-extrabold truncate max-w-[120px] sm:max-w-none">{siteSettings.logoText || 'YOUTUBERS STUDIO'}</span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3 sm:space-x-4">
           {userProfile && <NotificationBell notifications={notifications} userProfile={userProfile} isAdmin={isAdmin} />}
           {userProfile ? (
             <div className="flex items-center space-x-3">
@@ -471,12 +472,12 @@ export default function App() {
                 <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name}</p>
                 <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{userProfile?.role}</span>
               </div>
-              <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
                 {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-5 py-2.5 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95">🔑 Crew Sign In</button>
+            <button onClick={() => setShowSignInModal(true)} className="text-[10px] sm:text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95">🔑 Crew Sign In</button>
           )}
         </div>
       </header>
@@ -493,7 +494,6 @@ export default function App() {
               <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
               <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
               
-              {/* FIX: Red dots injected based on UnreadMap status */}
               <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
                 <span>🎞️</span><span>Video Vault</span>
                 {unreadMap.vault && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
@@ -538,7 +538,7 @@ export default function App() {
         {currentPage === 'vault' && <VideoVault videos={videos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
         {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} />}
         {currentPage === 'scripts' && <ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} />}
-        {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
+        {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} />}
         {currentPage === 'posts' && <PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} />}
         {currentPage === 'profile' && (
           !userProfile ? (
@@ -555,7 +555,7 @@ export default function App() {
   );
 }
 
-// --- THREEJS BACKGROUND GRAPHICS (unchanged visual layer) ---
+// --- THREEJS BACKGROUND GRAPHICS ---
 function ThreeArtBackground() {
   const mountRef = useRef(null);
   useEffect(() => {
@@ -709,15 +709,15 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal }) {
 
 // --- HOMEPAGE HUB ---
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications }) {
-  // FIX: Replaced Live Logs with Updates. Filtering out raw chat messages (which start with a quote).
+  // FIX: Filter out completely chat messages (starts with quotes) AND 'System' generated items.
   const studioUpdates = useMemo(() => {
-    return notifications.filter(n => !n.message.startsWith('"'));
+    return notifications.filter(n => !n.message.startsWith('"') && n.actor !== 'System');
   }, [notifications]);
 
   return (
     <section className="space-y-10 py-4 animate-fadeIn font-sans">
       <div className="text-center py-4">
-        <h1 className="font-serif text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight">{siteSettings.logoText}</h1>
+        <h1 className="font-serif text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight">{siteSettings.logoText || 'YOUTUBERS STUDIO'}</h1>
         <p className="text-slate-500 font-serif italic text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
       </div>
 
@@ -753,7 +753,7 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
       <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md font-sans animate-fadeIn">
         <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-3 mb-4 font-serif">
           <h3 className="font-serif text-lg font-bold text-[#C5A03A]">📢 Studio Updates</h3>
-          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full font-sans">Recent Activity</span>
+          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full font-sans border border-emerald-200 shadow-inner">Recent Activity</span>
         </div>
         <div className="space-y-3 max-h-56 overflow-y-auto custom-scrollbar font-sans pr-1">
           {studioUpdates.map(notif => (
@@ -763,7 +763,7 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
               <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
             </div>
           ))}
-          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No studio updates logged yet.</p>}
+          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No project updates mapped to log yet.</p>}
         </div>
       </div>
     </section>
@@ -1236,9 +1236,11 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 }
 
 // --- CHATROOM PANEL ---
-// FIX: Converted to Flex Column structure on mobile so input isn't blocked by keyboard and height scrolls smoothly.
-function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification }) {
+// FIX: Converted to Flex Column structure on mobile so input isn't blocked by keyboard, and added custom channel list rendering.
+function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings }) {
   const [inputText, setInputText] = useState('');
+  
+  const channels = siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
 
   const commit = async (e) => {
     e.preventDefault();
@@ -1257,8 +1259,12 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   return (
     <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-[2rem] h-[75vh] sm:h-[500px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
-      <div className="sm:col-span-1 bg-[#FFFDF9] p-3 space-y-2 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 overflow-x-auto whitespace-nowrap sm:whitespace-normal">
-        <button onClick={() => setChatChannel('general')} className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition ${chatChannel === 'general' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : ''}`}>🌍 Studio Room</button>
+      <div className="sm:col-span-1 bg-[#FFFDF9] p-3 space-y-2 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 overflow-x-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-2 sm:gap-0">
+        {channels.map(ch => (
+           <button key={ch.id} onClick={() => setChatChannel(ch.id)} className={`w-auto sm:w-full text-left px-4 sm:px-2.5 py-2.5 rounded-xl text-xs font-bold transition inline-block sm:block border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>
+             {ch.name}
+           </button>
+        ))}
       </div>
       <div className="sm:col-span-3 flex flex-col h-full bg-slate-50/20 font-sans min-h-0 flex-1">
         <div className="p-4 overflow-y-auto space-y-2 custom-scrollbar flex-1 font-sans min-h-0">
@@ -1268,6 +1274,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
               {m.text}
             </div>
           ))}
+          {chats.filter(c => c.projectId === chatChannel).length === 0 && <p className="text-slate-400 text-xs text-center py-6">This room is empty. Start the chat!</p>}
         </div>
         <form onSubmit={commit} className="p-3 border-t flex gap-2 bg-white font-sans animate-fadeIn">
           <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type studio track commentary..." className="flex-1 px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" />
@@ -1413,6 +1420,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification }) {
 }
 
 // --- MY PROFILE WORKSPACE ---
+// FIX: Added timeout and strict try/catch so image upload failures don't permanently freeze the "Saving..." button.
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
@@ -1437,15 +1445,34 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
     }
   };
 
+  const uploadWithTimeout = (path, file) => {
+    return Promise.race([
+      uploadToStorage(path, file),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timed out (check storage rules)")), 15000))
+    ]);
+  };
+
   const saveProfileSettings = async (e) => {
     e.preventDefault();
     if (!fullName.trim()) return;
     setSaving(true);
     try {
       let photoURL = userProfile.photoURL;
-      if (pendingFile) photoURL = await uploadToStorage(`avatars/${userProfile.id}_${Date.now()}`, pendingFile);
+      
+      if (pendingFile) {
+        try {
+          photoURL = await uploadWithTimeout(`avatars/${userProfile.id}_${Date.now()}`, pendingFile);
+        } catch (upErr) {
+          console.error("Storage upload error", upErr);
+          showToast("Image upload failed. Check Firebase Storage rules.", "warning");
+          setSaving(false);
+          return; // Stop the save so it doesn't break the user's profile with a bad URL
+        }
+      }
+      
       await updateDoc(doc(db, 'profiles', userProfile.id), { name: fullName.trim(), workCategory: selectedCat, photoURL });
       showToast('Your profile updates saved successfully!', 'success');
+      setPendingFile(null);
     } catch (err) {
       console.error(err);
       showToast('Save failed.', 'warning');
@@ -1513,13 +1540,14 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
 }
 
 // --- ADMIN PANEL ---
-// FIX: Label Persistence Fixed through explicit try/catch and structured merge saving logic.
+// FIX: Added Chat Channel Configuration so you can add multiple chats
 function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
-  const [logoTxt, setLogoTxt] = useState(siteSettings.logoText);
+  const [logoTxt, setLogoTxt] = useState(siteSettings.logoText || '');
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
   const [apiKeyInput, setApiKeyInput] = useState(ytConfig.apiKey || '');
   const [editingUserId, setEditingUserId] = useState(null);
   const [editedFile, setEditedFile] = useState(null);
+  const [newChannelName, setNewChannelName] = useState('');
 
   useEffect(() => {
     if (siteSettings?.logoText) {
@@ -1565,6 +1593,25 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
     }
   };
 
+  const handleAddChannel = async (e) => {
+    e.preventDefault();
+    if(!newChannelName.trim()) return;
+    const currentChannels = siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
+    await setDoc(doc(db, 'meta/settings'), {
+        chatChannels: [...currentChannels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}]
+    }, {merge: true});
+    setNewChannelName('');
+    showToast("Whiteboard chat channel added!", "success");
+  }
+
+  const removeChannel = async (id) => {
+    const currentChannels = siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
+    await setDoc(doc(db, 'meta/settings'), {
+        chatChannels: currentChannels.filter(c => c.id !== id)
+    }, {merge: true});
+    showToast("Channel removed!", "info");
+  }
+
   const approve = (uid) => updateDoc(doc(db, 'profiles', uid), { status: 'approved' });
   const promote = (uid) => updateDoc(doc(db, 'profiles', uid), { role: 'admin' });
   const remove = (uid) => deleteDoc(doc(db, 'profiles', uid));
@@ -1583,6 +1630,22 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
             <input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-xs text-slate-500 mt-1 file:py-1 file:px-2" />
           </div>
           <button onClick={saveLogoText} className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
+        </div>
+
+        <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans animate-fadeIn">
+          <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Whiteboard Chat Channels</h3>
+          <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+            {(siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}]).map(ch => (
+              <div key={ch.id} className="flex justify-between items-center text-xs p-2 bg-slate-50 border rounded-lg">
+                <span className="font-bold text-slate-700">{ch.name}</span>
+                {ch.id !== 'general' && <button onClick={() => removeChannel(ch.id)} className="text-rose-500 font-bold px-2 py-0.5 rounded hover:bg-rose-100">✕</button>}
+              </div>
+            ))}
+          </div>
+          <form onSubmit={handleAddChannel} className="mt-3 flex gap-2">
+            <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="e.g. Script Talk" className="flex-1 px-3 py-1.5 border rounded-lg text-xs" required />
+            <button type="submit" className="bg-slate-800 text-white px-3 text-xs font-bold rounded-lg">+</button>
+          </form>
         </div>
 
         <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans">
@@ -1608,54 +1671,56 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
           <span>Roster Control & Applicants</span>
           {pendingCount > 0 && <span className="bg-rose-100 text-rose-600 text-[10px] px-2 py-0.5 rounded-full font-bold">{pendingCount} pending</span>}
         </h3>
-        <table className="w-full text-xs text-left font-sans">
-          <thead>
-            <tr className="text-slate-400 font-sans font-semibold">
-              <th className="pb-2">Crew Profile</th>
-              <th className="pb-2">Status</th>
-              <th className="pb-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profiles.map(p => {
-              const isEditing = editingUserId === p.id;
-              return (
-                <tr key={p.id} className="border-t font-sans animate-fadeIn">
-                  <td className="py-2.5 font-bold">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50">{renderAvatar(p.photoURL)}</div>
-                      <div className="flex flex-col font-sans"><span>{p.name}</span><span className="text-[9px] text-slate-400 font-normal">{p.email}</span></div>
-                    </div>
-                    {isEditing && (
-                      <div className="mt-2 p-2 bg-slate-50 border rounded-lg space-y-2 animate-fadeIn font-sans">
-                        <span className="text-[9px] font-bold uppercase text-slate-400 block font-sans">Admin Photo Override</span>
-                        <input type="file" accept="image/*" onChange={(e) => setEditedFile(e.target.files[0])} className="text-[9px] font-sans" />
-                        <div className="flex gap-1.5 justify-end">
-                          <button onClick={() => setEditingUserId(null)} className="text-[9px] bg-slate-200 px-2 py-0.5 rounded font-sans">Cancel</button>
-                          <button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[9px] bg-[#C5A03A] text-white px-2 py-0.5 rounded font-bold font-sans">Save PFP</button>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs text-left font-sans min-w-[400px]">
+            <thead>
+              <tr className="text-slate-400 font-sans font-semibold">
+                <th className="pb-2">Crew Profile</th>
+                <th className="pb-2">Status</th>
+                <th className="pb-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {profiles.map(p => {
+                const isEditing = editingUserId === p.id;
+                return (
+                  <tr key={p.id} className="border-t font-sans animate-fadeIn">
+                    <td className="py-2.5 font-bold">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(p.photoURL)}</div>
+                        <div className="flex flex-col font-sans"><span>{p.name}</span><span className="text-[9px] text-slate-400 font-normal">{p.email}</span></div>
+                      </div>
+                      {isEditing && (
+                        <div className="mt-2 p-2 bg-slate-50 border rounded-lg space-y-2 animate-fadeIn font-sans">
+                          <span className="text-[9px] font-bold uppercase text-slate-400 block font-sans">Admin Photo Override</span>
+                          <input type="file" accept="image/*" onChange={(e) => setEditedFile(e.target.files[0])} className="text-[9px] font-sans" />
+                          <div className="flex gap-1.5 justify-end">
+                            <button onClick={() => setEditingUserId(null)} className="text-[9px] bg-slate-200 px-2 py-0.5 rounded font-sans">Cancel</button>
+                            <button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[9px] bg-[#C5A03A] text-white px-2 py-0.5 rounded font-bold font-sans">Save PFP</button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2.5 uppercase font-mono text-[10px] font-semibold">
-                    <span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}
-                  </td>
-                  <td className="py-2.5 text-right space-x-1.5 font-sans">
-                    {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
-                      <div className="flex items-center justify-end gap-1 flex-wrap font-sans">
-                        <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold hover:bg-blue-100">Edit PFP</button>
-                        {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-bold hover:bg-emerald-100 font-sans">Approve</button>}
-                        {p.role !== 'admin' && p.role !== 'owner' && <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-bold hover:bg-amber-100 font-sans">Promote</button>}
-                        <button onClick={() => remove(p.id)} className="bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold hover:bg-rose-100 font-sans">Remove</button>
-                      </div>
-                    ) : <span className="text-slate-400 italic">Owner</span>}
-                  </td>
-                </tr>
-              );
-            })}
-            {profiles.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-slate-400 italic">No crew members yet.</td></tr>}
-          </tbody>
-        </table>
+                      )}
+                    </td>
+                    <td className="py-2.5 uppercase font-mono text-[10px] font-semibold">
+                      <span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}
+                    </td>
+                    <td className="py-2.5 text-right space-x-1.5 font-sans">
+                      {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
+                        <div className="flex items-center justify-end gap-1 flex-wrap font-sans">
+                          <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold hover:bg-blue-100">Edit PFP</button>
+                          {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-bold hover:bg-emerald-100 font-sans">Approve</button>}
+                          {p.role !== 'admin' && p.role !== 'owner' && <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-bold hover:bg-amber-100 font-sans">Promote</button>}
+                          <button onClick={() => remove(p.id)} className="bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold hover:bg-rose-100 font-sans">Remove</button>
+                        </div>
+                      ) : <span className="text-slate-400 italic">Owner</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {profiles.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-slate-400 italic">No crew members yet.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
