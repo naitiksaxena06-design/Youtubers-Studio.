@@ -269,7 +269,7 @@ export default function App() {
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
 
-  // --- FEATURE: AUTO-CLEANUP FIX (Local Evaluation Bypass to Avoid Missing "where" Export Error) ---
+  // --- FEATURE: AUTO-CLEANUP ---
   useEffect(() => {
     if (!isAuthReady || !userProfile) return;
     const runSevenDaySweep = async () => {
@@ -510,7 +510,7 @@ export default function App() {
       <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-4 sm:px-6 py-3 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
         <div className="flex items-center space-x-3 min-w-0">
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50 shrink-0">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
           </button>
           <div className="flex items-center space-x-2 cursor-pointer min-w-0" onClick={() => handleNavigationChange('home')}>
             {siteSettings.logoUrl ? (
@@ -1774,4 +1774,4 @@ function PendingScreen({ userProfile }) {
 
 function RejectedScreen({ userProfile }) {
   return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</div>;
-}
+      }
