@@ -552,6 +552,716 @@ function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, prof
   );
 }
 
+function CreatorHomeHub({ siteSettings, videos, projects, ytConfig }) {
+  return (
+    <section className="space-y-10 py-4 font-sans">
+      <div className="text-center py-4">
+        <h1 className="font-serif text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight">{siteSettings.logoText}</h1>
+        <p className="text-slate-500 font-serif italic text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Subscribers</span>
+          <p className="text-xl md:text-2xl font-black text-slate-800">{ytConfig.subscribers}</p>
+        </div>
+        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Latest Views</span>
+          <p className="text-xl md:text-2xl font-black text-slate-800">{ytConfig.latestVideoViews}</p>
+        </div>
+        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Vault Masters</span>
+          <p className="text-xl md:text-2xl font-black text-slate-800">{videos.length} Files</p>
+        </div>
+        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Active Ideas</span>
+          <p className="text-xl md:text-2xl font-black text-slate-800">{projects.length} Boards</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CrewSection({ profiles, isAdmin, setProfiles }) {
+  return (
+    <section className="bg-white p-6 border rounded-3xl shadow-skeuo-md">
+      <h4 className="font-serif font-bold text-base border-b pb-2 mb-3">Production Team Members ({profiles.length})</h4>
+      <div className="space-y-3">
+        {profiles.map((p, i) => (
+          <div key={i} className="flex justify-between items-center p-3 border rounded-xl bg-slate-50/50">
+            <div>
+              <p className="text-xs font-bold text-slate-800">{p.name}</p>
+              <span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role} • {p.workCategory}</span>
+            </div>
+            {isAdmin && p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() && (
+              <button onClick={() => setProfiles(prev => prev.filter(x => x.uid !== p.uid))} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full">Remove</button>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CategoriesViewSection({ categories }) {
+  return (
+    <section className="bg-white p-6 border rounded-3xl shadow-skeuo-md">
+      <h3 className="font-serif text-lg font-bold border-b pb-2 mb-4">Active Production Tags</h3>
+      <div className="flex flex-wrap gap-2">
+        {categories.map((c, i) => <span key={i} className="bg-amber-50 border border-amber-200 text-[#C5A03A] text-xs px-3 py-1.5 rounded-xl font-bold">🎬 {c}</span>)}
+      </div>
+    </section>
+  );
+}
+
+function VideoVault({ videos, setVideos }) {
+  const [videoTitle, setVideoTitle] = useState('');
+  return (
+    <section className="space-y-4">
+      <div className="bg-white p-5 border rounded-2xl flex justify-between items-center shadow-skeuo-md">
+        <h3 className="font-serif font-bold text-slate-800 text-lg">Timeline Asset Vault</h3>
+        <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} placeholder="Add mockup video path title..." className="text-xs px-3 py-1.5 border rounded-lg focus:outline-none" />
+        <button onClick={() => { if(videoTitle) setVideos(p => [...p, { id: 'v_'+Date.now(), title: videoTitle, hlsUrl: 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4' }]); setVideoTitle(''); }} className="bg-[#C5A03A] text-white text-xs px-4 py-2 rounded-full font-bold">Add Track</button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {videos.map((v, i) => (
+          <div key={i} className="bg-white border p-4 rounded-xl shadow-sm">
+            <h5 className="font-bold text-xs text-slate-800 mb-2">{v.title}</h5>
+            <video src={v.hlsUrl} controls className="w-full h-40 object-cover rounded-lg bg-black" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Corkboard Pin Module
+function ProjectBoard({ projects, setProjects }) {
+  const [title, setTitle] = useState('');
+  return (
+    <section className="space-y-4">
+      <div className="max-w-md mx-auto flex gap-2 bg-white border p-4 rounded-xl shadow">
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="New timeline concept sprint..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs" />
+        <button onClick={() => { if(title) setProjects(p => [...p, { id: 'p_'+Date.now(), title }]); setTitle(''); }} className="px-4 bg-[#C5A03A] text-white text-xs rounded-lg font-bold">Pin Board</button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {projects.map((p, idx) => (
+          <div key={idx} className="bg-white border p-5 rounded-2xl shadow-skeuo-md relative text-center">
+            <span className="text-xl block mb-2">📌</span>
+            <h4 className="font-serif font-bold text-slate-800">{p.title}</h4>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function WhiteboardChat({ chats, setChats }) {
+  const [msg, setMsg] = useState('');
+  return (
+    <section className="border rounded-[2rem] h-[350px] bg-white overflow-hidden shadow-skeuo-md flex flex-col justify-between">
+      <div className="p-4 overflow-y-auto space-y-2 flex-1 bg-slate-50/50">
+        {chats.map((m, i) => (
+          <div key={i} className="text-xs p-3 bg-white border rounded-2xl max-w-[70%]">
+            <span className="text-[9px] text-slate-400 block font-bold mb-0.5">{m.senderName}</span>
+            {m.text}
+          </div>
+        ))}
+      </div>
+      <div className="p-3 border-t flex gap-2 bg-white">
+        <input type="text" value={msg} onChange={e => setMsg(e.target.value)} placeholder="Type commentary..." className="flex-1 px-3 border rounded-xl text-xs focus:outline-none" />
+        <button onClick={() => { if(msg) setChats(p => [...p, { id: Date.now(), text: msg, senderName: 'Creator' }]); setMsg(''); }} className="px-4 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold">Send</button>
+      </div>
+    </section>
+  );
+}
+
+function PostsWorkspace({ posts }) {
+  return (
+    <section className="max-w-md mx-auto space-y-4">
+      <div className="bg-white p-4 border rounded-2xl shadow text-center">
+        <h3 className="font-serif text-lg font-bold text-slate-800">Showroom Posts ({posts.length})</h3>
+      </div>
+      {posts.map((p, i) => (
+        <div key={i} className="bg-white border rounded-[2rem] overflow-hidden shadow-skeuo-md">
+          <div className="p-3 border-b text-xs font-black">{p.authorName}</div>
+          <img src={p.image} className="w-full h-64 object-cover" alt="" />
+          <div className="p-3 text-xs font-semibold text-slate-700">{p.title}</div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function MyProfileWorkspace({ userProfile }) {
+  return (
+    <section className="max-w-md mx-auto bg-white border p-8 rounded-[2.5rem] shadow-lg text-center">
+      <h3 className="font-serif text-2xl font-bold mb-2">My Profile Badge</h3>
+      <p className="text-xs text-slate-500 font-mono">Registered Email: {userProfile?.email || 'Active'}</p>
+    </section>
+  );
+}
+
+function AdminPanel({ profiles, setProfiles, showToast }) {
+  const toggleRole = (uid, currentRole) => {
+    const targetRole = currentRole === 'admin' ? 'member' : 'admin';
+    setProfiles(prev => prev.map(p => p.uid === uid ? { ...p, role: targetRole } : p));
+    showToast("Role permission altered successfully!", "success");
+  };
+
+  return (
+    <section className="bg-white border p-6 rounded-[2rem] shadow-skeuo-md max-w-2xl mx-auto">
+      <h3 className="font-serif font-bold border-b pb-2 mb-4 text-slate-800">Roster Access Level Control</h3>
+      <table className="w-full text-xs text-left">
+        <thead>
+          <tr className="text-slate-400">
+            <th className="pb-2">Profile Handle</th>
+            <th className="pb-2">Current Role</th>
+            <th className="pb-2 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {profiles.map(p => (
+            <tr key={p.uid} className="border-t">
+              <td className="py-3 font-bold">{p.name}<br/><span className="text-[9px] font-normal text-slate-400">{p.email}</span></td>
+              <td className="py-3 uppercase font-mono text-[10px] font-semibold">{p.role}</td>
+              <td className="py-3 text-right space-x-1.5">
+                {p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() ? (
+                  <div className="flex justify-end gap-1.5">
+                    <button onClick={() => toggleRole(p.uid, p.role)} className="bg-amber-50 text-amber-700 px-3 py-1 rounded-md font-bold border border-amber-200">
+                      {p.role === 'admin' ? 'Demote to Member' : 'Make Admin'}
+                    </button>
+                    <button onClick={() => setProfiles(prev => prev.filter(x => x.uid !== p.uid))} className="bg-rose-50 text-rose-600 px-3 py-1 rounded-md font-bold border border-rose-200">Remove User</button>
+                  </div>
+                ) : <span className="text-slate-400 italic">Owner</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+
+```
+    
+    /* Custom Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(234, 223, 201, 0.2);
+      border-radius: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(197, 160, 58, 0.4);
+      border-radius: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(197, 160, 58, 0.6);
+    }
+
+    /* 3D Shadows and Transformations */
+    .shadow-skeuo-sm {
+      box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
+    }
+    .shadow-skeuo-md {
+      box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1);
+    }
+    .shadow-skeuo-lg {
+      box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15);
+    }
+    .shadow-skeuo-3d {
+      box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
+    }
+  `;
+  document.head.appendChild(styleBlock);
+};
+
+const INITIAL_PROFILES = [
+  { uid: 'owner-id', name: 'Naitik Saxena', email: 'Naitiksaxena06@gmail.com', role: 'owner', status: 'approved', workCategory: 'Creativity', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.2"/><path d="M30,75 C30,55 40,45 50,45 C60,45 70,55 70,75" fill="none" stroke="#C5A03A" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="30" r="12" fill="#C5A03A"/></svg>`, createdAt: Date.now() - 1000000 },
+];
+
+const PRESET_AVATARS = [
+  { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
+  { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.15"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#1D4ED8" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#1D4ED8"/></svg>` },
+  { id: 'gold-palette', name: 'Golden Drop', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.15"/><path d="M30,40 A20,20 0 0,0 70,60 A20,20 0 0,0 30,40" fill="#C5A03A"/><circle cx="45" cy="48" r="3" fill="#ffffff"/></svg>` },
+  { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#10B981" opacity="0.15"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"/></svg>` },
+];
+
+const ADMIN_EMAIL = "Naitiksaxena06@gmail.com";
+
+const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
+  if (!photoURL || typeof photoURL !== 'string') return <div className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans">?</div>;
+  if (photoURL.startsWith('<svg') || photoURL.includes('<circle') || photoURL.includes('<path')) {
+    return <div className={className} dangerouslySetInnerHTML={{ __html: photoURL }} />;
+  }
+  return <img src={photoURL} alt="Crew Avatar" className={className} onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=60"; }} />;
+};
+
+const WatercolorOverlay = () => (
+  <div 
+    className="absolute inset-0 pointer-events-none opacity-[0.22] mix-blend-multiply z-10" 
+    style={{ 
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` 
+    }} 
+  />
+);
+
+export default function App() {
+  const [loadingLibraries, setLoadingLibraries] = useState(true);
+  const [threeReady, setThreeReady] = useState(false);
+  const [gsapReady, setGsapReady] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState(null);
+
+  const [currentPage, setCurrentPage] = useState('home'); 
+  const [loggedInEmail, setLoggedInEmail] = useState(() => localStorage.getItem('sa_logged_in_user_email') || '');
+  const [siteSettings, setSiteSettings] = useState({ logoText: 'YOUTUBERS STUDIO', logoUrl: '' });
+  const [showSignInModal, setShowSignInModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Database collections states
+  const [categories, setCategoriesState] = useState(['Creativity', 'Editing', 'Writing', 'AI Related Expertise']);
+  const [posts, setPostsState] = useState([]);
+  const [notifications, setNotificationsState] = useState([]);
+  const [ytConfig, setYtConfigState] = useState({
+    channelId: 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-', 
+    apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
+    subscribers: '14,820',
+    latestVideoViews: '4,512',
+    latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
+  });
+  const [profiles, setProfilesState] = useState(INITIAL_PROFILES);
+  const [projects, setProjectsState] = useState([]);
+  const [tasks, setTasksState] = useState([]);
+  const [chats, setChatsState] = useState([]);
+  const [videos, setVideosState] = useState([]);
+
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [chatChannel, setChatChannel] = useState('general');
+  const [customToast, setCustomToast] = useState(null);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        await signInAnonymously(auth);
+      } catch (err) {
+        console.error("Auth initialization error:", err);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setFirebaseUser);
+    return () => unsubscribe();
+  }, []);
+
+  // Live Sync Engine Listeners
+  useEffect(() => {
+    if (!firebaseUser) return;
+    const unsubscribes = [];
+
+    // 1. Profiles
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snapshot) => {
+      const cloudProfiles = [];
+      snapshot.forEach((doc) => { cloudProfiles.push({ uid: doc.id, ...doc.data() }); });
+      if (cloudProfiles.length > 0) setProfilesState(cloudProfiles);
+    }));
+
+    // 2. Projects
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), (snapshot) => {
+      const cloudProjects = [];
+      snapshot.forEach((doc) => { cloudProjects.push({ id: doc.id, ...doc.data() }); });
+      setProjectsState(cloudProjects);
+    }));
+
+    // 3. Tasks
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), (snapshot) => {
+      const cloudTasks = [];
+      snapshot.forEach((doc) => { cloudTasks.push({ id: doc.id, ...doc.data() }); });
+      setTasksState(cloudTasks);
+    }));
+
+    // 4. Chats
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), (snapshot) => {
+      const cloudChats = [];
+      snapshot.forEach((doc) => { cloudChats.push({ id: Number(doc.id) || doc.id, ...doc.data() }); });
+      setChatsState(cloudChats);
+    }));
+
+    // 5. Videos
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'videos'), (snapshot) => {
+      const cloudVideos = [];
+      snapshot.forEach((doc) => { cloudVideos.push({ id: doc.id, ...doc.data() }); });
+      setVideosState(cloudVideos);
+    }));
+
+    // 6. Posts
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), (snapshot) => {
+      const cloudPosts = [];
+      snapshot.forEach((doc) => { cloudPosts.push({ id: doc.id, ...doc.data() }); });
+      setPostsState(cloudPosts);
+    }));
+
+    // 7. Notifications
+    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), (snapshot) => {
+      const cloudNotifs = [];
+      snapshot.forEach((doc) => { cloudNotifs.push({ id: doc.id, ...doc.data() }); });
+      cloudNotifs.sort((a, b) => b.timestamp - a.timestamp);
+      setNotificationsState(cloudNotifs.length > 0 ? cloudNotifs : [
+        { id: 'init-notif', message: 'Studio Command Center initialized.', actor: 'System', timestamp: Date.now() - 500000 }
+      ]);
+    }));
+
+    // 8. Categories
+    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().list) setCategoriesState(docSnap.data().list);
+    }));
+
+    // 9. YtConfig
+    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), (docSnap) => {
+      if (docSnap.exists()) setYtConfigState(docSnap.data());
+    }));
+
+    return () => unsubscribes.forEach(unsub => unsub());
+  }, [firebaseUser]);
+
+  // Firestore Data Writers
+  const setProfiles = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(profiles) : updater;
+    const currentUids = new Set(nextVal.map(p => p.uid));
+    for (const p of profiles) {
+      if (!currentUids.has(p.uid)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid));
+    }
+    for (const p of nextVal) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid), p);
+    }
+  };
+
+  const setProjects = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(projects) : updater;
+    const currentIds = new Set(nextVal.map(p => p.id));
+    for (const p of projects) {
+      if (!currentIds.has(p.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id));
+    }
+    for (const p of nextVal) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', p.id), p);
+    }
+  };
+
+  const setTasks = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(tasks) : updater;
+    const currentIds = new Set(nextVal.map(t => t.id));
+    for (const t of tasks) {
+      if (!currentIds.has(t.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id));
+    }
+    for (const t of nextVal) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', t.id), t);
+    }
+  };
+
+  const setChats = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(chats) : updater;
+    const currentIds = new Set(nextVal.map(c => c.id));
+    for (const c of chats) {
+      if (!currentIds.has(c.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)));
+    }
+    for (const c of nextVal) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', String(c.id)), c);
+    }
+  };
+
+  const setVideos = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(videos) : updater;
+    const currentIds = new Set(nextVal.map(v => v.id));
+    for (const v of videos) {
+      if (!currentIds.has(v.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id));
+    }
+    for (const v of nextVal) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', v.id), v);
+    }
+  };
+
+  const setPosts = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(posts) : updater;
+    const currentIds = new Set(nextVal.map(p => p.id));
+    for (const p of posts) {
+      if (!currentIds.has(p.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id));
+    }
+    for (const p of nextVal) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', p.id), p);
+    }
+  };
+
+  const setNotifications = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(notifications) : updater;
+    const currentIds = new Set(nextVal.map(n => n.id));
+    for (const n of notifications) {
+      if (!currentIds.has(n.id)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id));
+    }
+    for (const n of nextVal) {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id), n);
+    }
+  };
+
+  const setYtConfig = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(ytConfig) : updater;
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), nextVal);
+  };
+
+  const setCategories = async (updater) => {
+    if (!firebaseUser) return;
+    const nextVal = typeof updater === 'function' ? updater(categories) : updater;
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: nextVal });
+  };
+
+  // Profile matching state rules
+  const userProfile = useMemo(() => {
+    if (!loggedInEmail) return null;
+    return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
+  }, [profiles, loggedInEmail]);
+
+  const isAdmin = useMemo(() => {
+    return loggedInEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase() || (userProfile && userProfile.role === 'admin');
+  }, [userProfile, loggedInEmail]);
+
+  const showToast = (message, type = 'info') => {
+    setCustomToast({ message, type });
+    setTimeout(() => setCustomToast(null), 4000);
+  };
+
+  const pushNotification = (message, actorName = 'Crew Member') => {
+    const newNotif = { id: 'notif_' + Date.now(), message, actor: actorName, timestamp: Date.now() };
+    setNotifications(prev => [newNotif, ...prev]);
+  };
+
+  const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
+    const activeChannelId = targetChannelId || ytConfig.channelId || 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-';
+    const activeApiKey = targetApiKey || ytConfig.apiKey || 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg';
+    let url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=naitik._.artist-16&key=${activeApiKey}`;
+    try {
+      const channelRes = await fetch(url);
+      if (!channelRes.ok) throw new Error("API failed.");
+      const channelData = await channelRes.json();
+      const item = channelData.items?.[0];
+      if (item) {
+        setYtConfig(prev => ({
+          ...prev,
+          subscribers: parseInt(item.statistics.subscriberCount, 10).toLocaleString()
+        }));
+      }
+    } catch (err) {
+      console.warn("Using simulated background view counts.");
+    }
+  };
+
+  useEffect(() => {
+    if (loadingLibraries) return;
+    syncYouTubeStats(ytConfig.channelId, ytConfig.apiKey, true);
+  }, [loadingLibraries]);
+
+  const handleProfileSignIn = (crewName, crewEmail, profilePhotoBase64, categorySelected) => {
+    const emailKey = crewEmail.trim().toLowerCase();
+    const isOwner = emailKey === ADMIN_EMAIL.toLowerCase();
+    let matchedProfile = profiles.find(p => p.email.toLowerCase() === emailKey);
+
+    if (!matchedProfile) {
+      matchedProfile = {
+        uid: 'user_' + Date.now(),
+        name: crewName || crewEmail.split('@')[0],
+        email: crewEmail,
+        role: isOwner ? 'owner' : 'member',
+        status: 'approved',
+        workCategory: categorySelected || 'Editing',
+        photoURL: profilePhotoBase64 || PRESET_AVATARS[0].svg,
+        createdAt: Date.now()
+      };
+      setProfiles(prev => [...prev, matchedProfile]);
+    }
+
+    setLoggedInEmail(matchedProfile.email);
+    localStorage.setItem('sa_logged_in_user_email', matchedProfile.email);
+    setShowSignInModal(false);
+    showToast(`Welcome back, ${matchedProfile.name}!`, "success");
+    setCurrentPage('home');
+  };
+
+  const handleNavigationChange = (targetPage) => {
+    setIsSidebarOpen(false);
+    if (targetPage === 'home') {
+      setCurrentPage(targetPage);
+      return;
+    }
+    if (!loggedInEmail) {
+      setShowSignInModal(true);
+      return;
+    }
+    setCurrentPage(targetPage);
+  };
+
+  useEffect(() => {
+    injectArtStyleStyles();
+    setLoadingLibraries(false);
+    setThreeReady(true);
+  }, []);
+
+  if (loadingLibraries) {
+    return (
+      <div className="min-h-screen bg-[#FCFAF2] flex flex-col items-center justify-center font-serif text-[#C5A03A]">
+        <div className="w-16 h-16 border-4 border-dashed border-[#C5A03A] rounded-full animate-spin mb-4" />
+        <h2 className="text-2xl font-bold tracking-widest font-serif">SYNCING TIMELINES</h2>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen relative overflow-x-hidden bg-[#FCFBF8] text-slate-800 font-sans selection:bg-[#C5A03A]/20">
+      <WatercolorOverlay />
+      {threeReady && <ThreeArtBackground />}
+
+      {customToast && (
+        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white bg-[#C5A03A] animate-bounce">
+          {customToast.message}
+        </div>
+      )}
+
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-sm font-sans">
+        <div className="flex items-center space-x-3">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+          <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => handleNavigationChange('home')}>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow border-2 border-white">Y</div>
+            <span className="font-serif text-lg tracking-wider text-[#C5A03A] font-extrabold hidden sm:inline">{siteSettings.logoText}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-4">
+          {loggedInEmail ? (
+            <div className="flex items-center space-x-3">
+              <div className="hidden sm:flex flex-col text-right">
+                <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name || loggedInEmail.split('@')[0]}</p>
+                <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{isAdmin ? 'Admin/Owner' : 'Crew Member'}</span>
+              </div>
+              <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
+                {renderAvatar(userProfile?.photoURL)}
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] text-white px-5 py-2.5 rounded-full shadow border border-white transition transform active:scale-95">🔑 Crew Sign In</button>
+          )}
+        </div>
+      </header>
+
+      <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
+        <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
+          <div className="space-y-6 pb-20">
+            <span className="font-serif font-black text-lg text-[#C5A03A] tracking-wider uppercase block border-b pb-2">Navigation</span>
+            <nav className="space-y-1.5 font-sans">
+              <button onClick={() => handleNavigationChange('home')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🏠 Home Hub</button>
+              <button onClick={() => handleNavigationChange('crew')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🎬 Crew Roster</button>
+              <button onClick={() => handleNavigationChange('categories-view')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🏷️ Categories</button>
+              <button onClick={() => handleNavigationChange('vault')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🎞️ Video Vault</button>
+              <button onClick={() => handleNavigationChange('projects')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">📌 Project Board</button>
+              <button onClick={() => handleNavigationChange('chat')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">💬 Whiteboard Chat</button>
+              <button onClick={() => handleNavigationChange('posts')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">📸 Insta Feed</button>
+              {loggedInEmail && <button onClick={() => handleNavigationChange('profile')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">👤 My Profile</button>}
+              
+              {isAdmin && (
+                <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1">Admin Controls</span>
+                  <button onClick={() => handleNavigationChange('admin')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-rose-600 hover:bg-rose-50">👥 Manage Roster</button>
+                </div>
+              )}
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      <main className="relative z-20 max-w-7xl mx-auto px-4 py-8 studio-page-wrap">
+        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} notifications={notifications} handleNavigation={handleNavigationChange} />}
+        {currentPage === 'crew' && <CrewSection profiles={profiles} setProfiles={setProfiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
+        {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} setCategories={setCategories} showToast={showToast} />}
+        {currentPage === 'vault' && <VideoVault videos={videos} setVideos={setVideos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
+        {currentPage === 'projects' && <ProjectBoard projects={projects} setProjects={setProjects} tasks={tasks} setTasks={setTasks} profiles={profiles} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} setCurrentPage={setCurrentPage} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
+        {currentPage === 'chat' && <WhiteboardChat chats={chats} setChats={setChats} projects={projects} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} />}
+        {currentPage === 'posts' && <PostsWorkspace posts={posts} setPosts={setPosts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} />}
+        {currentPage === 'profile' && <MyProfileWorkspace userProfile={userProfile} profiles={profiles} setProfiles={setProfiles} categories={categories} setCategories={setCategories} showToast={showToast} />}
+        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} setProfiles={setProfiles} siteSettings={siteSettings} setSiteSettings={setSiteSettings} ytConfig={ytConfig} setYtConfig={setYtConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
+      </main>
+
+      {showSignInModal && <SignInModal handleProfileSignIn={handleProfileSignIn} setShowSignInModal={setShowSignInModal} categories={categories} profiles={profiles} />}
+    </div>
+  );
+}
+
+function ThreeArtBackground() {
+  const mountRef = useRef(null);
+  useEffect(() => {
+    if (!window.THREE) return;
+    const THREE = window.THREE;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.z = 11;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    mountRef.current.appendChild(renderer.domElement);
+    scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
+    const animate = () => {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    };
+    animate();
+    return () => { if (mountRef.current) mountRef.current.innerHTML = ''; };
+  }, []);
+  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40" />;
+}
+
+function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, profiles }) {
+  const [email, setEmail] = useState('');
+  const [step, setStep] = useState(1);
+  const [name, setName] = useState('');
+  const [cat, setCat] = useState(categories[0] || 'Editing');
+
+  const checkEmailOnboard = (e) => {
+    e.preventDefault();
+    const matched = profiles.find(p => p.email.toLowerCase() === email.trim().toLowerCase());
+    if (matched) handleProfileSignIn(matched.name, matched.email, matched.photoURL, matched.workCategory);
+    else setStep(2);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans">
+      <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative">
+        <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400">✕</button>
+        {step === 1 ? (
+          <form onSubmit={checkEmailOnboard} className="space-y-4">
+            <h3 className="font-serif text-xl font-bold text-center text-slate-800">Crew Member Identity</h3>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter Creator Gmail Address" className="w-full px-4 py-2.5 bg-slate-50 border-2 border-[#EADFC9] rounded-xl text-xs" required />
+            <button type="submit" className="w-full py-2.5 bg-[#C5A03A] text-white text-xs font-bold uppercase rounded-xl">Next Step</button>
+          </form>
+        ) : (
+          <form onSubmit={e => { e.preventDefault(); handleProfileSignIn(name, email, null, cat); }} className="space-y-4">
+            <h3 className="font-serif text-lg font-bold text-slate-800 border-b pb-2">Register New Profile</h3>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name Handle" className="w-full px-3 py-2 border rounded-lg text-xs" required />
+            <select value={cat} onChange={e => setCat(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-xs bg-white">
+              {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
+            </select>
+            <button type="submit" className="w-full py-2 bg-[#C5A03A] text-white text-xs font-bold uppercase rounded-xl">Join Workspace</button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, notifications }) {
   return (
     <section className="space-y-10 py-4 font-sans">
