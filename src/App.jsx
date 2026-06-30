@@ -1,13 +1,54 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  auth, db, googleProvider,
-  doc, setDoc, updateDoc, deleteDoc, getDoc,
-  collection, addDoc, onSnapshot, query, orderBy, fbLimit,
-  serverTimestamp, arrayUnion,
-  onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, fbSignOut,
-  uploadToStorage,
-} from './firebase';
 
+// --- FIREBASE IMPORTS ---
+import { initializeApp } from "firebase/app";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  signOut as fbSignOut 
+} from "firebase/auth";
+import { 
+  getFirestore, 
+  doc, setDoc, updateDoc, deleteDoc, getDoc, 
+  collection, addDoc, onSnapshot, query, orderBy, limit as fbLimit, 
+  arrayUnion 
+} from "firebase/firestore";
+import { 
+  getStorage, 
+  ref, 
+  uploadBytes, 
+  getDownloadURL 
+} from "firebase/storage";
+
+// --- FIREBASE CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDi1RdcZnzYQx7oGYmHsbOPU8wlnxlm6TY",
+  authDomain: "rs-studio-c152d.firebaseapp.com",
+  databaseURL: "https://rs-studio-c152d-default-rtdb.firebaseio.com",
+  projectId: "rs-studio-c152d",
+  storageBucket: "rs-studio-c152d.firebasestorage.app",
+  messagingSenderId: "319185394502",
+  appId: "1:319185394502:web:fb4c3d619ed2c40dc06347",
+  measurementId: "G-18PE8WD0SV"
+};
+
+// Initialize Firebase Services
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+const googleProvider = new GoogleAuthProvider();
+
+// Storage Upload Helper
+const uploadToStorage = async (path, file) => {
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
+};
+
+// --- STYLING INJECTION ---
 const injectArtStyleStyles = () => {
   if (document.getElementById('studio-aurum-styles')) return;
   const styleBlock = document.createElement('style');
@@ -15,7 +56,6 @@ const injectArtStyleStyles = () => {
   styleBlock.innerHTML = `
     .font-serif { font-family: 'Playfair Display', Georgia, serif; }
     .font-sans { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
-    .font-handwritten { font-family: 'Caveat', cursive, sans-serif; }
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: rgba(234, 223, 201, 0.2); border-radius: 8px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(197, 160, 58, 0.4); border-radius: 8px; }
@@ -49,12 +89,12 @@ const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
 
 const WatercolorOverlay = () => (
   <div
-    className="absolute inset-0 pointer-events-none opacity-[0.22] mix-blend-multiply z-10"
+    className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10"
     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }}
   />
 );
 
-// --- NOTIFICATION BELL WITH CLICK OUTSIDE ---
+// --- NOTIFICATION BELL WITH SCREEN-TAP DISMISSAL ---
 function NotificationBell({ notifications, userProfile, isAdmin }) {
   const [open, setOpen] = useState(false);
   const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
@@ -82,37 +122,47 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
     setPermState(result);
   };
 
+  // Touching/clicking anywhere on the screen closes the panel
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
+    const handleClose = () => {
+      setOpen(false);
     };
-    if (open) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    if (open) {
+      // Use short timeout to avoid immediate trigger during the opening click
+      const timer = setTimeout(() => {
+        document.addEventListener('click', handleClose);
+        document.addEventListener('touchstart', handleClose);
+      }, 50);
+
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('click', handleClose);
+        document.removeEventListener('touchstart', handleClose);
+      };
+    }
   }, [open]);
 
   return (
     <div className="relative font-sans" ref={containerRef}>
-      <button onClick={openPanel} className="relative p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
+      <button onClick={openPanel} className="relative p-2 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
         {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
 
       {open && (
         <div className="fixed top-20 left-4 right-4 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn max-h-[80vh] flex flex-col">
-          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0">
+          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0" onClick={(e) => e.stopPropagation()}>
             <span className="font-serif font-bold text-sm text-slate-800">Notifications</span>
             <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold p-1">✕</button>
           </div>
 
           {permState !== 'granted' && permState !== 'unsupported' && (
-            <div className="p-3 bg-amber-50/60 border-b border-[#EADFC9]/40 shrink-0">
+            <div className="p-3 bg-amber-50/60 border-b border-[#EADFC9]/40 shrink-0" onClick={(e) => e.stopPropagation()}>
               <button onClick={requestPermission} className="w-full text-[10px] font-bold text-[#C5A03A] bg-white border border-[#C5A03A]/30 rounded-lg py-1.5">🔔 Enable browser alerts</button>
             </div>
           )}
 
-          <div className="overflow-y-auto custom-scrollbar flex-1">
+          <div className="overflow-y-auto custom-scrollbar flex-1" onClick={(e) => e.stopPropagation()}>
             {visible.slice(0, 30).map(n => (
               <div key={n.id} className={`p-3 border-b border-slate-50 text-[11px] ${n.timestamp > lastSeen ? 'bg-amber-50/40' : ''}`}>
                 <span className="font-bold text-slate-800">{n.actor}: </span>
@@ -128,12 +178,19 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
   );
 }
 
-// --- FIRESTORE HOOKS ---
-function useFirestoreCollection(name, orderField = null, limitN = null) {
+// --- SECURE DYNAMIC FIRESTORE HOOKS ---
+// The enabled flag ensures firestore connections only attempt to listen when the user is logged in.
+function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(null);
+
   useEffect(() => {
+    if (!enabled) {
+      setItems([]);
+      setLoaded(false);
+      return;
+    }
     let q = collection(db, name);
     if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
     const unsub = onSnapshot(q, (snap) => {
@@ -141,14 +198,21 @@ function useFirestoreCollection(name, orderField = null, limitN = null) {
       setLoaded(true); setError(null);
     }, (err) => { setLoaded(true); setError(err.message); });
     return () => unsub();
-  }, [name, orderField, limitN]);
+  }, [name, orderField, limitN, enabled]);
+
   return [items, loaded, error];
 }
 
-function useFirestoreDoc(path, fallback) {
+function useFirestoreDoc(path, fallback, enabled = false) {
   const [data, setData] = useState(fallback);
   const [loaded, setLoaded] = useState(false);
+
   useEffect(() => {
+    if (!enabled) {
+      setData(fallback);
+      setLoaded(false);
+      return;
+    }
     const ref = doc(db, path);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) setData({ ...fallback, ...snap.data() });
@@ -156,7 +220,8 @@ function useFirestoreDoc(path, fallback) {
       setLoaded(true);
     }, (err) => { setLoaded(true); });
     return () => unsub();
-  }, [path]);
+  }, [path, enabled]);
+
   return [data, loaded];
 }
 
@@ -180,6 +245,7 @@ export default function App() {
 
   const ensureProfileDocRef = useRef(() => {});
 
+  // Listen to Authentication State
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
@@ -188,24 +254,23 @@ export default function App() {
       }
       setAuthLoading(false);
     });
-    getRedirectResult(auth).catch((err) => {
-      if (err?.code) showToast(`Sign-in failed: ${err.code}`, 'warning');
-    });
     return () => unsub();
   }, []);
 
-  const [profiles] = useFirestoreCollection('profiles');
-  const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES });
+  // Secure reactive collections: only query Firebase when authorized!
+  const isAuthReady = !!authUser;
+  const [profiles] = useFirestoreCollection('profiles', null, null, isAuthReady);
+  const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES }, isAuthReady);
   const categories = categoriesDoc.list || DEFAULT_CATEGORIES;
-  const [posts] = useFirestoreCollection('posts', 'createdAt');
-  const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50);
-  const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG);
-  const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] });
-  const [projects] = useFirestoreCollection('projects', 'createdAt');
-  const [tasks] = useFirestoreCollection('tasks');
-  const [chats] = useFirestoreCollection('chats', 'createdAt', 200);
-  const [videos] = useFirestoreCollection('videos', 'createdAt');
-  const [scripts] = useFirestoreCollection('scripts', 'createdAt');
+  const [posts] = useFirestoreCollection('posts', 'createdAt', null, isAuthReady);
+  const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50, isAuthReady);
+  const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG, isAuthReady);
+  const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] }, isAuthReady);
+  const [projects] = useFirestoreCollection('projects', 'createdAt', null, isAuthReady);
+  const [tasks] = useFirestoreCollection('tasks', null, null, isAuthReady);
+  const [chats] = useFirestoreCollection('chats', 'createdAt', 200, isAuthReady);
+  const [videos] = useFirestoreCollection('videos', 'createdAt', null, isAuthReady);
+  const [scripts] = useFirestoreCollection('scripts', 'createdAt', null, isAuthReady);
 
   const userProfile = useMemo(() => {
     if (!authUser) return null;
@@ -218,10 +283,10 @@ export default function App() {
   }, [userProfile]);
 
   useEffect(() => {
-    if (notifsError) {
+    if (notifsError && isAuthReady) {
       showToast(`Notifications blocked: ${notifsError}. Check your Firestore security rules.`, 'warning');
     }
-  }, [notifsError]);
+  }, [notifsError, isAuthReady]);
 
   const unreadMap = useMemo(() => {
     const lastSeen = userProfile?.lastSeenNotifAt || 0;
@@ -266,6 +331,7 @@ export default function App() {
     const isOwner = emailLower === ADMIN_EMAIL;
     if (!snap.exists()) {
       const newProfile = {
+        id: user.uid,
         name: user.displayName || user.email.split('@')[0], email: user.email, role: isOwner ? 'owner' : 'member',
         status: isOwner ? 'approved' : 'pending', workCategory: categories[0] || 'Editing',
         photoURL: user.photoURL || PRESET_AVATARS[0].svg, createdAt: Date.now(),
@@ -279,9 +345,18 @@ export default function App() {
   }, [categories]);
   ensureProfileDocRef.current = ensureProfileDoc;
 
+  // Sign-in using responsive Popup (works better in standard responsive web setups)
   const handleGoogleSignIn = async () => {
-    try { await signInWithRedirect(auth, googleProvider); } 
-    catch (err) { showToast('Sign-in failed — check Firebase Auth config.', 'warning'); }
+    try { 
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        showToast('Successfully authenticated!', 'success');
+        setShowSignInModal(false);
+      }
+    } 
+    catch (err) { 
+      showToast('Sign-in failed — check your connection.', 'warning'); 
+    }
   };
 
   const handleSignOut = async () => {
@@ -407,79 +482,83 @@ export default function App() {
         </div>
       )}
 
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-4 sm:px-6 py-4 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
-        <div className="flex items-center space-x-3">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 sm:p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+      {/* --- HEADER (COMPACTED DESIGN FOR VISIBILITY) --- */}
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-4 sm:px-6 py-3 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
+        <div className="flex items-center space-x-3 min-w-0">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50 shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
           </button>
-          <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => handleNavigationChange('home')}>
+          <div className="flex items-center space-x-2 cursor-pointer min-w-0" onClick={() => handleNavigationChange('home')}>
             {siteSettings.logoUrl ? (
-              <img src={siteSettings.logoUrl} alt="Logo" className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded-xl shadow-[0_4px_15px_rgba(135,112,58,0.25)] border-2 border-white transform hover:scale-105 transition" />
+              <img src={siteSettings.logoUrl} alt="Logo" className="w-8 h-8 object-cover rounded-lg shadow-[0_4px_15px_rgba(135,112,58,0.25)] border border-white shrink-0" />
             ) : (
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow-[0_4px_15px_rgba(197,160,58,0.3)] border-2 border-white">Y</div>
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-sm shadow-[0_4px_15px_rgba(197,160,58,0.3)] border border-white shrink-0">Y</div>
             )}
-            <span className="font-serif text-sm sm:text-lg tracking-wider text-[#C5A03A] font-extrabold truncate max-w-[120px] sm:max-w-none">{siteSettings.logoText || 'YOUTUBERS STUDIO'}</span>
+            <span className="font-serif text-sm sm:text-base tracking-wide text-[#C5A03A] font-extrabold truncate max-w-[130px] sm:max-w-xs leading-none">
+              {siteSettings.logoText || 'YOUTUBERS STUDIO'}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 sm:space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
           {userProfile && <NotificationBell notifications={notifications} userProfile={userProfile} isAdmin={isAdmin} />}
           {userProfile ? (
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <div className="hidden sm:flex flex-col text-right">
                 <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name}</p>
-                <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{userProfile?.role}</span>
+                <span className="text-[8px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{userProfile?.role}</span>
               </div>
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
+              <div className="w-8 h-8 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
                 {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-[10px] sm:text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95">🔑 Crew Sign In</button>
+            <button onClick={() => setShowSignInModal(true)} className="text-[10px] sm:text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-3 py-2 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95 whitespace-nowrap">🔑 Crew Sign In</button>
           )}
         </div>
       </header>
 
+      {/* --- SIDEBAR DRAWER --- */}
       <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
         <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
           <div className="space-y-6 pb-20">
             <div className="flex items-center justify-between pb-4 border-b border-[#EADFC9]/50">
-              <span className="font-serif font-black text-lg text-[#C5A03A] tracking-wider uppercase">Navigation</span>
+              <span className="font-serif font-black text-base text-[#C5A03A] tracking-wider uppercase">Navigation</span>
               <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">✕</button>
             </div>
-            <nav className="space-y-1.5 font-sans relative">
-              <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
-              <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
-              <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
+            <nav className="space-y-1 relative">
+              <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
+              <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
+              <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
               
-              <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+              <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
                 <span>🎞️</span><span>Video Vault</span>
                 {unreadMap.vault && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
               </button>
               
-              <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+              <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
                 <span>📌</span><span>Project Board</span>
                 {unreadMap.projects && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
               </button>
               
-              <button onClick={() => handleNavigationChange('scripts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'scripts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+              <button onClick={() => handleNavigationChange('scripts')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'scripts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
                 <span>📝</span><span>Scripts</span>
                 {unreadMap.scripts && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
               </button>
               
-              <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
+              <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
               
-              <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+              <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
                 <span>📸</span><span>Insta Feed</span>
                 {unreadMap.posts && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
               </button>
               
-              {userProfile && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile</span></button>}
+              {userProfile && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile</span></button>}
               
               {isAdmin && (
                 <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1 font-sans">Admin Controls</span>
-                  <button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'admin' ? 'bg-rose-50 text-rose-600 border-l-4 border-rose-500' : 'text-slate-500 hover:bg-rose-50/40'}`}><span>👥</span><span>Manage Roster</span></button>
+                  <button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'admin' ? 'bg-rose-50 text-rose-600 border-l-4 border-rose-500' : 'text-slate-500 hover:bg-rose-50/40'}`}><span>👥</span><span>Manage Roster</span></button>
                 </div>
               )}
             </nav>
@@ -487,7 +566,8 @@ export default function App() {
         </div>
       </div>
 
-      <main className="relative z-20 max-w-7xl mx-auto px-4 py-8 studio-page-wrap animate-fadeIn">
+      {/* --- MAIN PAGE CONTENT --- */}
+      <main className="relative z-20 max-w-7xl mx-auto px-4 py-6 studio-page-wrap animate-fadeIn">
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} />}
         {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} />}
         {currentPage === 'rejected-status' && <RejectedScreen userProfile={userProfile} />}
@@ -642,12 +722,12 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal }) {
       <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative font-sans text-center animate-fadeIn">
         <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600 transition">✕</button>
         <h3 className="font-serif text-xl font-bold text-slate-800 mb-2">Crew Member Sign In</h3>
-        <p className="text-xs text-slate-400 mb-6">Sign in with your real Google account — this is what verifies your identity and lets the studio owner approve you.</p>
+        <p className="text-xs text-slate-400 mb-6">Sign in with your Google account to verify your identity and get approved on the roster.</p>
         <button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-3 py-3 bg-white border-2 border-[#EADFC9] hover:border-[#C5A03A] rounded-xl text-sm font-bold text-slate-700 shadow-sm transition">
           <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.2 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.3 5.3C40.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
           Continue with Google
         </button>
-        <p className="text-[10px] text-slate-400 mt-4">New here? Your account will be created automatically and placed in the pending roster for approval.</p>
+        <p className="text-[10px] text-slate-400 mt-4">New here? Your account will be routed to the pending roster for owner approval.</p>
       </div>
     </div>
   );
@@ -658,36 +738,51 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
   const studioUpdates = useMemo(() => notifications.filter(n => !n.message.startsWith('"') && n.actor !== 'System'), [notifications]);
 
   return (
-    <section className="space-y-10 py-4 animate-fadeIn font-sans">
-      <div className="text-center py-4">
-        <h1 className="font-serif text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight">{siteSettings.logoText || 'YOUTUBERS STUDIO'}</h1>
-        <p className="text-slate-500 font-serif italic text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
+    <section className="space-y-8 py-2 animate-fadeIn font-sans">
+      <div className="text-center py-2">
+        <h1 className="font-serif text-2xl sm:text-3xl md:text-5xl font-black text-slate-800 uppercase tracking-tight leading-tight">
+          {siteSettings.logoText || 'YOUTUBERS STUDIO'}
+        </h1>
+        <p className="text-slate-500 font-serif italic text-xs sm:text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'YouTube Subscribers', value: ytConfig.subscribers, icon: '📈', change: ytConfig.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
-          { label: 'Latest Video Views', value: ytConfig.latestVideoViews, icon: '📺', change: ytConfig.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 32)}"` : '—', action: null },
+          { label: 'Latest Video Views', value: ytConfig.latestVideoViews, icon: '📺', change: ytConfig.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
           { label: 'Vault Records', value: `${videos.length} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
           { label: 'Active Ideas', value: `${projects.length} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
         ].map((stat, idx) => (
-          <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-5 shadow-skeuo-md hover:-translate-y-1 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-40">
-            <div><div className="flex justify-between items-center text-slate-400 mb-2"><span className="text-[10px] uppercase font-bold tracking-wider font-sans">{stat.label}</span><span className="text-xl">{stat.icon}</span></div><p className="text-xl md:text-2xl font-black text-slate-800 font-sans">{stat.value}</p></div>
-            <div className="mt-2 font-sans"><span className="text-[9px] text-[#C5A03A] font-semibold block truncate">{stat.change}</span>{stat.action}</div>
+          <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-4 shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-36">
+            <div>
+              <div className="flex justify-between items-center text-slate-400 mb-1">
+                <span className="text-[9px] uppercase font-bold tracking-wider font-sans">{stat.label}</span>
+                <span className="text-base">{stat.icon}</span>
+              </div>
+              <p className="text-lg md:text-xl font-black text-slate-800 font-sans leading-none">{stat.value}</p>
+            </div>
+            <div className="mt-1 font-sans">
+              <span className="text-[9px] text-[#C5A03A] font-semibold block truncate leading-tight">{stat.change}</span>
+              {stat.action}
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md font-sans animate-fadeIn">
-        <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-3 mb-4 font-serif">
-          <h3 className="font-serif text-lg font-bold text-[#C5A03A]">📢 Studio Updates</h3>
-          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full font-sans border border-emerald-200 shadow-inner">Recent Activity</span>
+      <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans">
+        <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-2 mb-3 font-serif">
+          <h3 className="font-serif text-sm font-bold text-[#C5A03A]">📢 Studio Updates</h3>
+          <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans border border-emerald-200">Recent Activity</span>
         </div>
-        <div className="space-y-3 max-h-56 overflow-y-auto custom-scrollbar font-sans pr-1">
+        <div className="space-y-2.5 max-h-48 overflow-y-auto custom-scrollbar font-sans pr-1">
           {studioUpdates.map(notif => (
-            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-2 animate-fadeIn"><span className="font-bold text-slate-800 font-sans">{notif.actor}: </span><span className="text-slate-600 font-sans">{notif.message}</span><p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p></div>
+            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-1.5 animate-fadeIn">
+              <span className="font-bold text-slate-800 font-sans">{notif.actor}: </span>
+              <span className="text-slate-600 font-sans">{notif.message}</span>
+              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
+            </div>
           ))}
-          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No project updates mapped to log yet.</p>}
+          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No updates mapped to log yet.</p>}
         </div>
       </div>
     </section>
@@ -706,24 +801,29 @@ function CrewSection({ profiles, userProfile, showToast, isAdmin }) {
   if (approvedProfiles.length === 0) return <div className="text-center text-slate-400 py-20">No approved crew members yet.</div>;
 
   return (
-    <section className="py-4 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-      <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl text-center shadow-skeuo-md animate-fadeIn">
-        <div className="w-28 h-28 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">{renderAvatar(approvedProfiles[focusIdx]?.photoURL)}</div>
-        <h3 className="font-serif text-2xl font-bold text-slate-800">{approvedProfiles[focusIdx]?.name}</h3>
+    <section className="py-2 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+      <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl text-center shadow-skeuo-md animate-fadeIn h-fit">
+        <div className="w-24 h-24 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">{renderAvatar(approvedProfiles[focusIdx]?.photoURL)}</div>
+        <h3 className="font-serif text-xl font-bold text-slate-800">{approvedProfiles[focusIdx]?.name}</h3>
         <p className="text-xs text-slate-400 mt-1 font-sans">{approvedProfiles[focusIdx]?.email}</p>
-        <span className="bg-[#C5A03A] text-white text-[10px] px-3 py-1 rounded-full font-bold mt-3 inline-block font-sans shadow-sm">{approvedProfiles[focusIdx]?.role}</span>
+        <span className="bg-[#C5A03A] text-white text-[9px] px-3 py-1 rounded-full font-bold mt-2 inline-block font-sans shadow-sm">{approvedProfiles[focusIdx]?.role}</span>
       </div>
 
-      <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md max-h-[500px] overflow-y-auto custom-scrollbar animate-fadeIn">
-        <h4 className="font-serif font-bold text-base border-b pb-2 mb-3">Production Team Members</h4>
-        <div className="space-y-3 font-sans">
+      <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md max-h-[450px] overflow-y-auto custom-scrollbar animate-fadeIn">
+        <h4 className="font-serif font-bold text-sm border-b pb-2 mb-3 text-slate-700">Production Team Members</h4>
+        <div className="space-y-2 font-sans">
           {profiles.map((p, i) => (
-            <div key={p.id} className="flex justify-between items-center p-3 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}>{renderAvatar(p.photoURL)}</div>
-                <div className="cursor-pointer" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}><p className="text-xs font-bold text-slate-800">{p.name}</p><span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role} • {p.workCategory} • {p.status}</span></div>
+            <div key={p.id} className="flex justify-between items-center p-2.5 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer shrink-0" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}>{renderAvatar(p.photoURL)}</div>
+                <div className="cursor-pointer min-w-0" onClick={() => setFocusIdx(approvedProfiles.indexOf(p))}>
+                  <p className="text-xs font-bold text-slate-800 truncate">{p.name}</p>
+                  <span className="text-[9px] font-mono text-slate-400 block truncate">{p.email} • {p.role} • {p.workCategory}</span>
+                </div>
               </div>
-              {isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL && (<button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full transition hover:bg-rose-100 font-sans">Remove</button>)}
+              {isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL && (
+                <button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2.5 py-1 rounded-full hover:bg-rose-100 font-sans whitespace-nowrap">Remove</button>
+              )}
             </div>
           ))}
         </div>
@@ -749,35 +849,39 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   const matchedMembers = useMemo(() => profiles.filter(p => p.status === 'approved' && p.workCategory === activeCategory), [profiles, activeCategory]);
 
   return (
-    <section className="py-4 animate-fadeIn space-y-6 font-sans">
+    <section className="py-2 animate-fadeIn space-y-4 font-sans">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 font-sans">
-        <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-3xl shadow-skeuo-md space-y-5 animate-fadeIn">
+        <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-4 rounded-2xl shadow-skeuo-md space-y-4 animate-fadeIn">
           <div>
-            <h4 className="font-serif text-sm font-bold text-slate-800 mb-2">Add Custom Category</h4>
-            <form onSubmit={handleAddCategory} className="space-y-2 font-sans font-semibold">
-              <input type="text" value={newCatInput} onChange={(e) => setNewCustomCategory(e.target.value)} placeholder="e.g. 3D Matte Shader" className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
-              <button type="submit" className="w-full py-1.5 bg-[#C5A03A] text-white text-[10px] font-bold uppercase rounded-lg border-b-[4px] border-[#ab892c] active:border-b-[2px] active:translate-y-[2px] shadow-sm">Add Role Tag</button>
+            <h4 className="font-serif text-xs font-bold text-slate-800 mb-1.5">Add Custom Category</h4>
+            <form onSubmit={handleAddCategory} className="space-y-1.5 font-sans font-semibold">
+              <input type="text" value={newCatInput} onChange={(e) => setNewCustomCategory(e.target.value)} placeholder="e.g. 3D Matte Shader" className="w-full px-3 py-1.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
+              <button type="submit" className="w-full py-1 bg-[#C5A03A] text-white text-[9px] font-bold uppercase rounded-lg border-b-[3px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] shadow-sm">Add Role Tag</button>
             </form>
           </div>
-          <div className="pt-4 border-t border-slate-100 space-y-1">
-            <span className="text-[10px] font-bold text-[#C5A03A] uppercase tracking-wider block mb-2 font-sans">Role tags</span>
-            {categories.map((cat, idx) => (<button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>))}
+          <div className="pt-3 border-t border-slate-100 space-y-1">
+            <span className="text-[9px] font-bold text-[#C5A03A] uppercase tracking-wider block mb-1.5 font-sans">Role tags</span>
+            {categories.map((cat, idx) => (<button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>))}
           </div>
         </div>
 
-        <div className="lg:col-span-3 bg-white/70 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md space-y-4 animate-fadeIn">
-          <div className="flex justify-between items-center border-b pb-3 border-slate-100 font-serif">
-            <h3 className="font-serif text-lg font-bold text-slate-800">Specialization: <span className="text-[#C5A03A]">{activeCategory}</span></h3>
-            <span className="text-xs bg-slate-100 px-2 py-1 rounded font-bold text-slate-500 font-sans">{matchedMembers.length} Specialists</span>
+        <div className="lg:col-span-3 bg-white/70 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md space-y-3 animate-fadeIn">
+          <div className="flex justify-between items-center border-b pb-2 border-slate-100 font-serif">
+            <h3 className="font-serif text-base font-bold text-slate-800">Specialization: <span className="text-[#C5A03A]">{activeCategory}</span></h3>
+            <span className="text-xs bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500 font-sans">{matchedMembers.length} Specialists</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans animate-fadeIn">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-sans animate-fadeIn">
             {matchedMembers.map((member) => (
-              <div key={member.id} className="flex items-center space-x-3 p-4 border bg-white rounded-xl shadow-sm animate-fadeIn">
-                <div className="w-10 h-10 rounded-full border bg-white overflow-hidden p-0.5 flex items-center justify-center animate-fadeIn">{renderAvatar(member.photoURL)}</div>
-                <div><h5 className="font-bold text-xs text-slate-800 font-sans">{member.name}</h5><p className="text-[10px] text-slate-400 font-sans">{member.email}</p><span className="inline-block bg-amber-50 text-[#C5A03A] text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 font-sans">{member.role}</span></div>
+              <div key={member.id} className="flex items-center space-x-2.5 p-3 border bg-white rounded-xl shadow-sm animate-fadeIn">
+                <div className="w-9 h-9 rounded-full border bg-white overflow-hidden p-0.5 flex items-center justify-center shrink-0">{renderAvatar(member.photoURL)}</div>
+                <div className="min-w-0">
+                  <h5 className="font-bold text-xs text-slate-800 font-sans truncate">{member.name}</h5>
+                  <p className="text-[9px] text-slate-400 font-sans truncate">{member.email}</p>
+                  <span className="inline-block bg-amber-50 text-[#C5A03A] text-[8px] font-bold px-1.5 py-0.5 rounded mt-0.5 font-sans">{member.role}</span>
+                </div>
               </div>
             ))}
-            {matchedMembers.length === 0 && <div className="col-span-full py-16 text-center text-slate-400 italic">"No crew member is currently assigned to this specialization."</div>}
+            {matchedMembers.length === 0 && <div className="col-span-full py-12 text-center text-slate-400 italic text-xs">"No crew member is currently assigned to this specialization."</div>}
           </div>
         </div>
       </div>
@@ -785,7 +889,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   );
 }
 
-// --- VIDEO VAULT ---
+// --- VIDEO VAULT WITH DIRECT IN-CONTEXT ADMIN DELETE ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [selectedVid, setSelectedVid] = useState(null);
   const [videoTitle, setVideoTitle] = useState('');
@@ -812,10 +916,10 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
   };
 
   const deleteVideoComment = async (commentId) => {
-      const updatedComments = selectedVid.comments.filter(c => c.id !== commentId);
-      await updateDoc(doc(db, 'videos', selectedVid.id), { comments: updatedComments });
-      showToast('Comment deleted.', 'info');
-  }
+    const updatedComments = selectedVid.comments.filter(c => c.id !== commentId);
+    await updateDoc(doc(db, 'videos', selectedVid.id), { comments: updatedComments });
+    showToast('Comment deleted.', 'info');
+  };
 
   const startUpload = async (e) => {
     e.preventDefault();
@@ -829,55 +933,88 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
       });
       pushNotification(`Uploaded video asset: "${videoTitle}"`, userProfile.name);
       setVideoTitle(''); setSelectedFile(null); setShowUploadModal(false);
-      showToast('Video uploaded and shared with the whole crew!', 'success');
-    } catch (err) { showToast('Upload failed — check Firebase Storage rules.', 'warning'); } finally { setUploading(false); }
+      showToast('Video uploaded successfully!', 'success');
+    } catch (err) { showToast('Upload failed — check your Firestore permissions.', 'warning'); } finally { setUploading(false); }
   };
 
-  const removeVideo = async (id) => {
+  const removeVideo = async (id, e) => {
+    if (e) e.stopPropagation();
     await deleteDoc(doc(db, 'videos', id));
     if (selectedVid?.id === id) setSelectedVid(null);
+    showToast('Video removed from Vault.', 'info');
   };
 
   return (
-    <section className="py-4 space-y-4 font-sans animate-fadeIn">
-      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans animate-fadeIn">
-        <div><h3 className="font-serif font-bold text-slate-800 text-lg">Timeline Asset Vault</h3></div>
-        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans font-semibold">+ Upload Track</button>
+    <section className="py-2 space-y-4 font-sans animate-fadeIn">
+      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans animate-fadeIn">
+        <h3 className="font-serif font-bold text-slate-800 text-sm sm:text-base">Timeline Asset Vault</h3>
+        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-3.5 py-1.5 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">+ Upload Draft</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
         <div className="lg:col-span-2 space-y-4 animate-fadeIn font-sans">
           {selectedVid ? (
             <div className="space-y-4 animate-fadeIn font-sans">
-              <div className="bg-[#1b1915] rounded-2xl overflow-hidden relative border-4 border-white shadow-skeuo-md"><video key={selectedVid.id} src={selectedVid.hlsUrl} className="w-full h-64 md:h-80 object-cover animate-fadeIn" controls autoPlay /></div>
-              <div className="p-4 bg-white border-b-[4px] border-[#EADFC9] rounded-xl shadow-sm"><h4 className="font-serif font-bold text-slate-800 text-base">{selectedVid.title}</h4><p className="text-xs text-slate-400 font-sans">Uploaded by {selectedVid.uploaderName} • {selectedVid.size}</p></div>
-              <div className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
-                <h4 className="font-serif font-bold text-slate-800 text-sm border-b pb-2">Crew Feedback ({selectedVid.comments?.length || 0})</h4>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+              <div className="bg-[#1b1915] rounded-2xl overflow-hidden relative border-4 border-white shadow-skeuo-md">
+                <video key={selectedVid.id} src={selectedVid.hlsUrl} className="w-full h-60 md:h-80 object-cover animate-fadeIn" controls autoPlay />
+              </div>
+              
+              <div className="p-4 bg-white border-b-[4px] border-[#EADFC9] rounded-xl shadow-sm flex justify-between items-center">
+                <div>
+                  <h4 className="font-serif font-bold text-slate-800 text-sm sm:text-base">{selectedVid.title}</h4>
+                  <p className="text-[10px] text-slate-400 font-sans">Uploaded by {selectedVid.uploaderName} • {selectedVid.size}</p>
+                </div>
+                {isAdmin && (
+                  <button onClick={(e) => removeVideo(selectedVid.id, e)} className="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 text-[10px] font-bold px-3 py-1.5 rounded-lg transition">
+                    🗑 Delete Draft
+                  </button>
+                )}
+              </div>
+
+              <div className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md space-y-3 font-sans animate-fadeIn">
+                <h4 className="font-serif font-bold text-slate-800 text-xs border-b pb-1.5">Crew Feedback ({selectedVid.comments?.length || 0})</h4>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
                   {(selectedVid.comments || []).map(comment => (
-                    <div key={comment.id} className="text-xs p-3 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
-                      <div><span className="font-bold text-slate-800 mr-2">{comment.authorName}</span><span className="text-slate-600">{comment.text}</span></div>
-                      <div className="flex flex-col items-end gap-1"><span className="text-[10px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{(isAdmin || comment.authorName === userProfile?.name) && (<button onClick={() => deleteVideoComment(comment.id)} className="text-rose-500 font-bold hover:text-rose-700 text-[10px]">🗑️</button>)}</div>
+                    <div key={comment.id} className="text-[11px] p-2 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
+                      <div className="min-w-0 pr-2">
+                        <span className="font-bold text-slate-800 mr-2">{comment.authorName}</span>
+                        <span className="text-slate-600 break-words">{comment.text}</span>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="text-[8px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {(isAdmin || comment.authorName === userProfile?.name) && (
+                          <button onClick={() => deleteVideoComment(comment.id)} className="text-rose-500 font-bold hover:text-rose-700 text-[10px] px-1 bg-white border rounded">✕ Delete</button>
+                        )}
+                      </div>
                     </div>
                   ))}
-                  {(!selectedVid.comments || selectedVid.comments.length === 0) && <p className="text-xs text-slate-400 italic py-2">No feedback notes posted yet. Start the conversation below!</p>}
+                  {(!selectedVid.comments || selectedVid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic py-2">No feedback notes posted yet. Start the conversation below!</p>}
                 </div>
-                <form onSubmit={handlePostVideoComment} className="flex gap-2 pt-1.5 border-t">
-                  <input type="text" name="commentInput" placeholder="Scribble video feedback..." className="flex-1 px-3 py-2 bg-slate-50 border rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
-                  <button type="submit" className="bg-[#C5A03A] text-white text-xs px-4 py-2 rounded-xl font-bold font-sans transition hover:bg-[#b08d32]">Post</button>
+                <form onSubmit={handlePostVideoComment} className="flex gap-2 pt-2 border-t">
+                  <input type="text" name="commentInput" placeholder="Scribble video feedback..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
+                  <button type="submit" className="bg-[#C5A03A] text-white text-xs px-3.5 py-1.5 rounded-xl font-bold font-sans transition hover:bg-[#b08d32]">Post</button>
                 </form>
               </div>
             </div>
-          ) : (<div className="bg-white/60 border-2 border-dashed border-[#EADFC9] p-16 text-center rounded-2xl text-slate-400 font-sans shadow-inner">Select any video draft below to open timeline player & comments feed.</div>)}
+          ) : (
+            <div className="bg-white/60 border-2 border-dashed border-[#EADFC9] p-16 text-center rounded-xl text-slate-400 font-sans shadow-inner text-xs">
+              Select any video draft below to open timeline player & comments feed.
+            </div>
+          )}
         </div>
 
-        <div className="lg:col-span-1 space-y-4 font-sans animate-fadeIn">
-          <h4 className="font-serif font-bold text-sm text-slate-700">Video Draft Playlist ({videos.length})</h4>
-          <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+        <div className="lg:col-span-1 space-y-3 font-sans animate-fadeIn">
+          <h4 className="font-serif font-bold text-xs text-slate-700 uppercase tracking-wider">Video Draft Playlist ({videos.length})</h4>
+          <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
             {videos.map((v) => (
-              <div key={v.id} className={`bg-white border-b-[4px] border-[#EADFC9] border-r border-l border-t p-3 rounded-xl hover:-translate-y-1 hover:shadow-skeuo-sm transition-all flex justify-between items-center animate-fadeIn ${selectedVid?.id === v.id ? 'border-[#C5A03A] bg-amber-50/20' : ''}`}>
-                <div onClick={() => setSelectedVid(v)} className="cursor-pointer flex-1 min-w-0 pr-2"><h5 className="font-bold text-xs text-slate-800 truncate">{v.title}</h5><span className="text-[10px] text-slate-400 font-sans">Uploaded by {v.uploaderName} • {v.comments?.length || 0} Comments</span></div>
-                {(isAdmin || v.uploaderUid === userProfile?.id) && (<button onClick={() => removeVideo(v.id)} className="text-rose-550 font-bold p-1 hover:text-rose-700 transition" title="Delete Video">🗑️</button>)}
+              <div key={v.id} className={`bg-white border-b-[4px] border-[#EADFC9] border-r border-l border-t p-2.5 rounded-xl hover:-translate-y-0.5 hover:shadow-skeuo-sm transition-all flex justify-between items-center animate-fadeIn ${selectedVid?.id === v.id ? 'border-[#C5A03A] bg-amber-50/20' : ''}`}>
+                <div onClick={() => setSelectedVid(v)} className="cursor-pointer flex-1 min-w-0 pr-2">
+                  <h5 className="font-bold text-xs text-slate-800 truncate">{v.title}</h5>
+                  <span className="text-[9px] text-slate-400 font-sans">Uploaded by {v.uploaderName} • {v.comments?.length || 0} Comments</span>
+                </div>
+                {(isAdmin || v.uploaderUid === userProfile?.id) && (
+                  <button onClick={(e) => removeVideo(v.id, e)} className="text-rose-500 font-bold p-1.5 hover:text-rose-700 hover:bg-rose-50 rounded transition shrink-0" title="Delete Video">🗑️</button>
+                )}
               </div>
             ))}
           </div>
@@ -886,11 +1023,22 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
 
       {showUploadModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
-            <h4 className="font-serif font-bold text-slate-800">Upload Real Video File</h4>
-            <div><label className="block text-[10px] font-bold text-slate-500 uppercase">Video Title</label><input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required /></div>
-            <div><label className="block text-[10px] font-bold text-slate-500 uppercase">Select File</label><input type="file" accept="video/*" onChange={e => setSelectedFile(e.target.files[0])} className="w-full text-xs text-slate-500 mt-1 font-sans" required /></div>
-            <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button><button type="submit" disabled={uploading} className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px] hover:bg-red-700 transition disabled:opacity-50">{uploading ? 'Uploading…' : 'Ingest Video'}</button></div>
+          <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
+            <h4 className="font-serif font-bold text-slate-800 text-sm">Upload Video Draft</h4>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Title</label>
+              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1 font-sans" required />
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Select File</label>
+              <input type="file" accept="video/*" onChange={e => setSelectedFile(e.target.files[0])} className="w-full text-xs text-slate-500 mt-1 font-sans" required />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
+              <button type="submit" disabled={uploading} className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px] hover:bg-red-700 transition disabled:opacity-50">
+                {uploading ? 'Uploading…' : 'Ingest Video'}
+              </button>
+            </div>
           </form>
         </div>
       )}
@@ -898,7 +1046,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
   );
 }
 
-// --- PROJECT BOARD ---
+// --- PROJECT BOARD WITH DIRECT IN-CONTEXT ADMIN ACTIONS ---
 function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin }) {
   const [newConcept, setNewConcept] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -921,44 +1069,75 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
   };
 
   const removeProject = async (pId, e) => {
-      e.stopPropagation(); await deleteDoc(doc(db, 'projects', pId));
-      if(selectedProject?.id === pId) setSelectedProject(null); showToast('Project deleted', 'info');
-  }
-  const removeTask = async (tId) => { await deleteDoc(doc(db, 'tasks', tId)); }
+    if (e) e.stopPropagation(); 
+    await deleteDoc(doc(db, 'projects', pId));
+    if (selectedProject?.id === pId) setSelectedProject(null); 
+    showToast('Project deleted', 'info');
+  };
+
+  const removeTask = async (tId) => { 
+    await deleteDoc(doc(db, 'tasks', tId)); 
+    showToast('Task card removed.', 'info');
+  };
+
+  const toggleTaskStatus = async (task) => {
+    const nextStatus = task.status === 'To Do' ? 'Completed' : 'To Do';
+    await updateDoc(doc(db, 'tasks', task.id), { status: nextStatus });
+    showToast(`Task status updated to ${nextStatus}`, 'success');
+  };
 
   return (
-    <section className="py-4 animate-fadeIn font-sans">
+    <section className="py-2 animate-fadeIn font-sans">
       {!selectedProject ? (
         <div className="space-y-4 font-sans">
-          <form onSubmit={createConcept} className="max-w-md mx-auto flex gap-2 bg-white border border-[#EADFC9] p-4 rounded-xl shadow-skeuo-sm">
-            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New video conceptual sprint..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
-            <button type="submit" className="px-4 bg-[#C5A03A] text-white text-xs rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow">Pin Board</button>
+          <form onSubmit={createConcept} className="max-w-md mx-auto flex gap-2 bg-white border border-[#EADFC9] p-3 rounded-xl shadow-skeuo-sm">
+            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New video conceptual sprint..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
+            <button type="submit" className="px-4 bg-[#C5A03A] text-white text-[11px] rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow">Pin Board</button>
           </form>
-          <div className="p-8 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-3xl grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn" style={{ backgroundColor: '#deb887', backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+          
+          <div className="p-6 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-[2rem] grid grid-cols-1 md:grid-cols-3 gap-5 animate-fadeIn" style={{ backgroundColor: '#deb887', backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
             {projects.map((p) => (
-              <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl cursor-pointer shadow-skeuo-md hover:-translate-y-1 hover:shadow-skeuo-3d transition-all relative">
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-2xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
-                {isAdmin && <button onClick={(e) => removeProject(p.id, e)} className="absolute top-2 right-2 text-rose-500 font-bold bg-rose-50 rounded-full w-6 h-6 flex items-center justify-center text-[10px] hover:bg-rose-200">✕</button>}
-                <h4 className="font-serif font-bold text-slate-800 pt-3 text-center line-clamp-2">{p.title}</h4>
+              <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl cursor-pointer shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all relative">
+                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
+                {isAdmin && (
+                  <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>
+                )}
+                <h4 className="font-serif font-bold text-slate-800 pt-2 text-center line-clamp-2 text-xs">{p.title}</h4>
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div className="space-y-4 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md animate-fadeIn font-sans">
-          <button onClick={() => setSelectedProject(null)} className="text-xs font-bold text-[#C5A03A] hover:underline transition">◀ Back to Cork Board</button>
-          <h3 className="font-serif text-2xl font-bold text-slate-800">{selectedProject.title}</h3>
+        <div className="space-y-4 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn font-sans">
+          <div className="flex justify-between items-center border-b pb-2">
+            <button onClick={() => setSelectedProject(null)} className="text-[11px] font-bold text-[#C5A03A] hover:underline transition">◀ Back to Cork Board</button>
+            {isAdmin && (
+              <button onClick={(e) => removeProject(selectedProject.id, e)} className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg font-bold hover:bg-rose-100 transition">
+                🗑 Delete Entire Whiteboard
+              </button>
+            )}
+          </div>
+          <h3 className="font-serif text-lg font-bold text-slate-800">{selectedProject.title}</h3>
+          
           <div className="divide-y text-xs">
             {activeTasks.map((t) => (
-              <div key={t.id} className="py-3 flex justify-between items-center group">
+              <div key={t.id} className="py-2.5 flex justify-between items-center group">
                 <span className="font-semibold text-slate-700">{t.title}</span>
-                <div className="flex items-center gap-2"><span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</span>{isAdmin && <button onClick={() => removeTask(t.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2">🗑️</button>}</div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => toggleTaskStatus(t)} className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>
+                    {t.status}
+                  </button>
+                  {isAdmin && (
+                    <button onClick={() => removeTask(t.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold px-1.5 border rounded" title="Delete Task card">✕</button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
-          <form onSubmit={addTask} className="flex gap-2 max-w-sm pt-4">
-            <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add specific sprint work card" className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs" required />
-            <button type="submit" className="px-3 bg-slate-800 text-white text-xs rounded-lg font-bold">Add</button>
+          
+          <form onSubmit={addTask} className="flex gap-2 max-w-sm pt-3">
+            <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add specific work item..." className="flex-1 px-3 py-1.5 border border-[#EADFC9] rounded-xl text-xs" required />
+            <button type="submit" className="px-3.5 bg-slate-800 text-white text-xs rounded-xl font-bold">Add Item</button>
           </form>
         </div>
       )}
@@ -977,6 +1156,8 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 
   const selectedScript = useMemo(() => scripts.find(s => s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
   useEffect(() => { if (selectedScript) setDraftText(selectedScript.content || ''); }, [selectedScriptId, selectedScript?.content]);
+  
+  // Admins can edit ANY script
   const canEditSelected = selectedScript && userProfile && (isAdmin || selectedScript.authorUid === userProfile.id);
 
   const createTopic = async (e) => {
@@ -997,42 +1178,68 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     } catch (err) { showToast('Save failed.', 'warning'); } finally { setSaving(false); }
   };
 
-  const removeTopic = async (id) => {
+  const removeTopic = async (id, e) => {
+    if (e) e.stopPropagation();
     await deleteDoc(doc(db, 'scripts', id));
     if (selectedScriptId === id) setSelectedScriptId(null);
     showToast('Script topic deleted.', 'info');
   };
 
   return (
-    <section className="py-4 animate-fadeIn font-sans space-y-4">
-      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans animate-fadeIn">
-        <div><h3 className="font-serif font-bold text-slate-800 text-lg">📝 Script Topics</h3></div>
-        <button onClick={() => setShowNewTopicModal(true)} className="bg-[#C5A03A] text-white font-bold text-xs px-4 py-2 rounded-full shadow hover:bg-[#b08d32] transition font-sans font-semibold">+ New Topic</button>
+    <section className="py-2 animate-fadeIn font-sans space-y-4">
+      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans animate-fadeIn">
+        <h3 className="font-serif font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wider">📝 Script Topics</h3>
+        <button onClick={() => setShowNewTopicModal(true)} className="bg-[#C5A03A] text-white font-bold text-[10px] sm:text-xs px-4 py-1.5 rounded-full shadow hover:bg-[#b08d32] transition font-sans">+ New Topic</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-        <div className="lg:col-span-1 bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-2xl shadow-skeuo-md space-y-2 max-h-[560px] overflow-y-auto custom-scrollbar animate-fadeIn">
+        <div className="lg:col-span-1 bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-3 rounded-xl shadow-skeuo-md space-y-1.5 max-h-[400px] overflow-y-auto custom-scrollbar animate-fadeIn">
           {scripts.map(s => (
-            <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-3 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
-              <div className="min-w-0"><p className="text-xs font-bold text-slate-800 truncate">{s.title}</p><span className="text-[9px] text-slate-400 font-mono block">By {s.authorName}</span></div>
-              {(isAdmin || s.authorUid === userProfile?.id) && (<button onClick={(e) => { e.stopPropagation(); removeTopic(s.id); }} className="text-rose-500 text-[10px] font-bold shrink-0">✕</button>)}
+            <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-2.5 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
+                <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName}</span>
+              </div>
+              {(isAdmin || s.authorUid === userProfile?.id) && (
+                <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>
+              )}
             </div>
           ))}
         </div>
 
-        <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md animate-fadeIn">
-          {!selectedScript ? (<div className="text-center text-slate-400 py-24 italic">Select a topic on the left to read or write its script.</div>) : (
+        <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn">
+          {!selectedScript ? (
+            <div className="text-center text-slate-400 py-20 italic text-xs">Select a topic on the left to read or write its script.</div>
+          ) : (
             <div className="space-y-4">
-              <div className="flex justify-between items-start border-b pb-3">
-                <div><h3 className="font-serif text-xl font-bold text-slate-800">{selectedScript.title}</h3></div>
-                {canEditSelected && !isEditingBody && (<button onClick={() => setIsEditingBody(true)} className="text-[10px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-3 py-1.5">✎ Edit Script</button>)}
+              <div className="flex justify-between items-start border-b pb-2">
+                <div>
+                  <h3 className="font-serif text-base font-bold text-slate-800">{selectedScript.title}</h3>
+                  {selectedScript.lastEditedBy && <p className="text-[8px] text-slate-400">Last updated by {selectedScript.lastEditedBy}</p>}
+                </div>
+                <div className="flex gap-2">
+                  {canEditSelected && !isEditingBody && (
+                    <button onClick={() => setIsEditingBody(true)} className="text-[9px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-2.5 py-1.5">✎ Edit Script</button>
+                  )}
+                  {isAdmin && (
+                    <button onClick={(e) => removeTopic(selectedScript.id, e)} className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-100">🗑 Delete</button>
+                  )}
+                </div>
               </div>
+              
               {isEditingBody ? (
                 <div className="space-y-3">
-                  <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={14} placeholder="Write the script here..." className="w-full px-4 py-3 bg-slate-50 border border-[#EADFC9] rounded-xl text-sm focus:ring-1 focus:ring-[#C5A03A] focus:outline-none font-sans leading-relaxed" />
-                  <div className="flex gap-2 justify-end"><button onClick={() => { setIsEditingBody(false); setDraftText(selectedScript.content || ''); }} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button><button onClick={saveScriptBody} disabled={saving} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] disabled:opacity-50">{saving ? 'Saving…' : 'Save Script'}</button></div>
+                  <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={12} placeholder="Write the script here..." className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none font-sans leading-relaxed" />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => { setIsEditingBody(false); setDraftText(selectedScript.content || ''); }} className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs">Cancel</button>
+                    <button onClick={saveScriptBody} disabled={saving} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] disabled:opacity-50">{saving ? 'Saving…' : 'Save Script'}</button>
+                  </div>
                 </div>
-              ) : (<div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed min-h-[200px] font-sans">{selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet{canEditSelected ? ' — click "Edit Script" to start writing.' : '.'}</span>}</div>)}
+              ) : (
+                <div className="whitespace-pre-wrap text-xs text-slate-700 leading-relaxed min-h-[150px] font-sans">
+                  {selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet{canEditSelected ? ' — click "Edit Script" to write.' : '.'}</span>}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1040,10 +1247,13 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 
       {showNewTopicModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={createTopic} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
-            <h4 className="font-serif font-bold text-slate-800">New Script Topic</h4>
-            <div><input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required /></div>
-            <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowNewTopicModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button><button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px]">Create Topic</button></div>
+          <form onSubmit={createTopic} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
+            <h4 className="font-serif font-bold text-slate-800 text-xs">New Script Topic</h4>
+            <input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border rounded-lg text-xs mt-1 font-sans" required />
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowNewTopicModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
+              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c]">Create Topic</button>
+            </div>
           </form>
         </div>
       )}
@@ -1051,7 +1261,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   );
 }
 
-// --- CHATROOM PANEL ---
+// --- CHATROOM WITH DIRECT MESSAGE DELETION FOR ADMINS ---
 function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast }) {
   const [inputText, setInputText] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
@@ -1065,7 +1275,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     await addDoc(collection(db, 'chats'), {
       projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
     });
-    pushNotification(`"${text.length > 60 ? text.slice(0, 60) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'all');
+    pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'all');
     setInputText('');
   };
 
@@ -1074,58 +1284,66 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     if(!newChannelName.trim()) return;
     await setDoc(doc(db, 'meta/settings'), { chatChannels: [...channels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}] }, {merge: true});
     setNewChannelName(''); showToast("Whiteboard channel added!", "success");
-  }
+  };
 
   const removeChannel = async (id, e) => {
     e.stopPropagation();
     await setDoc(doc(db, 'meta/settings'), { chatChannels: channels.filter(c => c.id !== id) }, {merge: true});
     if(chatChannel === id) setChatChannel('general');
     showToast("Channel removed!", "info");
-  }
+  };
 
-  const deleteMessage = async (msgId) => { await deleteDoc(doc(db, 'chats', msgId)); }
+  const deleteMessage = async (msgId) => { 
+    await deleteDoc(doc(db, 'chats', msgId)); 
+    showToast("Message deleted.", "info");
+  };
 
   return (
-    <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-[2rem] h-[75vh] sm:h-[500px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
-      <div className="sm:col-span-1 bg-[#FFFDF9] p-3 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 flex flex-col min-h-0 shrink-0">
-        <div className="overflow-x-auto sm:overflow-y-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-2 sm:gap-2 flex-1">
-            {channels.map(ch => (
+    <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-2xl h-[70vh] sm:h-[450px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
+      <div className="sm:col-span-1 bg-[#FFFDF9] p-2.5 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 flex flex-col min-h-0 shrink-0">
+        <div className="overflow-x-auto sm:overflow-y-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-1.5 sm:gap-2 flex-1">
+          {channels.map(ch => (
             <div key={ch.id} className="relative group inline-block sm:block w-auto sm:w-full">
-               <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-4 sm:px-2.5 py-2.5 rounded-xl text-xs font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
-               {isAdmin && ch.id !== 'general' && (<button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1.5 py-0.5 shadow-sm">✕</button>)}
+              <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-3 sm:px-2.5 py-2 rounded-xl text-[11px] font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
+              {isAdmin && ch.id !== 'general' && (
+                <button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1 py-0.5 border shadow-sm text-[8px]">✕</button>
+              )}
             </div>
-            ))}
+          ))}
         </div>
         {isAdmin && (
-            <form onSubmit={handleAddChannel} className="mt-2 pt-2 border-t border-[#EADFC9]/50 flex gap-2 sm:mt-auto shrink-0">
-               <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="New Channel" className="flex-1 px-2 py-1.5 border rounded-lg text-[10px]" required />
-               <button type="submit" className="bg-slate-800 text-white px-2 py-1.5 rounded-lg font-bold">+</button>
-            </form>
+          <form onSubmit={handleAddChannel} className="mt-2 pt-2 border-t border-[#EADFC9]/50 flex gap-1.5 sm:mt-auto shrink-0">
+            <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="New Channel" className="flex-1 px-2 py-1 border rounded-lg text-[10px]" required />
+            <button type="submit" className="bg-slate-800 text-white px-2 py-1 rounded-lg font-bold text-xs">+</button>
+          </form>
         )}
       </div>
+      
       <div className="sm:col-span-3 flex flex-col h-full bg-slate-50/20 font-sans min-h-0 flex-1">
-        <div className="p-4 overflow-y-auto space-y-2 custom-scrollbar flex-1 font-sans min-h-0">
+        <div className="p-3.5 overflow-y-auto space-y-1.5 custom-scrollbar flex-1 font-sans min-h-0">
           {chats.filter(c => c.projectId === chatChannel).slice().reverse().map((m) => (
-            <div key={m.id} className="text-xs p-3 bg-white border border-[#EADFC9]/40 rounded-2xl max-w-[85%] sm:max-w-[70%] animate-fadeIn shadow-xs font-sans group relative">
+            <div key={m.id} className="text-xs p-2.5 bg-white border border-[#EADFC9]/40 rounded-xl max-w-[85%] sm:max-w-[75%] animate-fadeIn shadow-xs font-sans group relative">
               <div className="flex justify-between items-start">
-                  <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{m.senderName}</span>
-                  {(isAdmin || m.senderUid === userProfile?.id) && (<button onClick={() => deleteMessage(m.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] pl-2">🗑️</button>)}
+                <span className="text-[9px] text-[#C5A03A] font-bold block mb-0.5">{m.senderName}</span>
+                {(isAdmin || m.senderUid === userProfile?.id) && (
+                  <button onClick={() => deleteMessage(m.id)} className="text-rose-500 text-[9px] font-bold pl-3" title="Delete Message">✕ Delete</button>
+                )}
               </div>
-              {m.text}
+              <p className="text-slate-700 font-medium leading-relaxed font-sans">{m.text}</p>
             </div>
           ))}
           {chats.filter(c => c.projectId === chatChannel).length === 0 && <p className="text-slate-400 text-xs text-center py-6">This room is empty. Start the chat!</p>}
         </div>
-        <form onSubmit={commit} className="p-3 border-t flex gap-2 bg-white font-sans animate-fadeIn">
-          <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type studio track commentary..." className="flex-1 px-3 py-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" />
-          <button type="submit" className="px-5 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold border-b-[4px] border-[#ab892c]">Send</button>
+        <form onSubmit={commit} className="p-2.5 border-t flex gap-2 bg-white font-sans shrink-0">
+          <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type studio commentary..." className="flex-1 px-3 py-1.5 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" />
+          <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white text-xs rounded-xl font-bold border-b-[4px] border-[#ab892c]">Send</button>
         </form>
       </div>
     </section>
   );
 }
 
-// --- INSTA SHOWCASE FEED ---
+// --- INSTA FEED WITH DIRECT ADMIN POST & COMMENT DELETION ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin }) {
   const [postTitle, setPostTitle] = useState('');
   const [postFile, setPostFile] = useState(null);
@@ -1146,7 +1364,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
       });
       pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name);
       setPostTitle(''); setPostText(''); setPostFile(null); setShowCreatePostModal(false); showToast('Showcase published to Insta Feed!', 'success');
-    } catch (err) { showToast('Publish failed — check Firebase Storage rules.', 'warning'); } finally { setPublishing(false); }
+    } catch (err) { showToast('Publish failed — check storage rules.', 'warning'); } finally { setPublishing(false); }
   };
 
   const toggleLikePost = async (post) => {
@@ -1163,44 +1381,65 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     e.target.commentInputText.value = ''; showToast('Comment published!', 'success');
   };
 
-  const removePost = async (postId) => { await deleteDoc(doc(db, 'posts', postId)); showToast("Post removed", "info"); }
+  const removePost = async (postId) => { 
+    await deleteDoc(doc(db, 'posts', postId)); 
+    showToast("Post removed from feed.", "info"); 
+  };
+
   const removePostComment = async (postId, postComments, commentId) => {
-      const updatedComments = postComments.filter(x => x.id !== commentId);
-      await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
-      showToast("Comment removed", "info");
-  }
+    const updatedComments = postComments.filter(x => x.id !== commentId);
+    await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
+    showToast("Comment removed.", "info");
+  };
 
   return (
-    <section className="py-4 animate-fadeIn space-y-6 font-sans">
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white border border-[#EADFC9]/50 p-5 rounded-2xl shadow-sm gap-4">
-        <div><h2 className="font-serif text-2xl font-bold text-slate-800">📸 Insta Showroom Feed</h2></div>
-        <button onClick={() => setShowCreatePostModal(true)} className="bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 text-white font-bold text-xs px-5 py-2.5 rounded-full border-b-[4px] border-amber-700 active:border-b-[1px] active:translate-y-[3px] shadow transition-all font-sans">➕ Create Post</button>
+    <section className="py-2 animate-fadeIn space-y-6 font-sans">
+      <div className="flex justify-between items-center bg-white border border-[#EADFC9]/50 p-4 rounded-xl shadow-sm gap-4">
+        <h2 className="font-serif text-lg font-bold text-slate-800">📸 Insta Showroom Feed</h2>
+        <button onClick={() => setShowCreatePostModal(true)} className="bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full border-b-[3px] border-amber-700 active:translate-y-[1px] active:border-b-0 shadow transition-all font-sans whitespace-nowrap">➕ Create Post</button>
       </div>
 
-      <div className="max-w-md mx-auto space-y-8 animate-fadeIn">
+      <div className="max-w-md mx-auto space-y-6 animate-fadeIn">
         {posts.map(post => {
           const amLiked = post.likedBy?.includes(userProfile?.id);
           return (
-            <div key={post.id} className="bg-white border-2 border-[#EADFC9] rounded-[2rem] overflow-hidden shadow-skeuo-md animate-fadeIn">
+            <div key={post.id} className="bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn">
               <div className="p-3.5 flex items-center justify-between border-b border-slate-50">
-                <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 animate-fadeIn">{renderAvatar(post.authorAvatar)}</div>
-                    <div><h4 className="text-xs font-black text-slate-800">{post.authorName}</h4><span className="text-[9px] text-slate-400 font-mono">{new Date(post.createdAt).toLocaleDateString()}</span></div>
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(post.authorAvatar)}</div>
+                  <div className="min-w-0"><h4 className="text-xs font-black text-slate-800 truncate">{post.authorName}</h4><span className="text-[8px] text-slate-400 font-mono block">{new Date(post.createdAt).toLocaleDateString()}</span></div>
                 </div>
-                {(isAdmin || post.authorUid === userProfile.id) && (<button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold bg-rose-50 rounded-full px-2 py-1">🗑️</button>)}
+                {(isAdmin || post.authorUid === userProfile.id) && (
+                  <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete Post</button>
+                )}
               </div>
-              <div className="w-full h-80 overflow-hidden bg-slate-100 relative"><img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" /></div>
-              <div className="p-3.5 space-y-2 border-t border-slate-50 font-sans">
-                <div className="flex items-center justify-between font-sans"><div className="flex items-center space-x-3 font-sans"><button onClick={() => toggleLikePost(post)} className="text-xl transition-transform active:scale-150">{amLiked ? '❤️' : '🤍'}</button><span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span></div></div>
-                <div className="text-xs"><span className="font-bold text-slate-800 mr-2">{post.authorName}</span><span className="font-semibold text-slate-700">{post.title}</span>{post.description && <p className="text-slate-500 mt-1 leading-relaxed font-sans">{post.description}</p>}</div>
-                <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+              <div className="w-full h-72 overflow-hidden bg-slate-100 relative"><img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" /></div>
+              
+              <div className="p-3.5 space-y-2.5 border-t border-slate-50 font-sans">
+                <div className="flex items-center justify-between font-sans">
+                  <div className="flex items-center space-x-2 font-sans">
+                    <button onClick={() => toggleLikePost(post)} className="text-lg transition-transform active:scale-150">{amLiked ? '❤️' : '🤍'}</button>
+                    <span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span>
+                  </div>
+                </div>
+                
+                <div className="text-xs">
+                  <span className="font-bold text-slate-800 mr-2">{post.authorName}</span>
+                  <span className="font-semibold text-slate-700">{post.title}</span>
+                  {post.description && <p className="text-slate-500 mt-1 leading-relaxed font-sans">{post.description}</p>}
+                </div>
+                
+                <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
                   {(post.comments || []).map((c, i) => (
-                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group">
-                        <div><span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span><span className="text-slate-600">{c.text}</span></div>
-                        {(isAdmin || c.authorName === userProfile.name) && (<button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 opacity-0 group-hover:opacity-100 text-[10px] pl-2">✕</button>)}
+                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
+                      <div className="min-w-0 pr-2"><span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span><span className="text-slate-600 break-words">{c.text}</span></div>
+                      {(isAdmin || c.authorName === userProfile.name) && (
+                        <button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 hover:text-rose-700 text-[9px] shrink-0 font-bold px-1.5">✕ Delete</button>
+                      )}
                     </div>
                   ))}
                 </div>
+                
                 <form onSubmit={(e) => handleAddPostComment(e, post.id)} className="pt-2 border-t border-[#EADFC9]/20 flex gap-2 font-sans">
                   <input name="commentInputText" type="text" placeholder="Add comment..." className="flex-1 text-[11px] px-3 py-1.5 bg-slate-50 border rounded-lg focus:outline-none" required />
                   <button type="submit" className="text-[10px] font-bold text-[#C5A03A] font-sans">Post</button>
@@ -1213,12 +1452,17 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
-          <form onSubmit={publishPost} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
-            <h4 className="font-serif font-bold text-slate-800">Create Roster Post</h4>
-            <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="Title" className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none text-xs" required />
-            <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Scribble context details..." className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none text-xs" rows="2" />
-            <input type="file" accept="image/*" onChange={e => setPostFile(e.target.files[0])} className="w-full text-xs text-slate-500 mt-2 font-sans" required />
-            <div className="flex gap-2 justify-end"><button type="button" onClick={() => setShowCreatePostModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button><button type="submit" disabled={publishing} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] disabled:opacity-50">{publishing ? 'Publishing…' : 'Share Post'}</button></div>
+          <form onSubmit={publishPost} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-3 font-sans shadow-skeuo-lg animate-fadeIn">
+            <h4 className="font-serif font-bold text-slate-800 text-xs sm:text-sm">Create Showroom Post</h4>
+            <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="Title" className="w-full px-3 py-2 border rounded-xl focus:outline-none text-xs font-sans" required />
+            <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Context description..." className="w-full px-3 py-2 border rounded-xl focus:outline-none text-xs font-sans" rows="2" />
+            <input type="file" accept="image/*" onChange={e => setPostFile(e.target.files[0])} className="w-full text-xs text-slate-500 font-sans" required />
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowCreatePostModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
+              <button type="submit" disabled={publishing} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] disabled:opacity-50">
+                {publishing ? 'Publishing…' : 'Share Post'}
+              </button>
+            </div>
           </form>
         </div>
       )}
@@ -1226,7 +1470,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   );
 }
 
-// --- MY PROFILE WORKSPACE ---
+// --- MY PROFILE ---
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
@@ -1266,35 +1510,35 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
   };
 
   return (
-    <section className="max-w-2xl mx-auto bg-white border border-[#EADFC9] rounded-[2.5rem] p-8 shadow-lg relative animate-fadeIn font-sans">
+    <section className="max-w-xl mx-auto bg-white border border-[#EADFC9] rounded-[2rem] p-6 shadow-lg relative animate-fadeIn font-sans">
       <WatercolorOverlay />
-      <div className="text-center mb-6">
-        <h2 className="font-serif text-3xl font-bold text-slate-800">Configure Profile Details</h2>
+      <div className="text-center mb-4">
+        <h2 className="font-serif text-2xl font-bold text-slate-800">Profile Details</h2>
       </div>
-      <div className="flex flex-col items-center mb-6 font-sans">
-        <div className="w-24 h-24 rounded-full border-4 border-[#C5A03A]/20 bg-white overflow-hidden shadow-md flex items-center justify-center mb-2 font-sans">{renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-full")}</div>
+      <div className="flex flex-col items-center mb-5 font-sans">
+        <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 bg-white overflow-hidden shadow-md flex items-center justify-center mb-1 font-sans">{renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-full")}</div>
       </div>
       <form onSubmit={saveProfileSettings} className="space-y-4 font-sans animate-fadeIn">
-        <div><label className="block text-[10px] font-bold text-slate-500 uppercase">Display Name</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]" required /></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><label className="block text-[10px] font-bold text-slate-500 uppercase font-sans">Specialization Category</label><select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]">{categories.map((cat, idx) => <option key={idx} value={cat}>{cat}</option>)}</select></div>
-          <div><label className="block text-[10px] font-bold text-slate-500 uppercase">Upload New PFP</label><input type="file" accept="image/*" onChange={triggerPfpUpdate} className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-amber-50 file:text-amber-700" /></div>
+        <div><label className="block text-[9px] font-bold text-slate-500 uppercase">Display Name</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]" required /></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label className="block text-[9px] font-bold text-slate-500 uppercase font-sans">Role Specialization</label><select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]">{categories.map((cat, idx) => <option key={idx} value={cat}>{cat}</option>)}</select></div>
+          <div><label className="block text-[9px] font-bold text-slate-500 uppercase font-sans">Upload New PFP</label><input type="file" accept="image/*" onChange={triggerPfpUpdate} className="w-full text-[10px] text-slate-500 mt-1 file:py-1.5 file:px-2.5 file:border file:rounded-lg file:bg-amber-50" /></div>
         </div>
-        <button type="submit" disabled={saving} className="w-full py-3 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-serif font-bold uppercase rounded-xl tracking-wider hover:bg-[#ae8b30] shadow transition disabled:opacity-50">{saving ? 'Saving…' : 'Save Profile Details'}</button>
+        <button type="submit" disabled={saving} className="w-full py-2.5 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold uppercase rounded-xl tracking-wider hover:bg-[#ae8b30] shadow transition disabled:opacity-50">{saving ? 'Saving…' : 'Save Profile Details'}</button>
       </form>
-      <div className="border-t border-[#EADFC9]/50 mt-6 pt-6 font-sans">
-        <h4 className="font-serif text-sm font-bold text-slate-800 mb-2">Create & Register Custom Category tag</h4>
-        <form onSubmit={handleRegisterCategory} className="flex gap-2 font-sans font-semibold">
-          <input type="text" value={newCatInp} onChange={(e) => setNewCatInp(e.target.value)} placeholder="e.g. 3D Animation Specialist" className="flex-1 px-4 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:outline-none" required />
-          <button type="submit" className="px-4 py-2 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Role Tag</button>
+      <div className="border-t border-[#EADFC9]/50 mt-5 pt-5 font-sans">
+        <h4 className="font-serif text-xs font-bold text-slate-800 mb-1.5">Register Custom Specialization Tag</h4>
+        <form onSubmit={handleRegisterCategory} className="flex gap-2 font-sans">
+          <input type="text" value={newCatInp} onChange={(e) => setNewCatInp(e.target.value)} placeholder="e.g. 3D Animator" className="flex-1 px-3 py-1.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:outline-none" required />
+          <button type="submit" className="px-3.5 py-1.5 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Tag</button>
         </form>
       </div>
-      <div className="border-t border-[#EADFC9]/50 mt-6 pt-6 text-center"><button onClick={handleSignOut} className="text-xs font-bold text-rose-500 hover:text-rose-700 transition bg-rose-50 hover:bg-rose-100 px-5 py-2.5 rounded-full border border-rose-200">🚪 Sign Out</button></div>
+      <div className="border-t border-[#EADFC9]/50 mt-5 pt-5 text-center"><button onClick={handleSignOut} className="text-xs font-bold text-rose-500 hover:text-rose-700 transition bg-rose-50 hover:bg-rose-100 px-5 py-2 rounded-full border border-rose-200">🚪 Sign Out</button></div>
     </section>
   );
 }
 
-// --- ADMIN PANEL ---
+// --- ADMIN CONTROL WITH DEMOTE OPTION ---
 function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText || '');
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
@@ -1310,7 +1554,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   const handleYtSave = async (e) => {
     e.preventDefault();
     await setDoc(doc(db, 'meta/ytConfig'), { channelId: channelIdInput, apiKey: apiKeyInput }, { merge: true });
-    showToast('YouTube Sync Engine configurations saved!', 'success');
+    showToast('YouTube configurations saved!', 'success');
     syncYouTubeStats(channelIdInput, apiKeyInput);
   };
 
@@ -1318,83 +1562,91 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
     if (!editedFile) return;
     const url = await uploadToStorage(`avatars/${userId}_${Date.now()}_admin`, editedFile);
     await updateDoc(doc(db, 'profiles', userId), { photoURL: url });
-    setEditingUserId(null); setEditedFile(null); showToast("Crew member's profile picture modified successfully!", 'success');
+    setEditingUserId(null); setEditedFile(null); showToast("Crew member's profile picture modified!", 'success');
   };
 
   const triggerSiteLogoUpload = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     const url = await uploadToStorage(`branding/logo_${Date.now()}`, file);
-    await setDoc(doc(db, 'meta/settings'), { logoUrl: url }, { merge: true }); showToast('Dynamic Custom Logo Uploaded successfully!', 'success');
+    await setDoc(doc(db, 'meta/settings'), { logoUrl: url }, { merge: true }); showToast('Branding Logo updated!', 'success');
   };
 
   const saveLogoText = async () => {
-    try { await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); showToast('Label saved successfully!', 'success'); } 
-    catch (err) { showToast('Error saving label. You do not have Firestore permissions to edit meta.', 'warning'); }
+    try { await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); showToast('Logo text saved!', 'success'); } 
+    catch (err) { showToast('Error saving logo text. Check permissions.', 'warning'); }
   };
 
   const approve = (uid) => updateDoc(doc(db, 'profiles', uid), { status: 'approved' });
   const promote = (uid) => updateDoc(doc(db, 'profiles', uid), { role: 'admin' });
+  const demote = (uid) => updateDoc(doc(db, 'profiles', uid), { role: 'member' });
   const remove = (uid) => deleteDoc(doc(db, 'profiles', uid));
 
   return (
-    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn font-sans">
+    <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn font-sans">
       <div className="col-span-1 space-y-6">
-        <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
-          <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Studio Branding</h3>
-          <div><label className="block text-[10px] font-bold text-slate-400 uppercase">Logo Brand Text</label><input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1" /></div>
-          <div><label className="block text-[10px] font-bold text-slate-400 uppercase font-sans">Logo Image</label><input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-xs text-slate-500 mt-1 file:py-1 file:px-2" /></div>
-          <button onClick={saveLogoText} className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
+        <div className="bg-white border-2 border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md space-y-4 font-sans">
+          <h3 className="font-serif font-bold border-b pb-1.5 text-slate-800 text-sm">Studio Branding</h3>
+          <div><label className="block text-[9px] font-bold text-slate-400 uppercase">Logo Brand Text</label><input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1" /></div>
+          <div><label className="block text-[9px] font-bold text-slate-400 uppercase font-sans">Logo Image</label><input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-xs text-slate-500 mt-1 file:py-1 file:px-2" /></div>
+          <button onClick={saveLogoText} className="w-full py-1.5 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
         </div>
 
-        <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans">
-          <h3 className="font-serif font-bold border-b pb-2 mb-2 text-slate-800">YouTube Auto-Sync Setup</h3>
-          {ytConfig.lastError && <p className="text-[10px] text-rose-600 mb-2 font-bold">⚠ Last error: {ytConfig.lastError}</p>}
+        <div className="bg-white border-2 border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans">
+          <h3 className="font-serif font-bold border-b pb-1.5 text-slate-800 text-sm">YouTube Auto-Sync Setup</h3>
+          {ytConfig.lastError && <p className="text-[9px] text-rose-600 mb-1.5 font-bold">⚠ Sync issue: {ytConfig.lastError}</p>}
           <form onSubmit={handleYtSave} className="space-y-3 font-sans">
-            <div><label className="block text-[9px] font-bold text-slate-400 uppercase font-semibold">YouTube Channel ID / Handle</label><input type="text" value={channelIdInput} onChange={(e) => setChannelIdInput(e.target.value)} placeholder="e.g. @naitik._.artist-16" className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" required /></div>
-            <div><label className="block text-[9px] font-bold text-slate-400 uppercase font-semibold">YouTube API v3 Key</label><input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" /></div>
-            <button type="submit" className="w-full py-2 bg-gradient-to-r from-[#C5A03A] to-[#E3BE5C] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold rounded-lg font-sans">Save & Synchronize Channel</button>
+            <div><label className="block text-[9px] font-bold text-slate-400 uppercase">YouTube Channel ID / Handle</label><input type="text" value={channelIdInput} onChange={(e) => setChannelIdInput(e.target.value)} placeholder="@naitik._.artist-16" className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" required /></div>
+            <div><label className="block text-[9px] font-bold text-slate-400 uppercase">YouTube API Key</label><input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" /></div>
+            <button type="submit" className="w-full py-1.5 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] text-white text-xs font-bold rounded-lg font-sans">Sync Channel</button>
           </form>
         </div>
       </div>
 
-      <div className="col-span-2 bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans">
-        <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800 flex items-center justify-between">
+      <div className="col-span-2 bg-white border-2 border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans">
+        <h3 className="font-serif font-bold border-b pb-1.5 text-slate-800 text-sm flex items-center justify-between">
           <span>Roster Control & Applicants</span>
           {pendingCount > 0 && <span className="bg-rose-100 text-rose-600 text-[10px] px-2 py-0.5 rounded-full font-bold">{pendingCount} pending</span>}
         </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left font-sans min-w-[400px]">
             <thead>
-              <tr className="text-slate-400 font-sans font-semibold"><th className="pb-2">Crew Profile</th><th className="pb-2">Status</th><th className="pb-2 text-right">Actions</th></tr>
+              <tr className="text-slate-400 font-semibold"><th className="pb-2">Crew Profile</th><th className="pb-2">Status & Role</th><th className="pb-2 text-right">Actions</th></tr>
             </thead>
             <tbody>
               {profiles.map(p => {
                 const isEditing = editingUserId === p.id;
                 return (
                   <tr key={p.id} className="border-t font-sans animate-fadeIn">
-                    <td className="py-2.5 font-bold">
+                    <td className="py-2">
                       <div className="flex items-center space-x-2">
                         <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(p.photoURL)}</div>
-                        <div className="flex flex-col font-sans"><span>{p.name}</span><span className="text-[9px] text-slate-400 font-normal">{p.email}</span></div>
+                        <div className="flex flex-col font-sans"><span>{p.name}</span><span className="text-[9px] text-slate-400">{p.email}</span></div>
                       </div>
                       {isEditing && (
                         <div className="mt-2 p-2 bg-slate-50 border rounded-lg space-y-2 animate-fadeIn font-sans">
-                          <span className="text-[9px] font-bold uppercase text-slate-400 block font-sans">Admin Photo Override</span>
+                          <span className="text-[8px] font-bold uppercase text-slate-400 block font-sans">Admin Photo Override</span>
                           <input type="file" accept="image/*" onChange={(e) => setEditedFile(e.target.files[0])} className="text-[9px] font-sans" />
                           <div className="flex gap-1.5 justify-end"><button onClick={() => setEditingUserId(null)} className="text-[9px] bg-slate-200 px-2 py-0.5 rounded font-sans">Cancel</button><button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[9px] bg-[#C5A03A] text-white px-2 py-0.5 rounded font-bold font-sans">Save PFP</button></div>
                         </div>
                       )}
                     </td>
-                    <td className="py-2.5 uppercase font-mono text-[10px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
-                    <td className="py-2.5 text-right space-x-1.5 font-sans">
+                    <td className="py-2 uppercase font-mono text-[9px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
+                    <td className="py-2 text-right">
                       {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
-                        <div className="flex items-center justify-end gap-1 flex-wrap font-sans">
-                          <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold hover:bg-blue-100">Edit PFP</button>
-                          {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-bold hover:bg-emerald-100 font-sans">Approve</button>}
-                          {p.role !== 'admin' && p.role !== 'owner' && <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-bold hover:bg-amber-100 font-sans">Promote</button>}
-                          <button onClick={() => remove(p.id)} className="bg-rose-50 text-rose-600 px-2 py-0.5 rounded font-bold hover:bg-rose-100 font-sans">Remove</button>
+                        <div className="flex items-center justify-end gap-1 flex-wrap">
+                          <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 border rounded hover:bg-blue-100 text-[9px]">Edit PFP</button>
+                          {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 border rounded hover:bg-emerald-100 text-[9px]">Approve</button>}
+                          
+                          {/* DYNAMIC PROMOTE / DEMOTE SYSTEM */}
+                          {p.role !== 'admin' && p.role !== 'owner' ? (
+                            <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 border rounded hover:bg-amber-100 text-[9px]">Promote</button>
+                          ) : (
+                            p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-purple-50 text-purple-700 px-2 py-0.5 border rounded hover:bg-purple-100 text-[9px]">Demote</button>
+                          )}
+                          
+                          <button onClick={() => remove(p.id)} className="bg-rose-50 text-rose-600 px-2 py-0.5 border rounded hover:bg-rose-100 text-[9px]">Remove</button>
                         </div>
-                      ) : <span className="text-slate-400 italic">Owner</span>}
+                      ) : <span className="text-slate-400 italic text-[10px]">Owner</span>}
                     </td>
                   </tr>
                 );
@@ -1412,7 +1664,7 @@ function PendingScreen({ userProfile }) {
   return (
     <div className="min-h-[60vh] flex items-center justify-center text-center p-4">
       <div className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl max-w-sm shadow-skeuo-md animate-fadeIn font-sans">
-        <h3 className="font-serif font-bold text-xl mb-2">Roster Waiting Room</h3>
+        <h3 className="font-serif font-bold text-base mb-1 text-slate-800">Roster Waiting Room</h3>
         <p className="text-xs text-slate-500 mb-4 font-sans">Hello {userProfile?.name}! Your account request has been routed to the pending list for review. The studio owner will see it on the Admin panel.</p>
       </div>
     </div>
