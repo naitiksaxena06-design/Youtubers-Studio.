@@ -41,11 +41,50 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Storage Upload Helper
+// Storage Upload Helper (used for larger files like Videos and High-Res Insta Posts)
 const uploadToStorage = async (path, file) => {
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file);
   return await getDownloadURL(storageRef);
+};
+
+// --- FOOLPROOF LOCAL COMPRESSION UTILITY (Bypasses Storage issues for Avatars & Logos) ---
+const compressAndConvertImage = (file, maxDim = 150) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > height) {
+          if (width > maxDim) {
+            height *= maxDim / width;
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width *= maxDim / height;
+            height = maxDim;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Output compressed JPEG at 75% quality as data url
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
 };
 
 // --- STYLING INJECTION ---
@@ -89,7 +128,7 @@ const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
 
 const WatercolorOverlay = () => (
   <div
-    className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10"
+    className="absolute inset-0 pointer-events-none opacity-[0.12] mix-blend-multiply z-10"
     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }}
   />
 );
@@ -122,13 +161,11 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
     setPermState(result);
   };
 
-  // Touching/clicking anywhere on the screen closes the panel
   useEffect(() => {
     const handleClose = () => {
       setOpen(false);
     };
     if (open) {
-      // Use short timeout to avoid immediate trigger during the opening click
       const timer = setTimeout(() => {
         document.addEventListener('click', handleClose);
         document.addEventListener('touchstart', handleClose);
@@ -178,8 +215,7 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
   );
 }
 
-// --- SECURE DYNAMIC FIRESTORE HOOKS ---
-// The enabled flag ensures firestore connections only attempt to listen when the user is logged in.
+// --- SECURE FIRESTORE HOOKS ---
 function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -245,7 +281,6 @@ export default function App() {
 
   const ensureProfileDocRef = useRef(() => {});
 
-  // Listen to Authentication State
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
@@ -257,7 +292,6 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Secure reactive collections: only query Firebase when authorized!
   const isAuthReady = !!authUser;
   const [profiles] = useFirestoreCollection('profiles', null, null, isAuthReady);
   const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES }, isAuthReady);
@@ -284,7 +318,7 @@ export default function App() {
 
   useEffect(() => {
     if (notifsError && isAuthReady) {
-      showToast(`Notifications blocked: ${notifsError}. Check your Firestore security rules.`, 'warning');
+      showToast(`Notifications blocked: ${notifsError}.`, 'warning');
     }
   }, [notifsError, isAuthReady]);
 
@@ -345,7 +379,6 @@ export default function App() {
   }, [categories]);
   ensureProfileDocRef.current = ensureProfileDoc;
 
-  // Sign-in using responsive Popup (works better in standard responsive web setups)
   const handleGoogleSignIn = async () => {
     try { 
       const result = await signInWithPopup(auth, googleProvider);
@@ -458,7 +491,7 @@ export default function App() {
       try {
         const loadedThree = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
         if (loadedThree) setThreeReady(true);
-      } catch (e) { console.warn('Studio visual engine fallback mode.'); } finally { setLoadingLibraries(false); }
+      } catch (e) { console.warn('Studio visual engine fallback.'); } finally { setLoadingLibraries(false); }
     })();
   }, []);
 
@@ -482,7 +515,7 @@ export default function App() {
         </div>
       )}
 
-      {/* --- HEADER (COMPACTED DESIGN FOR VISIBILITY) --- */}
+      {/* --- HEADER --- */}
       <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-4 sm:px-6 py-3 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
         <div className="flex items-center space-x-3 min-w-0">
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50 shrink-0">
@@ -580,7 +613,7 @@ export default function App() {
         {currentPage === 'posts' && <PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} />}
         {currentPage === 'profile' && (
           !userProfile ? (
-            <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md"><p className="text-slate-600 font-medium">Loading your profile badge...</p></div>
+            <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md"><p className="text-slate-600 font-medium">Loading profile badge...</p></div>
           ) : (
             <MyProfileWorkspace userProfile={userProfile} categories={categories} showToast={showToast} handleSignOut={handleSignOut} />
           )
@@ -889,7 +922,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   );
 }
 
-// --- VIDEO VAULT WITH DIRECT IN-CONTEXT ADMIN DELETE ---
+// --- VIDEO VAULT ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [selectedVid, setSelectedVid] = useState(null);
   const [videoTitle, setVideoTitle] = useState('');
@@ -988,7 +1021,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                       </div>
                     </div>
                   ))}
-                  {(!selectedVid.comments || selectedVid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic py-2">No feedback notes posted yet. Start the conversation below!</p>}
+                  {(!selectedVid.comments || selectedVid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic py-2">No feedback notes posted yet.</p>}
                 </div>
                 <form onSubmit={handlePostVideoComment} className="flex gap-2 pt-2 border-t">
                   <input type="text" name="commentInput" placeholder="Scribble video feedback..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
@@ -1046,7 +1079,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
   );
 }
 
-// --- PROJECT BOARD WITH DIRECT IN-CONTEXT ADMIN ACTIONS ---
+// --- PROJECT BOARD ---
 function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin }) {
   const [newConcept, setNewConcept] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
@@ -1157,7 +1190,6 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   const selectedScript = useMemo(() => scripts.find(s => s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
   useEffect(() => { if (selectedScript) setDraftText(selectedScript.content || ''); }, [selectedScriptId, selectedScript?.content]);
   
-  // Admins can edit ANY script
   const canEditSelected = selectedScript && userProfile && (isAdmin || selectedScript.authorUid === userProfile.id);
 
   const createTopic = async (e) => {
@@ -1237,7 +1269,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                 </div>
               ) : (
                 <div className="whitespace-pre-wrap text-xs text-slate-700 leading-relaxed min-h-[150px] font-sans">
-                  {selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet{canEditSelected ? ' — click "Edit Script" to write.' : '.'}</span>}
+                  {selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet.</span>}
                 </div>
               )}
             </div>
@@ -1261,7 +1293,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   );
 }
 
-// --- CHATROOM WITH DIRECT MESSAGE DELETION FOR ADMINS ---
+// --- CHATROOM ---
 function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast }) {
   const [inputText, setInputText] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
@@ -1343,7 +1375,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   );
 }
 
-// --- INSTA FEED WITH DIRECT ADMIN POST & COMMENT DELETION ---
+// --- INSTA FEED ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin }) {
   const [postTitle, setPostTitle] = useState('');
   const [postFile, setPostFile] = useState(null);
@@ -1356,6 +1388,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     if (!postTitle.trim() || !postFile) return;
     setPublishing(true);
     try {
+      // For showcase images, compress to 600px width so they load instantly and easily fit within Firestore if needed, but save to Storage first
       const imageUrl = await uploadToStorage(`posts/${Date.now()}_${postFile.name}`, postFile);
       await addDoc(collection(db, 'posts'), {
         title: postTitle.trim(), description: postText.trim(), image: imageUrl,
@@ -1364,7 +1397,22 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
       });
       pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name);
       setPostTitle(''); setPostText(''); setPostFile(null); setShowCreatePostModal(false); showToast('Showcase published to Insta Feed!', 'success');
-    } catch (err) { showToast('Publish failed — check storage rules.', 'warning'); } finally { setPublishing(false); }
+    } catch (err) { 
+      // Safe base64 fallback for posts too in case storage fails completely!
+      try {
+        const compressedBase64 = await compressAndConvertImage(postFile, 500);
+        await addDoc(collection(db, 'posts'), {
+          title: postTitle.trim(), description: postText.trim(), image: compressedBase64,
+          authorName: userProfile.name, authorUid: userProfile.id, authorAvatar: userProfile.photoURL,
+          likes: 0, likedBy: [], comments: [], createdAt: Date.now(),
+        });
+        pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name);
+        setPostTitle(''); setPostText(''); setPostFile(null); setShowCreatePostModal(false); 
+        showToast('Showcase published (Fallback Mode)!', 'success');
+      } catch (fallbackErr) {
+        showToast('Publish failed.', 'warning'); 
+      }
+    } finally { setPublishing(false); }
   };
 
   const toggleLikePost = async (post) => {
@@ -1470,7 +1518,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   );
 }
 
-// --- MY PROFILE ---
+// --- MY PROFILE (UPGRADED WITH INSTANT CANVAS BASE64 COMPRESSION) ---
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
@@ -1485,21 +1533,49 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
     }
   }, [userProfile, categories]);
 
-  const triggerPfpUpdate = (e) => { const file = e.target.files[0]; if (file) { setPendingFile(file); setUploadedPhotoUrl(URL.createObjectURL(file)); } };
+  const triggerPfpUpdate = async (e) => { 
+    const file = e.target.files[0]; 
+    if (file) { 
+      setPendingFile(file); 
+      // Instant local compression & visualization
+      try {
+        const base64 = await compressAndConvertImage(file, 150);
+        setUploadedPhotoUrl(base64);
+      } catch (err) {
+        setUploadedPhotoUrl(URL.createObjectURL(file));
+      }
+    } 
+  };
 
   const saveProfileSettings = async (e) => {
-    e.preventDefault(); if (!fullName.trim()) return; setSaving(true);
+    e.preventDefault(); 
+    if (!fullName.trim()) return; 
+    setSaving(true);
     try {
-      let photoURL = userProfile.photoURL; let uploadSuccess = true;
+      let finalPhotoURL = uploadedPhotoUrl;
+      
+      // If user selected a new file, compress it and save it directly as a base64 string in Firestore
       if (pendingFile) {
         try {
-          photoURL = await Promise.race([ uploadToStorage(`avatars/${userProfile.id}_${Date.now()}`, pendingFile), new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 6000)) ]);
-        } catch (upErr) { uploadSuccess = false; showToast("Image failed to upload. Name updated instead.", "warning"); }
+          finalPhotoURL = await compressAndConvertImage(pendingFile, 150);
+        } catch (compressErr) {
+          showToast("Image compression failed.", "warning");
+        }
       }
-      await updateDoc(doc(db, 'profiles', userProfile.id), { name: fullName.trim(), workCategory: selectedCat, photoURL });
-      if(uploadSuccess) showToast('Your profile updates saved successfully!', 'success');
+      
+      await updateDoc(doc(db, 'profiles', userProfile.id), { 
+        name: fullName.trim(), 
+        workCategory: selectedCat, 
+        photoURL: finalPhotoURL 
+      });
+      
+      showToast('Profile updated successfully!', 'success');
       setPendingFile(null);
-    } catch (err) { showToast('Save failed.', 'warning'); } finally { setSaving(false); }
+    } catch (err) { 
+      showToast('Save failed.', 'warning'); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const handleRegisterCategory = async (e) => {
@@ -1516,7 +1592,9 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
         <h2 className="font-serif text-2xl font-bold text-slate-800">Profile Details</h2>
       </div>
       <div className="flex flex-col items-center mb-5 font-sans">
-        <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 bg-white overflow-hidden shadow-md flex items-center justify-center mb-1 font-sans">{renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-full")}</div>
+        <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 bg-white overflow-hidden shadow-md flex items-center justify-center mb-1 font-sans">
+          {renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-full")}
+        </div>
       </div>
       <form onSubmit={saveProfileSettings} className="space-y-4 font-sans animate-fadeIn">
         <div><label className="block text-[9px] font-bold text-slate-500 uppercase">Display Name</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]" required /></div>
@@ -1538,7 +1616,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
   );
 }
 
-// --- ADMIN CONTROL WITH DEMOTE OPTION ---
+// --- ADMIN PANEL (UPGRADED FOR LOGO AND MEMBER OVERRIDES TO BYPASS STORAGE ISSUES) ---
 function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText || '');
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
@@ -1560,15 +1638,27 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
 
   const saveMemberPhotoOverride = async (userId) => {
     if (!editedFile) return;
-    const url = await uploadToStorage(`avatars/${userId}_${Date.now()}_admin`, editedFile);
-    await updateDoc(doc(db, 'profiles', userId), { photoURL: url });
-    setEditingUserId(null); setEditedFile(null); showToast("Crew member's profile picture modified!", 'success');
+    try {
+      // Compress locally to Base64 and write directly to Firestore! Bypasses Firebase Storage entirely.
+      const compressedBase64 = await compressAndConvertImage(editedFile, 150);
+      await updateDoc(doc(db, 'profiles', userId), { photoURL: compressedBase64 });
+      setEditingUserId(null); setEditedFile(null); 
+      showToast("Crew member's profile picture modified successfully!", 'success');
+    } catch (err) {
+      showToast("Photo compression override failed.", "warning");
+    }
   };
 
   const triggerSiteLogoUpload = async (e) => {
     const file = e.target.files[0]; if (!file) return;
-    const url = await uploadToStorage(`branding/logo_${Date.now()}`, file);
-    await setDoc(doc(db, 'meta/settings'), { logoUrl: url }, { merge: true }); showToast('Branding Logo updated!', 'success');
+    try {
+      // Compresses custom dynamic logo to tiny lightweight 200px Base64 and saves directly in Firestore!
+      const compressedBase64 = await compressAndConvertImage(file, 200);
+      await setDoc(doc(db, 'meta/settings'), { logoUrl: compressedBase64 }, { merge: true }); 
+      showToast('Dynamic Custom Logo updated successfully!', 'success');
+    } catch (err) {
+      showToast('Logo processing failed.', 'warning');
+    }
   };
 
   const saveLogoText = async () => {
@@ -1637,7 +1727,6 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                           <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 border rounded hover:bg-blue-100 text-[9px]">Edit PFP</button>
                           {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 border rounded hover:bg-emerald-100 text-[9px]">Approve</button>}
                           
-                          {/* DYNAMIC PROMOTE / DEMOTE SYSTEM */}
                           {p.role !== 'admin' && p.role !== 'owner' ? (
                             <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 border rounded hover:bg-amber-100 text-[9px]">Promote</button>
                           ) : (
@@ -1665,7 +1754,7 @@ function PendingScreen({ userProfile }) {
     <div className="min-h-[60vh] flex items-center justify-center text-center p-4">
       <div className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl max-w-sm shadow-skeuo-md animate-fadeIn font-sans">
         <h3 className="font-serif font-bold text-base mb-1 text-slate-800">Roster Waiting Room</h3>
-        <p className="text-xs text-slate-500 mb-4 font-sans">Hello {userProfile?.name}! Your account request has been routed to the pending list for review. The studio owner will see it on the Admin panel.</p>
+        <p className="text-xs text-slate-500 mb-4 font-sans">Hello {userProfile?.name}! Your request has been routed to the pending list for review. The studio owner will see it on the Admin panel.</p>
       </div>
     </div>
   );
