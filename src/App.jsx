@@ -1,8 +1,9 @@
+```react
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   auth, db, googleProvider,
   doc, setDoc, updateDoc, deleteDoc, getDoc,
-  collection, addDoc, onSnapshot, query, orderBy, fbLimit, getDocs,
+  collection, addDoc, onSnapshot, query, orderBy, fbLimit,
   arrayUnion, onAuthStateChanged, signInWithPopup, fbSignOut,
 } from './firebase';
 
@@ -269,31 +270,56 @@ export default function App() {
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
 
-  // --- FEATURE: AUTO-CLEANUP ---
+  // --- FEATURE: CLIENT-SIDE EVALUATED 7-DAY AUTO-CLEANUP SWEEP ---
+  // Runs client-side on the loaded data states, avoiding extra Firebase query/filter dependencies!
   useEffect(() => {
     if (!isAuthReady || !userProfile) return;
+    
     const runSevenDaySweep = async () => {
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const cleanTargetCollections = ['chats', 'posts', 'notifications', 'videos', 'scripts'];
       
-      for (const colName of cleanTargetCollections) {
-        try {
-          const fieldName = colName === 'notifications' ? 'timestamp' : 'createdAt';
-          const snapshot = await getDocs(collection(db, colName));
-          snapshot.forEach(async (documentSnapshot) => {
-            const data = documentSnapshot.data();
-            if (data && data[fieldName] && data[fieldName] < sevenDaysAgo) {
-              await deleteDoc(doc(db, colName, documentSnapshot.id));
-            }
-          });
-        } catch (e) {
-          console.warn(`Auto-sweep task processed for ${colName}`);
+      // Sweep Chats
+      chats.forEach(async (item) => {
+        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {}
         }
-      }
+      });
+      
+      // Sweep Posts
+      posts.forEach(async (item) => {
+        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {}
+        }
+      });
+
+      // Sweep Notifications
+      notifications.forEach(async (item) => {
+        if (item.timestamp && item.timestamp < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {}
+        }
+      });
+
+      // Sweep Video Vault drafts
+      videos.forEach(async (item) => {
+        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {}
+        }
+      });
+
+      // Sweep Scripts
+      scripts.forEach(async (item) => {
+        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {}
+        }
+      });
     };
-    const delayTimer = setTimeout(() => { runSevenDaySweep(); }, 6000);
+
+    const delayTimer = setTimeout(() => {
+      runSevenDaySweep();
+    }, 8000);
+    
     return () => clearTimeout(delayTimer);
-  }, [isAuthReady, userProfile]);
+  }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts]);
 
   useEffect(() => {
     if (notifsError && isAuthReady) {
@@ -1774,4 +1800,4 @@ function PendingScreen({ userProfile }) {
 
 function RejectedScreen({ userProfile }) {
   return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</div>;
-      }
+}
