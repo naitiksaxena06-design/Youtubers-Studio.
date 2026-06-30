@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   auth, db, googleProvider,
   doc, setDoc, updateDoc, deleteDoc, getDoc,
-  collection, addDoc, onSnapshot, query, orderBy, fbLimit, getDocs, where,
+  collection, addDoc, onSnapshot, query, orderBy, fbLimit, getDocs,
   arrayUnion, onAuthStateChanged, signInWithPopup, fbSignOut,
 } from './firebase';
 
@@ -195,6 +195,7 @@ function useFirestoreCollection(name, orderField = null, limitN = null, enabled 
   return [items, loaded, error];
 }
 
+// --- APP ROOT TIMELINE ---
 function useFirestoreDoc(path, fallback, enabled = false) {
   const [data, setData] = useState(fallback);
   const [loaded, setLoaded] = useState(false);
@@ -268,7 +269,7 @@ export default function App() {
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
 
-  // --- FEATURE: AUTO-CLEANUP (7 DAYS SWEER TASK) ---
+  // --- FEATURE: AUTO-CLEANUP FIX (Local Evaluation Bypass to Avoid Missing "where" Export Error) ---
   useEffect(() => {
     if (!isAuthReady || !userProfile) return;
     const runSevenDaySweep = async () => {
@@ -278,17 +279,18 @@ export default function App() {
       for (const colName of cleanTargetCollections) {
         try {
           const fieldName = colName === 'notifications' ? 'timestamp' : 'createdAt';
-          const q = query(collection(db, colName), where(fieldName, '<', sevenDaysAgo));
-          const snapshot = await getDocs(q);
+          const snapshot = await getDocs(collection(db, colName));
           snapshot.forEach(async (documentSnapshot) => {
-            await deleteDoc(doc(db, colName, documentSnapshot.id));
+            const data = documentSnapshot.data();
+            if (data && data[fieldName] && data[fieldName] < sevenDaysAgo) {
+              await deleteDoc(doc(db, colName, documentSnapshot.id));
+            }
           });
         } catch (e) {
-          console.warn(`Auto-sweep cleanup completed or skipped for ${colName}`);
+          console.warn(`Auto-sweep task processed for ${colName}`);
         }
       }
     };
-    // Delay slightly after initialization to optimize boot cycle
     const delayTimer = setTimeout(() => { runSevenDaySweep(); }, 6000);
     return () => clearTimeout(delayTimer);
   }, [isAuthReady, userProfile]);
@@ -326,10 +328,8 @@ export default function App() {
       if (seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
       seenNotifIdsRef.current.add(n.id);
       
-      // Filter 1: Silence actions performed by the current user themselves
       if (n.actor === userProfile.name) return;
       
-      // Filter 2: Block notification alerts for sections currently being viewed
       const msg = n.message.toLowerCase();
       if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
       if (currentPage === 'projects' && msg.includes('concept whiteboard')) return;
@@ -917,7 +917,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
-  const [uploadMode, setUploadMode] = useState('link'); // 'link' | 'gallery'
+  const [uploadMode, setUploadMode] = useState('link');
   const [galleryBase64, setGalleryBase64] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadingState, setUploadingState] = useState(false);
@@ -978,7 +978,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
       });
       pushNotification(`Added tracked video workspace: "${videoTitle}"`, userProfile.name);
       setVideoTitle(''); setVideoUrlInput(''); setGalleryBase64(''); setShowUploadModal(false);
-      showToast('Video registered to feed feed successfully!', 'success');
+      showToast('Video registered to feed successfully!', 'success');
     } catch (err) { showToast('Upload engine authorization failure.', 'warning'); }
   };
 
@@ -1011,14 +1011,12 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
         <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">➕ Upload Dual Asset</button>
       </div>
 
-      {/* --- INSTAGRAM-STYLE CARD FEED PLATFORM --- */}
       <div className="max-w-xl mx-auto space-y-8">
         {videos.map((vid) => {
           const embed = resolvePlayableVideo(vid.hlsUrl);
           return (
             <div key={vid.id} className="bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn flex flex-col">
               
-              {/* Card Header */}
               <div className="p-3 flex items-center justify-between border-b border-slate-50 bg-slate-50/40">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shrink-0">
@@ -1029,7 +1027,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                     <span className="text-[8px] text-slate-400 font-mono block">{new Date(vid.createdAt).toLocaleDateString()} • {vid.size}</span>
                   </div>
                 </div>
-                {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE */}
                 {(isAdmin || vid.uploaderUid === userProfile?.id) && (
                   <button onClick={(e) => removeVideo(vid.id, e)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2 py-1 rounded-md hover:bg-rose-100 transition whitespace-nowrap">
                     🗑️ Delete Item
@@ -1037,7 +1034,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                 )}
               </div>
 
-              {/* Card Aspect Ratio Video Workspace */}
               <div className="w-full bg-black relative aspect-video flex items-center justify-center">
                 {embed.type === 'youtube' || embed.type === 'drive' ? (
                   <iframe src={embed.src} className="w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
@@ -1051,7 +1047,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                 )}
               </div>
 
-              {/* Action Bar & Metadata */}
               <div className="p-4 border-t border-slate-50 space-y-2">
                 <div className="flex justify-between items-center text-xs">
                   <h5 className="font-serif font-bold text-slate-800 text-sm">{vid.title}</h5>
@@ -1060,7 +1055,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                   </button>
                 </div>
 
-                {/* Expandable Comments Section */}
                 {expandedComments[vid.id] && (
                   <div className="pt-2 mt-2 border-t border-[#EADFC9]/20 space-y-2 animate-fadeIn">
                     <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1 custom-scrollbar">
@@ -1070,7 +1064,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                             <span className="font-bold text-slate-800 mr-1">{comment.authorName}:</span>
                             <span className="text-slate-600 break-words">{comment.text}</span>
                           </div>
-                          {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE */}
                           {(isAdmin || comment.authorName === userProfile?.name) && (
                             <button onClick={() => deleteVideoComment(vid.id, vid.comments, comment.id)} className="text-rose-500 hover:text-rose-700 text-[8px] border rounded bg-white px-1">✕</button>
                           )}
@@ -1185,7 +1178,6 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
             {projects.map((p) => (
               <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl cursor-pointer shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all relative">
                 <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
-                {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                 {isAdmin && (
                   <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>
                 )}
@@ -1198,7 +1190,6 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
         <div className="space-y-4 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn font-sans">
           <div className="flex justify-between items-center border-b pb-2">
             <button onClick={() => setSelectedProject(null)} className="text-[11px] font-bold text-[#C5A03A] hover:underline transition">◀ Back to Cork Board</button>
-            {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
             {isAdmin && (
               <button onClick={(e) => removeProject(selectedProject.id, e)} className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg font-bold hover:bg-rose-100 transition">
                 🗑 Delete Entire Whiteboard
@@ -1215,7 +1206,6 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
                   <button onClick={() => toggleTaskStatus(t)} className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>
                     {t.status}
                   </button>
-                  {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                   {isAdmin && (
                     <button onClick={() => removeTask(t.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold px-1.5 border rounded" title="Delete Task card">✕</button>
                   )}
@@ -1288,7 +1278,6 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                 <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
                 <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName}</span>
               </div>
-              {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
               {(isAdmin || s.authorUid === userProfile?.id) && (
                 <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>
               )}
@@ -1310,7 +1299,6 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                   {canEditSelected && !isEditingBody && (
                     <button onClick={() => setIsEditingBody(true)} className="text-[9px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-2.5 py-1.5">✎ Edit Script</button>
                   )}
-                  {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                   {isAdmin && (
                     <button onClick={(e) => removeTopic(selectedScript.id, e)} className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-100">🗑 Delete</button>
                   )}
@@ -1415,7 +1403,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
             <div key={m.id} className="text-xs p-2.5 bg-white border border-[#EADFC9]/40 rounded-xl max-w-[85%] sm:max-w-[75%] animate-fadeIn shadow-xs font-sans group relative">
               <div className="flex justify-between items-start">
                 <span className="text-[9px] text-[#C5A03A] font-bold block mb-0.5">{m.senderName}</span>
-                {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                 {(isAdmin || m.senderUid === userProfile?.id) && (
                   <button onClick={() => deleteMessage(m.id)} className="text-rose-500 text-[9px] font-bold pl-3" title="Delete Message">✕ Delete</button>
                 )}
@@ -1501,7 +1488,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                   <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(post.authorAvatar)}</div>
                   <div className="min-w-0"><h4 className="text-xs font-black text-slate-800 truncate">{post.authorName}</h4><span className="text-[8px] text-slate-400 font-mono block">{new Date(post.createdAt).toLocaleDateString()}</span></div>
                 </div>
-                {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                 {isAdmin && (
                   <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete Post</button>
                 )}
@@ -1526,7 +1512,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                   {(post.comments || []).map((c, i) => (
                     <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
                       <div className="min-w-0 pr-2"><span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span><span className="text-slate-600 break-words">{c.text}</span></div>
-                      {/* ADMIN CONTROLS EVERYWHERE INLINE DELETE BUTTON */}
                       {(isAdmin || c.authorName === userProfile.name) && (
                         <button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 hover:text-rose-700 text-[9px] shrink-0 font-bold px-1.5">✕ Delete</button>
                       )}
@@ -1695,8 +1680,6 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
 
   const approve = (uid) => updateDoc(doc(db, 'profiles', uid), { status: 'approved' });
   const promote = (uid) => updateDoc(doc(db, 'profiles', uid), { role: 'admin' });
-  
-  // --- FEATURE: ROSTER DEMOTION WORKSPACE TRIGGER ---
   const demote = (uid) => updateDoc(doc(db, 'profiles', uid), { role: 'member' });
   const remove = (uid) => deleteDoc(doc(db, 'profiles', uid));
 
@@ -1759,7 +1742,6 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                           {p.role !== 'admin' && p.role !== 'owner' ? (
                             <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 border rounded hover:bg-amber-100 text-[9px]">Promote</button>
                           ) : (
-                            /* --- FEATURE: ROSTER DEMOTION CONTROL FOR ADMIN/OWNERS --- */
                             p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-purple-50 text-purple-700 px-2 py-0.5 border rounded hover:bg-purple-100 text-[9px]">Demote back to Member</button>
                           )}
                           
