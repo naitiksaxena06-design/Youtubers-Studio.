@@ -1675,5 +1675,3 @@ function PendingScreen({ userProfile }) {
 function RejectedScreen({ userProfile }) {
   return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</div>;
 }
-
-```
