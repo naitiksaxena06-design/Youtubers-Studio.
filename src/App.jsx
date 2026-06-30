@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 // --- FIREBASE INITIALIZATION ---
@@ -25,56 +25,20 @@ const injectArtStyleStyles = () => {
   const styleBlock = document.createElement('style');
   styleBlock.id = 'studio-aurum-styles';
   styleBlock.innerHTML = `
-    .font-serif {
-      font-family: 'Playfair Display', Georgia, serif;
-    }
-    .font-sans {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    }
-    .font-handwritten {
-      font-family: 'Caveat', cursive, sans-serif;
-    }
-    
-    /* Custom Scrollbar */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(234, 223, 201, 0.2);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(197, 160, 58, 0.4);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(197, 160, 58, 0.6);
-    }
-
-    /* 3D Skeuomorphic Shadows and Transformations */
-    .shadow-skeuo-sm {
-      box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
-    }
-    .shadow-skeuo-md {
-      box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1);
-    }
-    .shadow-skeuo-lg {
-      box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15);
-    }
-    .shadow-skeuo-3d {
-      box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
-    }
+    .font-serif { font-family: 'Playfair Display', Georgia, serif; }
+    .font-sans { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .font-handwritten { font-family: 'Caveat', cursive, sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(234, 223, 201, 0.2); border-radius: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(197, 160, 58, 0.4); border-radius: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(197, 160, 58, 0.6); }
+    .shadow-skeuo-sm { box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06); }
+    .shadow-skeuo-md { box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1); }
+    .shadow-skeuo-lg { box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15); }
+    .shadow-skeuo-3d { box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9); }
   `;
   document.head.appendChild(styleBlock);
 };
-
-// --- INITIAL CREW DATA SETS ---
-const INITIAL_PROFILES = [
-  { uid: 'owner-id', name: 'Naitik Saxena', email: 'Naitiksaxena06@gmail.com', role: 'owner', status: 'approved', workCategory: 'Creativity', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.2"/><path d="M30,75 C30,55 40,45 50,45 C60,45 70,55 70,75" fill="none" stroke="#C5A03A" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="30" r="12" fill="#C5A03A"/></svg>`, createdAt: Date.now() - 1000000 },
-  { uid: 'editor-1', name: 'Alex Thompson', email: 'alex@creators.studio', role: 'admin', status: 'approved', workCategory: 'Editing', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.2"/><path d="M25,70 Q50,40 75,70" fill="none" stroke="#f43f5e" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="32" r="10" fill="#f43f5e"/></svg>`, createdAt: Date.now() - 900000 },
-  { uid: 'designer-1', name: 'Sarah Connor', email: 'sarah@creators.studio', role: 'member', status: 'approved', workCategory: 'Writing', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.2"/><path d="M30,72 Q50,45 70,72" fill="none" stroke="#1D4ED8" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="34" r="9" fill="#1D4ED8"/></svg>`, createdAt: Date.now() - 800000 },
-];
 
 const PRESET_AVATARS = [
   { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
@@ -113,7 +77,7 @@ export default function App() {
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Database collections states
+  // Sync state properties
   const [categories, setCategoriesState] = useState(['Creativity', 'Editing', 'Writing', 'AI Related Expertise']);
   const [posts, setPostsState] = useState([]);
   const [notifications, setNotificationsState] = useState([]);
@@ -134,15 +98,10 @@ export default function App() {
   const [chatChannel, setChatChannel] = useState('general');
   const [customToast, setCustomToast] = useState(null);
 
-  // Initialize Anonymous Session
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        await signInAnonymously(auth);
       } catch (err) {
         console.error("Auth init error:", err);
       }
@@ -152,33 +111,29 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Real-time Database Listeners
+  // Real-time Listeners
   useEffect(() => {
     if (!firebaseUser) return;
     const unsubscribes = [];
 
-    // 1. Profiles
     unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snapshot) => {
       const cloudProfiles = [];
       snapshot.forEach((doc) => { cloudProfiles.push({ uid: doc.id, ...doc.data() }); });
       setProfilesState(cloudProfiles);
     }));
 
-    // 2. Projects
     unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), (snapshot) => {
       const cloudProjects = [];
       snapshot.forEach((doc) => { cloudProjects.push({ id: doc.id, ...doc.data() }); });
       setProjectsState(cloudProjects);
     }));
 
-    // 3. Tasks
     unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), (snapshot) => {
       const cloudTasks = [];
       snapshot.forEach((doc) => { cloudTasks.push({ id: doc.id, ...doc.data() }); });
       setTasksState(cloudTasks);
     }));
 
-    // 4. Chats
     unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), (snapshot) => {
       const cloudChats = [];
       snapshot.forEach((doc) => { cloudChats.push({ id: doc.id, ...doc.data() }); });
@@ -186,21 +141,18 @@ export default function App() {
       setChatsState(cloudChats);
     }));
 
-    // 5. Videos
     unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'videos'), (snapshot) => {
       const cloudVideos = [];
       snapshot.forEach((doc) => { cloudVideos.push({ id: doc.id, ...doc.data() }); });
       setVideosState(cloudVideos);
     }));
 
-    // 6. Posts
     unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), (snapshot) => {
       const cloudPosts = [];
       snapshot.forEach((doc) => { cloudPosts.push({ id: doc.id, ...doc.data() }); });
       setPostsState(cloudPosts);
     }));
 
-    // 7. Notifications
     unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), (snapshot) => {
       const cloudNotifs = [];
       snapshot.forEach((doc) => { cloudNotifs.push({ id: doc.id, ...doc.data() }); });
@@ -210,31 +162,22 @@ export default function App() {
       ]);
     }));
 
-    // 8. Categories Configuration Doc
     unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().list) {
-        setCategoriesState(docSnap.data().list);
-      }
+      if (docSnap.exists() && docSnap.data().list) setCategoriesState(docSnap.data().list);
     }));
 
-    // 9. YtConfig Auto-Sync Configuration Doc
     unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), (docSnap) => {
-      if (docSnap.exists()) {
-        setYtConfigState(docSnap.data());
-      }
+      if (docSnap.exists()) setYtConfigState(docSnap.data());
     }));
 
-    // 10. Branding Configuration
     unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'siteSettings'), (docSnap) => {
-      if (docSnap.exists()) {
-        setSiteSettings(docSnap.data());
-      }
+      if (docSnap.exists()) setSiteSettings(docSnap.data());
     }));
 
     return () => unsubscribes.forEach(unsub => unsub());
   }, [firebaseUser]);
 
-  // Firestore Granular Targeted Database Writers
+  // Firestore Writers
   const handleCreateConcept = async (title) => {
     if (!firebaseUser) return;
     const id = 'p_' + Date.now();
@@ -249,20 +192,13 @@ export default function App() {
   const handleAddTask = async (projectId, title) => {
     if (!firebaseUser) return;
     const id = 't_' + Date.now();
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', id), {
-      projectId,
-      title,
-      status: 'To Do'
-    });
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', id), { projectId, title, status: 'To Do' });
   };
 
   const handleToggleTaskStatus = async (task) => {
     if (!firebaseUser) return;
     const nextStatus = task.status === 'To Do' ? 'Completed' : 'To Do';
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), {
-      ...task,
-      status: nextStatus
-    });
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { ...task, status: nextStatus });
   };
 
   const handleAddChat = async (text, channel) => {
@@ -298,10 +234,9 @@ export default function App() {
       text,
       timestamp: Date.now()
     };
-    const updatedComments = [...(video.comments || []), newComment];
     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', video.id), {
       ...video,
-      comments: updatedComments
+      comments: [...(video.comments || []), newComment]
     });
   };
 
@@ -332,41 +267,24 @@ export default function App() {
     const newLikedBy = hasLiked 
       ? post.likedBy.filter(uid => uid !== firebaseUser.uid)
       : [...(post.likedBy || []), firebaseUser.uid];
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', post.id), {
-      ...post,
-      likes: newLikedBy.length,
-      likedBy: newLikedBy
-    });
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', post.id), { ...post, likes: newLikedBy.length, likedBy: newLikedBy });
   };
 
   const handleAddPostComment = async (post, text) => {
     if (!firebaseUser) return;
-    const newComment = {
-      id: 'p_comment_' + Date.now(),
-      authorName: userProfile?.name || 'Creator',
-      text
-    };
-    const updatedComments = [...(post.comments || []), newComment];
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', post.id), {
-      ...post,
-      comments: updatedComments
-    });
+    const newComment = { id: 'p_comment_' + Date.now(), authorName: userProfile?.name || 'Creator', text };
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', post.id), { ...post, comments: [...(post.comments || []), newComment] });
   };
 
   const pushNotification = async (message, actorName = 'Crew Member') => {
     if (!firebaseUser) return;
     const id = 'notif_' + Date.now();
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', id), {
-      message,
-      actor: actorName,
-      timestamp: Date.now()
-    });
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', id), { message, actor: actorName, timestamp: Date.now() });
   };
 
   const handleAddCategory = async (newCat) => {
     if (!firebaseUser) return;
-    const updated = [...categories, newCat];
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: updated });
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: [...categories, newCat] });
   };
 
   const handleSaveBrandLabel = async (text) => {
@@ -377,10 +295,7 @@ export default function App() {
   const handleToggleRole = async (targetProfile) => {
     if (!firebaseUser) return;
     const nextRole = targetProfile.role === 'admin' ? 'member' : 'admin';
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetProfile.uid), {
-      ...targetProfile,
-      role: nextRole
-    });
+    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetProfile.uid), { ...targetProfile, role: nextRole });
   };
 
   const handleRemoveProfile = async (targetUid) => {
@@ -388,7 +303,6 @@ export default function App() {
     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetUid));
   };
 
-  // Derived Logged-in User Profile for real-time roster synchronization
   const userProfile = useMemo(() => {
     if (!loggedInEmail) return null;
     return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
@@ -403,107 +317,36 @@ export default function App() {
     setTimeout(() => setCustomToast(null), 4000);
   };
 
-  // YouTube Data API background syncer metrics loop
   const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
-    const activeChannelId = targetChannelId || ytConfig.channelId || 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-';
     const activeApiKey = targetApiKey || ytConfig.apiKey || 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg';
-
-    let url = '';
-    if (activeChannelId.includes('UC') && !activeChannelId.includes('/') && activeChannelId.trim().startsWith('UC')) {
-      url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${activeChannelId.trim()}&key=${activeApiKey}`;
-    } else {
-      let handle = 'naitik._.artist-16';
-      const match = activeChannelId.match(/@([^/?#\s]+)/);
-      if (match) {
-        handle = match[1];
-      } else if (activeChannelId.includes('youtube.com/')) {
-        const parts = activeChannelId.split('/');
-        const lastPart = parts[parts.length - 1];
-        handle = lastPart.replace('@', '').split('?')[0];
-      } else {
-        handle = activeChannelId.replace('@', '').trim();
-      }
-      url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=${handle}&key=${activeApiKey}`;
-    }
-
+    let url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=naitik._.artist-16&key=${activeApiKey}`;
     try {
-      const channelRes = await fetch(url);
-      if (!channelRes.ok) throw new Error("API call failed.");
-      const channelData = await channelRes.json();
-      const item = channelData.items?.[0];
-      if (!item) throw new Error("YouTube Channel not found.");
-      
-      const subsCount = item.statistics.subscriberCount;
-      const channelTitle = item.snippet.title;
-      const channelIdActual = item.id;
-
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId=${channelIdActual}&maxResults=1&order=date&type=video&key=${activeApiKey}`;
-      const searchRes = await fetch(searchUrl);
-      let views = "4,512";
-      let videoTitle = "Painting My Dreams: Watercolor Masterclass";
-
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        const videoItem = searchData.items?.[0];
-        if (videoItem) {
-          const videoId = videoItem.id.videoId;
-          videoTitle = videoItem.snippet.title;
-          
-          const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoId}&key=${activeApiKey}`);
-          if (videoRes.ok) {
-            const videoData = await videoRes.json();
-            views = videoData.items?.[0]?.statistics?.viewCount || "0";
-          }
-        }
-      }
-
-      const updatedConfig = {
-        channelId: activeChannelId,
-        apiKey: activeApiKey,
-        subscribers: parseInt(subsCount, 10).toLocaleString(),
-        latestVideoViews: parseInt(views, 10).toLocaleString(),
-        latestVideoTitle: videoTitle
-      };
-
-      setYtConfigState(updatedConfig);
-      if (!silent) {
-        showToast(`Successfully synced with ${channelTitle}!`, "success");
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("API configuration loop.");
+      const data = await res.json();
+      const item = data.items?.[0];
+      if (item) {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), {
+          ...ytConfig,
+          subscribers: parseInt(item.statistics.subscriberCount, 10).toLocaleString()
+        });
       }
     } catch (err) {
-      console.warn("YouTube metrics falling back to manual refresh configurations.");
+      console.warn("Falling back to fallback state parameters.");
     }
   };
 
-  // Capture latest config fields to avoid resetting the sync timer
-  const channelIdRef = useRef(ytConfig.channelId);
-  const apiKeyRef = useRef(ytConfig.apiKey);
-
-  useEffect(() => {
-    channelIdRef.current = ytConfig.channelId;
-    apiKeyRef.current = ytConfig.apiKey;
-  }, [ytConfig.channelId, ytConfig.apiKey]);
-
-  // Persistent 30-Second API Resynchronization Polling Engine
   useEffect(() => {
     if (loadingLibraries) return;
-
-    syncYouTubeStats(channelIdRef.current, apiKeyRef.current, true);
-
-    const timer = setInterval(() => {
-      syncYouTubeStats(channelIdRef.current, apiKeyRef.current, true);
-    }, 30000);
-
-    return () => clearInterval(timer);
+    syncYouTubeStats(ytConfig.channelId, ytConfig.apiKey, true);
   }, [loadingLibraries]);
 
   const handleProfileSignIn = async (crewName, crewEmail, profilePhotoBase64, categorySelected) => {
     const emailKey = crewEmail.trim().toLowerCase();
     const isOwner = emailKey === ADMIN_EMAIL.toLowerCase();
-
     let matchedProfile = profiles.find(p => p.email.toLowerCase() === emailKey);
 
     if (!matchedProfile) {
-      const finalAvatar = profilePhotoBase64 || PRESET_AVATARS[0].svg;
       const id = 'user_' + Date.now();
       matchedProfile = {
         uid: id,
@@ -512,7 +355,7 @@ export default function App() {
         role: isOwner ? 'owner' : 'member',
         status: 'approved',
         workCategory: categorySelected || 'Editing',
-        photoURL: finalAvatar,
+        photoURL: profilePhotoBase64 || PRESET_AVATARS[0].svg,
         createdAt: Date.now()
       };
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', id), matchedProfile);
@@ -527,52 +370,22 @@ export default function App() {
 
   const handleNavigationChange = (targetPage) => {
     setIsSidebarOpen(false);
-    if (targetPage === 'home') {
-      setCurrentPage(targetPage);
-      return;
-    }
-    if (!loggedInEmail) {
-      setShowSignInModal(true);
-      return;
-    }
+    if (targetPage === 'home') { setCurrentPage(targetPage); return; }
+    if (!loggedInEmail) { setShowSignInModal(true); return; }
     setCurrentPage(targetPage);
   };
 
-  // Safe CDN Loader Guard for Three.js & GSAP visual configurations
   useEffect(() => {
     injectArtStyleStyles();
-    const loadScript = (src) => {
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
-      });
-    };
-
-    const prepareEngine = async () => {
-      try {
-        const loadedThree = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
-        if (loadedThree) setThreeReady(true);
-        const loadedGsap = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js');
-        const loadedTrigger = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js');
-        if (loadedGsap && loadedTrigger) setGsapReady(true);
-      } catch (err) {
-        console.warn("Studio visual engines loading in fallback mode.");
-      } finally {
-        setLoadingLibraries(false);
-      }
-    };
-    prepareEngine();
+    setLoadingLibraries(false);
+    setThreeReady(true);
   }, []);
 
   if (loadingLibraries) {
     return (
       <div className="min-h-screen bg-[#FCFAF2] flex flex-col items-center justify-center font-serif text-[#C5A03A]">
         <div className="w-16 h-16 border-4 border-dashed border-[#C5A03A] rounded-full animate-spin mb-4" />
-        <h2 className="text-2xl font-bold tracking-widest animate-pulse font-serif">SYNCING TIMELINES</h2>
-        <p className="text-xs font-sans tracking-wide text-slate-500 mt-1">Booting Studio Workspace Engines...</p>
+        <h2 className="text-2xl font-bold tracking-widest font-serif">SYNCING TIMELINES</h2>
       </div>
     );
   }
@@ -582,31 +395,19 @@ export default function App() {
       <WatercolorOverlay />
       {threeReady && <ThreeArtBackground />}
 
-      {/* Global Toast Alert */}
       {customToast && (
-        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white transition-all animate-bounce ${customToast.type === 'success' ? 'bg-[#2ba640]' : 'bg-[#C5A03A]'}`}>
+        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white bg-[#C5A03A] animate-bounce">
           {customToast.message}
         </div>
       )}
 
-      {/* Global Header */}
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-sm font-sans">
         <div className="flex items-center space-x-3">
-          {/* Hamburger Menu Toggle Button */}
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
-            </svg>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
           </button>
-
           <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => handleNavigationChange('home')}>
-            {siteSettings.logoUrl ? (
-              <img src={siteSettings.logoUrl} alt="Logo" className="w-10 h-10 object-cover rounded-xl shadow-[0_4px_15px_rgba(135,112,58,0.25)] border-2 border-white transform hover:scale-105 transition" />
-            ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow-[0_4px_15px_rgba(197,160,58,0.3)] border-2 border-white">
-                Y
-              </div>
-            )}
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow border-2 border-white">Y</div>
             <span className="font-serif text-lg tracking-wider text-[#C5A03A] font-extrabold hidden sm:inline">{siteSettings.logoText}</span>
           </div>
         </div>
@@ -619,38 +420,33 @@ export default function App() {
                 <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{isAdmin ? 'Admin/Owner' : 'Crew Member'}</span>
               </div>
               <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
-                {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
+                {renderAvatar(userProfile?.photoURL)}
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-5 py-2.5 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95 animate-pulse">🔑 Crew Sign In</button>
+            <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] text-white px-5 py-2.5 rounded-full shadow border border-white transition transform active:scale-95">🔑 Crew Sign In</button>
           )}
         </div>
       </header>
 
-      {/* --- SCROLLABLE VERTICAL SIDEBAR DRAWER --- */}
       <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
         <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
           <div className="space-y-6 pb-20">
-            <div className="flex items-center justify-between pb-4 border-b border-[#EADFC9]/50">
-              <span className="font-serif font-black text-lg text-[#C5A03A] tracking-wider uppercase">Navigation</span>
-              <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">✕</button>
-            </div>
-
+            <span className="font-serif font-black text-lg text-[#C5A03A] tracking-wider uppercase block border-b pb-2">Navigation</span>
             <nav className="space-y-1.5 font-sans">
-              <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
-              <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
-              <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
-              <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎞️</span><span>Video Vault</span></button>
-              <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📌</span><span>Project Board</span></button>
-              <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
-              <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📸</span><span>Insta Feed</span></button>
-              {loggedInEmail && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile</span></button>}
+              <button onClick={() => handleNavigationChange('home')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🏠 Home Hub</button>
+              <button onClick={() => handleNavigationChange('crew')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🎬 Crew Roster</button>
+              <button onClick={() => handleNavigationChange('categories-view')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🏷️ Categories</button>
+              <button onClick={() => handleNavigationChange('vault')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">🎞️ Video Vault</button>
+              <button onClick={() => handleNavigationChange('projects')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">📌 Project Board</button>
+              <button onClick={() => handleNavigationChange('chat')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">💬 Whiteboard Chat</button>
+              <button onClick={() => handleNavigationChange('posts')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">📸 Insta Feed</button>
+              {loggedInEmail && <button onClick={() => handleNavigationChange('profile')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-slate-600 hover:bg-slate-50">👤 My Profile</button>}
               
               {isAdmin && (
                 <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1 font-sans">Admin Controls</span>
-                  <button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'admin' ? 'bg-rose-50 text-rose-600 border-l-4 border-rose-500' : 'text-slate-500 hover:bg-rose-50/40'}`}><span>👥</span><span>Manage Roster</span></button>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1">Admin Controls</span>
+                  <button onClick={() => handleNavigationChange('admin')} className="w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold text-rose-600 hover:bg-rose-50">👥 Manage Roster</button>
                 </div>
               )}
             </nav>
@@ -658,223 +454,50 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Container Workspace */}
-      <main className="relative z-20 max-w-7xl mx-auto px-4 py-8 studio-page-wrap animate-fadeIn">
+      <main className="relative z-20 max-w-7xl mx-auto px-4 py-8 studio-page-wrap">
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} notifications={notifications} handleNavigation={handleNavigationChange} />}
-        {currentPage === 'crew' && <CrewSection profiles={profiles} handleRemoveProfile={handleRemoveProfile} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
+        {currentPage === 'crew' && <CrewSection profiles={profiles} isAdmin={isAdmin} handleRemoveProfile={handleRemoveProfile} />}
         {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} setCategories={setCategoriesState} showToast={showToast} />}
         {currentPage === 'vault' && <VideoVault videos={videos} handleAddVideo={handleAddVideo} handleAddVideoComment={handleAddVideoComment} handleDeleteVideo={handleDeleteVideo} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
-        {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} handleCreateConcept={handleCreateConcept} handleAddTask={handleAddTask} handleToggleTaskStatus={handleToggleTaskStatus} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} setCurrentPage={setCurrentPage} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
+        {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} handleCreateConcept={handleCreateConcept} handleAddTask={handleAddTask} handleToggleTaskStatus={handleToggleTaskStatus} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} />}
         {currentPage === 'chat' && <WhiteboardChat chats={chats} handleAddChat={handleAddChat} chatChannel={chatChannel} setChatChannel={setChatChannel} />}
         {currentPage === 'posts' && <PostsWorkspace posts={posts} handleAddPost={handleAddPost} handleLikePost={handleLikePost} handleAddPostComment={handleAddPostComment} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} firebaseUser={firebaseUser} />}
-        {currentPage === 'profile' && <MyProfileWorkspace userProfile={userProfile} categories={categories} setCategories={setCategoriesState} showToast={showToast} />}
-        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} handleToggleRole={handleToggleRole} handleRemoveProfile={handleRemoveProfile} handleSaveBrandLabel={handleSaveBrandLabel} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
+        {currentPage === 'profile' && <MyProfileWorkspace userProfile={userProfile} />}
+        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} handleToggleRole={handleToggleRole} handleRemoveProfile={handleRemoveProfile} handleSaveBrandLabel={handleSaveBrandLabel} siteSettings={siteSettings} showToast={showToast} />}
       </main>
 
-      {/* --- SIGN IN MODAL WINDOW --- */}
       {showSignInModal && <SignInModal handleProfileSignIn={handleProfileSignIn} setShowSignInModal={setShowSignInModal} categories={categories} profiles={profiles} />}
     </div>
   );
 }
 
-// --- THREEJS BACKGROUND GRAPHICS ---
 function ThreeArtBackground() {
   const mountRef = useRef(null);
   useEffect(() => {
     if (!window.THREE) return;
     const THREE = window.THREE;
     const scene = new THREE.Scene();
-    
     const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
     camera.position.z = 11;
-
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
-
     scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
-    
-    const specularSpot = new THREE.SpotLight(0xffedd5, 12, 40, Math.PI / 4, 0.5, 1);
-    specularSpot.position.set(0, 0, 8);
-    specularSpot.castShadow = true;
-    scene.add(specularSpot);
-
-    const cobaltPoint = new THREE.PointLight(0x1d4ed8, 2.5, 18);
-    cobaltPoint.position.set(-5, -3, 2);
-    scene.add(cobaltPoint);
-
-    const rosePoint = new THREE.PointLight(0xf43f5e, 2.5, 18);
-    rosePoint.position.set(5, 3, 2);
-    scene.add(rosePoint);
-
-    const cameraRigGroup = new THREE.Group();
-
-    const outerRingGeo = new THREE.TorusGeometry(1.9, 0.12, 16, 100);
-    const darkTitaniumMat = new THREE.MeshStandardMaterial({ 
-      color: 0x2d3748, 
-      metalness: 0.95, 
-      roughness: 0.15,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.1
-    });
-    const outerRing = new THREE.Mesh(outerRingGeo, darkTitaniumMat);
-    cameraRigGroup.add(outerRing);
-
-    const innerRingGeo = new THREE.TorusGeometry(1.5, 0.08, 16, 100);
-    const chromeMat = new THREE.MeshStandardMaterial({ 
-      color: 0xe2e8f0, 
-      metalness: 1.0, 
-      roughness: 0.05 
-    });
-    const innerRing = new THREE.Mesh(innerRingGeo, chromeMat);
-    innerRing.rotation.x = Math.PI / 2;
-    cameraRigGroup.add(innerRing);
-
-    const lensBarrelGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 32, 1, true);
-    const goldMat = new THREE.MeshStandardMaterial({ 
-      color: 0xD4AF37, 
-      metalness: 0.9, 
-      roughness: 0.1,
-      clearcoat: 0.8
-    });
-    const lensBarrel = new THREE.Mesh(lensBarrelGeo, goldMat);
-    lensBarrel.rotation.x = Math.PI / 2;
-    cameraRigGroup.add(lensBarrel);
-
-    const glassGeo = new THREE.SphereGeometry(0.75, 32, 32);
-    const glassMat = new THREE.MeshPhysicalMaterial({ 
-      color: 0xffffff,
-      metalness: 0.1,
-      roughness: 0.05,
-      transparent: true,
-      opacity: 0.65,
-      transmission: 0.9,
-      ior: 1.5,
-      thickness: 1.0
-    });
-    const glassLens = new THREE.Mesh(glassGeo, glassMat);
-    cameraRigGroup.add(glassLens);
-
-    const bladeGeo = new THREE.BoxGeometry(0.04, 0.55, 0.02);
-    const blackAnodizedMat = new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 0.4 });
-    const bladesCount = 8;
-    for (let i = 0; i < bladesCount; i++) {
-      const blade = new THREE.Mesh(bladeGeo, blackAnodizedMat);
-      const angle = (i / bladesCount) * Math.PI * 2;
-      blade.position.set(Math.cos(angle) * 1.0, Math.sin(angle) * 1.0, 0);
-      blade.rotation.z = angle + Math.PI / 4;
-      cameraRigGroup.add(blade);
-    }
-
-    cameraRigGroup.position.set(-3.5, 1.5, -2);
-    scene.add(cameraRigGroup);
-
-    const reelGroup = new THREE.Group();
-    const diskGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.1, 32);
-    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
-    const disk = new THREE.Mesh(diskGeo, darkMetal);
-    disk.rotation.x = Math.PI / 2;
-    reelGroup.add(disk);
-
-    const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 100);
-    const brassMat = new THREE.MeshStandardMaterial({ color: 0xC5A03A, metalness: 0.9, roughness: 0.1 });
-    const brassRing = new THREE.Mesh(ringGeo, brassMat);
-    brassRing.position.set(0, 0, 0.06);
-    reelGroup.add(brassRing);
-
-    reelGroup.position.set(4, -1, -2);
-    scene.add(reelGroup);
-
-    const pCount = 100;
-    const pPositions = new Float32Array(pCount * 3);
-    const pSpeeds = [];
-    const pGeometry = new THREE.BufferGeometry();
-
-    for (let i = 0; i < pCount; i++) {
-      pPositions[i * 3] = (Math.random() - 0.5) * 18; 
-      pPositions[i * 3 + 1] = (Math.random() - 0.5) * 10; 
-      pPositions[i * 3 + 2] = (Math.random() - 0.5) * 4 - 3; 
-      pSpeeds.push({
-        x: (Math.random() - 0.5) * 0.01,
-        y: (Math.random() - 0.5) * 0.01
-      });
-    }
-
-    pGeometry.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
-    const pMaterial = new THREE.PointsMaterial({
-      color: 0xC5A03A,
-      size: 0.14,
-      transparent: true,
-      opacity: 0.7,
-      blending: THREE.AdditiveBlending
-    });
-    const particleSystem = new THREE.Points(pGeometry, pMaterial);
-    scene.add(particleSystem);
-
-    let mouseX = 0, mouseY = 0;
-    const targetMouse = { x: 0, y: 0 };
-    const handleWindowMouseMove = (e) => {
-      targetMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-      targetMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    };
-    window.addEventListener('mousemove', handleWindowMouseMove);
-
-    const clock = new THREE.Clock();
     const animate = () => {
       requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
-
-      outerRing.rotation.y = elapsed * 0.14;
-      outerRing.rotation.x = elapsed * 0.07;
-      innerRing.rotation.x = elapsed * 0.22;
-      innerRing.rotation.z = elapsed * 0.16;
-      lensBarrel.rotation.y = elapsed * 0.28;
-
-      cameraRigGroup.position.y = 1.5 + Math.sin(elapsed * 0.45) * 0.2;
-
-      reelGroup.rotation.z = elapsed * 0.35;
-      reelGroup.rotation.y = elapsed * 0.15;
-      reelGroup.position.y = -1 + Math.cos(elapsed * 0.5) * 0.15;
-
-      mouseX += (targetMouse.x - mouseX) * 0.05;
-      mouseY += (targetMouse.y - mouseY) * 0.05;
-
-      specularSpot.position.x = 5 + mouseX * 4;
-      specularSpot.position.y = 5 + mouseY * 4;
-
-      camera.position.x = mouseX * 0.8;
-      camera.position.y = mouseY * 0.8;
-      camera.lookAt(scene.position);
-
       renderer.render(scene, camera);
     };
     animate();
-
-    const resize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
-    window.addEventListener('resize', resize);
-
-    return () => {
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('mousemove', handleWindowMouseMove);
-      if (mountRef.current) mountRef.current.innerHTML = '';
-    };
+    return () => { if (mountRef.current) mountRef.current.innerHTML = ''; };
   }, []);
-  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40 animate-fadeIn" />;
+  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40" />;
 }
 
-// --- SIGN IN STEPWISE FORM MODAL ---
 function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, profiles }) {
   const [email, setEmail] = useState('');
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [cat, setCat] = useState(categories[0] || 'Editing');
-  const [avatar, setAvatar] = useState(PRESET_AVATARS[0].svg);
-  const [uploadedBase64, setUploadedBase64] = useState('');
 
   const checkEmailOnboard = (e) => {
     e.preventDefault();
@@ -883,57 +506,24 @@ function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, prof
     else setStep(2);
   };
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedBase64(reader.result);
-        setAvatar(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn font-sans">
-      <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative font-sans animate-fadeIn">
-        <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600 transition">✕</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-sans">
+      <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative">
+        <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400">✕</button>
         {step === 1 ? (
-          <form onSubmit={checkEmailOnboard} className="space-y-4 font-sans">
+          <form onSubmit={checkEmailOnboard} className="space-y-4">
             <h3 className="font-serif text-xl font-bold text-center text-slate-800">Crew Member Identity</h3>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter Creator Gmail Address" className="w-full px-4 py-2.5 bg-slate-50 border-2 border-[#EADFC9] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A03A] focus:outline-none transition shadow-inner font-sans" required />
-            <button type="submit" className="w-full py-2.5 bg-gradient-to-r from-[#C5A03A] to-[#E3BE5C] hover:from-[#b38e2f] hover:to-[#dcb650] text-white text-xs font-bold uppercase rounded-xl border-b-[5px] border-[#ab892c] active:border-b-[2px] active:translate-y-[3px] shadow transition-all font-sans font-semibold">Next Step</button>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter Creator Gmail Address" className="w-full px-4 py-2.5 bg-slate-50 border-2 border-[#EADFC9] rounded-xl text-xs" required />
+            <button type="submit" className="w-full py-2.5 bg-[#C5A03A] text-white text-xs font-bold uppercase rounded-xl">Next Step</button>
           </form>
         ) : (
-          <form onSubmit={e => { e.preventDefault(); handleProfileSignIn(name, email, avatar, cat); }} className="space-y-4 font-sans overflow-y-auto max-h-[90vh] pb-4">
+          <form onSubmit={e => { e.preventDefault(); handleProfileSignIn(name, email, null, cat); }} className="space-y-4">
             <h3 className="font-serif text-lg font-bold text-slate-800 border-b pb-2">Register New Profile</h3>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name Handle" className="w-full px-3 py-2 border rounded-lg text-xs font-sans animate-fadeIn" required />
-            <select value={cat} onChange={e => setCat(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-xs font-sans animate-fadeIn bg-white">
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name Handle" className="w-full px-3 py-2 border rounded-lg text-xs" required />
+            <select value={cat} onChange={e => setCat(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-xs bg-white">
               {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
             </select>
-            
-            <div className="space-y-2 font-sans animate-fadeIn">
-              <label className="block text-[10px] font-bold text-slate-500 uppercase font-sans">Choose Badge Avatar</label>
-              <div className="grid grid-cols-4 gap-2">
-                {PRESET_AVATARS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => { setAvatar(preset.svg); setUploadedBase64(''); }}
-                    className={`p-1.5 rounded-xl border-2 transition-all ${avatar === preset.svg && !uploadedBase64 ? 'border-[#C5A03A] bg-amber-50/40 scale-105' : 'border-slate-100 hover:border-slate-200'}`}
-                    dangerouslySetInnerHTML={{ __html: preset.svg }}
-                  />
-                ))}
-              </div>
-              
-              <div className="flex flex-col space-y-1 pt-1 font-sans">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Or upload image file:</span>
-                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="text-[11px] text-slate-500" />
-              </div>
-            </div>
-
-            <button type="submit" className="w-full py-2 bg-gradient-to-r from-[#C5A03A] to-[#E3BE5C] text-white text-xs font-bold uppercase rounded-xl border-b-[5px] border-[#ab892c] active:border-b-[2px] active:translate-y-[3px] font-sans animate-fadeIn font-semibold">Submit Roster Application</button>
+            <button type="submit" className="w-full py-2 bg-[#C5A03A] text-white text-xs font-bold uppercase rounded-xl">Join Workspace</button>
           </form>
         )}
       </div>
@@ -941,110 +531,61 @@ function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, prof
   );
 }
 
-// --- HOMEPAGE HUB ---
-function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, notifications }) {
+function CreatorHomeHub({ siteSettings, videos, projects, ytConfig }) {
   return (
-    <section className="space-y-10 py-4 animate-fadeIn font-sans">
+    <section className="space-y-10 py-4 font-sans">
       <div className="text-center py-4">
         <h1 className="font-serif text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight">{siteSettings.logoText}</h1>
         <p className="text-slate-500 font-serif italic text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        {[
-          { 
-            label: 'YouTube Subscribers', 
-            value: ytConfig.subscribers, 
-            icon: '📈', 
-            change: '@naitik._.artist-16 channel feed',
-            action: (
-              <button 
-                onClick={() => syncYouTubeStats()} 
-                className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans"
-              >
-                🔄 Fetch Live
-              </button>
-            )
-          },
-          { 
-            label: 'Latest Video Views', 
-            value: ytConfig.latestVideoViews, 
-            icon: '📺', 
-            change: ytConfig.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 32)}..."` : 'Ep 5 Draft track',
-            action: null
-          },
-          { label: 'Vault Records', value: `${videos.length} Masters`, icon: '🎞️', change: 'Chunked HLS Segmented', action: null },
-          { label: 'Active Ideas', value: `${projects.length} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
-        ].map((stat, idx) => (
-          <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-5 shadow-skeuo-md hover:-translate-y-1 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-40">
-            <div>
-              <div className="flex justify-between items-center text-slate-400 mb-2">
-                <span className="text-[10px] uppercase font-bold tracking-wider font-sans">{stat.label}</span>
-                <span className="text-xl">{stat.icon}</span>
-              </div>
-              <p className="text-xl md:text-2xl font-black text-slate-800 font-sans">{stat.value}</p>
-            </div>
-            <div className="mt-2 font-sans">
-              <span className="text-[9px] text-[#C5A03A] font-semibold block truncate">{stat.change}</span>
-              {stat.action}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Production Logs Section */}
-      <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md font-sans animate-fadeIn">
-        <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-3 mb-4 font-serif">
-          <h3 className="font-serif text-lg font-bold text-[#C5A03A]">⚡ Production Stream Logs</h3>
-          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full font-sans">Live Logs</span>
+        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Subscribers</span>
+          <p className="text-xl md:text-2xl font-black text-slate-800">{ytConfig.subscribers}</p>
         </div>
-        <div className="space-y-3 max-h-56 overflow-y-auto custom-scrollbar font-sans pr-1">
-          {notifications.map((notif, index) => (
-            <div key={index} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-2 animate-fadeIn">
-              <span className="font-bold text-slate-800 font-sans">{notif.actor}: </span>
-              <span className="text-slate-600 font-sans">{notif.message}</span>
-              <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
-            </div>
-          ))}
+        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Latest Views</span>
+          <p className="text-xl md:text-2xl font-black text-slate-800">{ytConfig.latestVideoViews}</p>
+        </div>
+        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Vault Masters</span>
+          <p className="text-xl md:text-2xl font-black text-slate-800">{videos.length} Files</p>
+        </div>
+        <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md">
+          <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Active Ideas</span>
+          <p className="text-xl md:text-2xl font-black text-slate-800">{projects.length} Boards</p>
         </div>
       </div>
     </section>
   );
 }
 
-// --- CREW DIRECTORY SECTION WITH INLINE MODERATION ---
-function CrewSection({ profiles, handleRemoveProfile, isAdmin }) {
+function CrewSection({ profiles, isAdmin, handleRemoveProfile }) {
   const [focusIdx, setFocusIdx] = useState(0);
-  
   return (
-    <section className="py-4 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-      <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl text-center shadow-skeuo-md animate-fadeIn">
-        <div className="w-28 h-28 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">
+    <section className="py-4 grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+      <div className="bg-white p-6 border rounded-3xl text-center shadow-skeuo-md">
+        <div className="w-28 h-28 rounded-full border mx-auto overflow-hidden flex items-center justify-center bg-slate-50 mb-3">
           {profiles.length > 0 ? renderAvatar(profiles[focusIdx]?.photoURL) : renderAvatar('')}
         </div>
         <h3 className="font-serif text-2xl font-bold text-slate-800">{profiles[focusIdx]?.name || 'No Active Member'}</h3>
-        <p className="text-xs text-slate-400 mt-1 font-sans">{profiles[focusIdx]?.email || 'Empty roster'}</p>
-        <span className="bg-[#C5A03A] text-white text-[10px] px-3 py-1 rounded-full font-bold mt-3 inline-block font-sans shadow-sm">{profiles[focusIdx]?.role || 'none'}</span>
+        <p className="text-xs text-slate-400 mt-1">{profiles[focusIdx]?.email || 'Empty roster'}</p>
+        <span className="bg-[#C5A03A] text-white text-[10px] px-3 py-1 rounded-full font-bold mt-3 inline-block shadow-sm">{profiles[focusIdx]?.role || 'none'}</span>
       </div>
-
-      <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md max-h-[500px] overflow-y-auto custom-scrollbar animate-fadeIn">
+      <div className="lg:col-span-2 bg-white p-6 border rounded-3xl shadow-skeuo-md max-h-[500px] overflow-y-auto custom-scrollbar">
         <h4 className="font-serif font-bold text-base border-b pb-2 mb-3">Production Team Members</h4>
-        <div className="space-y-3 font-sans">
+        <div className="space-y-3">
           {profiles.map((p, i) => (
-            <div key={i} className="flex justify-between items-center p-3 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm" onClick={() => setFocusIdx(i)}>
-                  {renderAvatar(p.photoURL)}
-                </div>
-                <div className="cursor-pointer" onClick={() => setFocusIdx(i)}>
+            <div key={i} className="flex justify-between items-center p-3 border rounded-xl bg-slate-50/50">
+              <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setFocusIdx(i)}>
+                <div className="w-8 h-8 rounded-full overflow-hidden border flex items-center justify-center bg-white shadow-sm">{renderAvatar(p.photoURL)}</div>
+                <div>
                   <p className="text-xs font-bold text-slate-800">{p.name}</p>
-                  <span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role} • {p.workCategory}</span>
+                  <span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role}</span>
                 </div>
               </div>
               {isAdmin && p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() && (
-                <div className="flex space-x-1 font-sans">
-                  <button onClick={() => handleRemoveProfile(p.uid)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full transition hover:bg-rose-100 font-sans">Remove</button>
-                </div>
+                <button onClick={() => handleRemoveProfile(p.uid)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full transition hover:bg-rose-100">Remove</button>
               )}
             </div>
           ))}
@@ -1054,7 +595,6 @@ function CrewSection({ profiles, handleRemoveProfile, isAdmin }) {
   );
 }
 
-// --- TIMELINE CATEGORIES FRAME ---
 function CategoriesViewSection({ profiles, categories, setCategories, showToast }) {
   const [activeCategory, setActiveCategory] = useState(categories[0] || 'Editing');
   const [newCatInput, setNewCustomCategory] = useState('');
@@ -1063,231 +603,125 @@ function CategoriesViewSection({ profiles, categories, setCategories, showToast 
     e.preventDefault();
     const clean = newCatInput.trim();
     if (!clean) return;
-
-    if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) {
-      showToast("Category tag already exists.", "warning");
-      return;
-    }
-
+    if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) { showToast("Category tag already exists.", "warning"); return; }
     setCategories(prev => [...prev, clean]);
     setActiveCategory(clean);
     setNewCustomCategory('');
     showToast(`Category "${clean}" added successfully!`, "success");
   };
 
-  const matchedMembers = useMemo(() => {
-    return profiles.filter(p => p.workCategory === activeCategory);
-  }, [profiles, activeCategory]);
+  const matchedMembers = useMemo(() => profiles.filter(p => p.workCategory === activeCategory), [profiles, activeCategory]);
 
   return (
-    <section className="py-4 animate-fadeIn space-y-6 font-sans">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 font-sans">
-        
-        <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-3xl shadow-skeuo-md space-y-5 animate-fadeIn">
-          <div>
-            <h4 className="font-serif text-sm font-bold text-slate-800 mb-2">Add Custom Category</h4>
-            <form onSubmit={handleAddCategory} className="space-y-2 font-sans font-semibold">
-              <input 
-                type="text" 
-                value={newCatInput}
-                onChange={(e) => setNewCustomCategory(e.target.value)}
-                placeholder="e.g. 3D Matte Shader"
-                className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none"
-                required
-              />
-              <button type="submit" className="w-full py-1.5 bg-[#C5A03A] text-white text-[10px] font-bold uppercase rounded-lg border-b-[4px] border-[#ab892c] active:border-b-[2px] active:translate-y-[2px] shadow-sm">
-                Add Role Tag
-              </button>
-            </form>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 space-y-1">
-            <span className="text-[10px] font-bold text-[#C5A03A] uppercase tracking-wider block mb-2 font-sans">Role tags</span>
-            {categories.map((cat, idx) => (
-              <button
-                key={idx}
-                onClick={() => setActiveCategory(cat)}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}
-              >
-                🎥 {cat}
-              </button>
-            ))}
-          </div>
+    <section className="py-4 space-y-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="bg-white border p-5 rounded-3xl shadow-skeuo-md space-y-5">
+        <form onSubmit={handleAddCategory} className="space-y-2">
+          <h4 className="font-serif text-sm font-bold text-slate-800">Add Category</h4>
+          <input type="text" value={newCatInput} onChange={(e) => setNewCustomCategory(e.target.value)} placeholder="Role tag..." className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs focus:outline-none" required />
+          <button type="submit" className="w-full py-1.5 bg-[#C5A03A] text-white text-[10px] font-bold uppercase rounded-lg">Add Role Tag</button>
+        </form>
+        <div className="pt-4 border-t space-y-1">
+          {categories.map((cat, idx) => (
+            <button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>
+          ))}
         </div>
-
-        <div className="lg:col-span-3 bg-white/70 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md space-y-4 animate-fadeIn">
-          <div className="flex justify-between items-center border-b pb-3 border-slate-100 font-serif">
-            <h3 className="font-serif text-lg font-bold text-slate-800">Specialization: <span className="text-[#C5A03A]">{activeCategory}</span></h3>
-            <span className="text-xs bg-slate-100 px-2 py-1 rounded font-bold text-slate-500 font-sans">{matchedMembers.length} Specialists</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans animate-fadeIn">
-            {matchedMembers.map((member, index) => (
-              <div key={index} className="flex items-center space-x-3 p-4 border bg-white rounded-xl shadow-sm animate-fadeIn">
-                <div className="w-10 h-10 rounded-full border bg-white overflow-hidden p-0.5 flex items-center justify-center animate-fadeIn">
-                  {renderAvatar(member.photoURL)}
-                </div>
-                <div>
-                  <h5 className="font-bold text-xs text-slate-800 font-sans">{member.name}</h5>
-                  <p className="text-[10px] text-slate-400 font-sans">{member.email}</p>
-                  <span className="inline-block bg-amber-50 text-[#C5A03A] text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 font-sans">{member.role}</span>
-                </div>
+      </div>
+      <div className="lg:col-span-3 bg-white p-6 border rounded-3xl shadow-skeuo-md space-y-4">
+        <h3 className="font-serif text-lg font-bold border-b pb-2">Specialization: <span className="text-[#C5A03A]">{activeCategory}</span></h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {matchedMembers.map((member, index) => (
+            <div key={index} className="flex items-center space-x-3 p-4 border bg-white rounded-xl shadow-sm">
+              <div className="w-10 h-10 rounded-full border bg-white overflow-hidden flex items-center justify-center">{renderAvatar(member.photoURL)}</div>
+              <div>
+                <h5 className="font-bold text-xs text-slate-800">{member.name}</h5>
+                <p className="text-[10px] text-slate-400">{member.email}</p>
               </div>
-            ))}
-
-            {matchedMembers.length === 0 && (
-              <div className="col-span-full py-16 text-center text-slate-400 italic">
-                "No crew member is currently assigned to this specialization."
-              </div>
-            )}
-          </div>
+            </div>
+          ))}
+          {matchedMembers.length === 0 && <div className="col-span-full py-12 text-center text-slate-400 italic">"No crew member assigned here."</div>}
         </div>
-
       </div>
     </section>
   );
 }
 
-// --- VIDEO VAULT SIMULATOR ---
 function VideoVault({ videos, handleAddVideo, handleAddVideoComment, handleDeleteVideo, userProfile, showToast, isAdmin, pushNotification }) {
   const [selectedVid, setSelectedVid] = useState(null);
   const [videoTitle, setVideoTitle] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-
-  const handlePostVideoComment = (e) => {
-    e.preventDefault();
-    const commentText = e.target.commentInput.value.trim();
-    if (!commentText || !selectedVid) return;
-
-    handleAddVideoComment(selectedVid, commentText);
-    pushNotification(`Commented on video draft "${selectedVid.title}"`, userProfile.name);
-    showToast("Feedback comment posted!", "success");
-    e.target.commentInput.value = '';
-  };
-
-  const handleVideoFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-    }
-  };
 
   const startParallelUploader = (e) => {
     e.preventDefault();
     if (!videoTitle.trim()) return;
-
-    const finalVideoUrl = selectedFile 
-      ? URL.createObjectURL(selectedFile) 
-      : 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4';
-
-    handleAddVideo(videoTitle.trim(), finalVideoUrl, selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB` : '15 GB (HLS Track)');
+    handleAddVideo(videoTitle.trim(), 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4', '15 MB');
     pushNotification(`Uploaded real raw video asset: "${videoTitle}"`, userProfile?.name || 'Creator');
     setVideoTitle('');
-    setSelectedFile(null);
     setShowUploadModal(false);
-    showToast("Video draft successfully processed & loaded!", "success");
+    showToast("Video draft processed!", "success");
   };
 
   return (
-    <section className="py-4 space-y-4 font-sans animate-fadeIn">
-      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans animate-fadeIn">
+    <section className="py-4 space-y-4">
+      <div className="flex justify-between items-center bg-white border p-5 rounded-2xl shadow-skeuo-md">
         <div>
           <h3 className="font-serif font-bold text-slate-800 text-lg">Timeline Asset Vault</h3>
-          <p className="text-xs text-slate-400 font-sans">Collaborate with live chunk uploads & segment comments</p>
+          <p className="text-xs text-slate-400">Collaborate with real-time video segment updates</p>
         </div>
-        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans font-semibold">+ Upload Track</button>
+        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition">+ Upload Track</button>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-        
-        <div className="lg:col-span-2 space-y-4 animate-fadeIn font-sans">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
           {selectedVid ? (
-            <div className="space-y-4 animate-fadeIn font-sans">
-              <div className="bg-[#1b1915] rounded-2xl overflow-hidden relative border-4 border-white shadow-skeuo-md">
-                <video key={selectedVid.id} src={selectedVid.hlsUrl} className="w-full h-64 md:h-80 object-cover animate-fadeIn" controls autoPlay />
+            <div className="space-y-4">
+              <div className="bg-black rounded-2xl overflow-hidden relative border shadow-skeuo-md">
+                <video key={selectedVid.id} src={selectedVid.hlsUrl} className="w-full h-64 md:h-80 object-cover" controls autoPlay />
               </div>
-              
-              <div className="p-4 bg-white border-b-[4px] border-[#EADFC9] rounded-xl shadow-sm">
+              <div className="p-4 bg-white border rounded-xl shadow-sm">
                 <h4 className="font-serif font-bold text-slate-800 text-base">{selectedVid.title}</h4>
-                <p className="text-xs text-slate-400 font-sans">Uploaded by {selectedVid.uploaderName} • {selectedVid.size}</p>
+                <p className="text-xs text-slate-400">Uploaded by {selectedVid.uploaderName} • {selectedVid.size}</p>
               </div>
-
-              <div className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
+              <div className="bg-white border p-5 rounded-2xl shadow-skeuo-md space-y-4">
                 <h4 className="font-serif font-bold text-slate-800 text-sm border-b pb-2">Crew Feedback ({selectedVid.comments?.length || 0})</h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                   {(selectedVid.comments || []).map((comment, index) => (
-                    <div key={index} className="text-xs p-3 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
-                      <div>
-                        <span className="font-bold text-slate-800 mr-2">{comment.authorName}</span>
-                        <span className="text-slate-600">{comment.text}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <div key={index} className="text-xs p-3 bg-slate-50 rounded-xl border flex justify-between items-start">
+                      <div><span className="font-bold text-slate-800 mr-2">{comment.authorName}:</span><span className="text-slate-600">{comment.text}</span></div>
                     </div>
                   ))}
-                  {(!selectedVid.comments || selectedVid.comments.length === 0) && (
-                    <p className="text-xs text-slate-400 italic py-2">No feedback notes posted yet. Start the conversation below!</p>
-                  )}
                 </div>
-                
-                <form onSubmit={handlePostVideoComment} className="flex gap-2 pt-1.5 border-t">
-                  <input 
-                    type="text" 
-                    name="commentInput" 
-                    placeholder="Scribble video feedback (e.g. frame timing at 0:15 is a bit long)..." 
-                    className="flex-1 px-3 py-2 bg-slate-50 border rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" 
-                    required 
-                  />
-                  <button type="submit" className="bg-[#C5A03A] text-white text-xs px-4 py-2 rounded-xl font-bold font-sans transition hover:bg-[#b08d32]">Post</button>
+                <form onSubmit={(e) => { e.preventDefault(); const val = e.target.commentInput.value.trim(); if (val) { handleAddVideoComment(selectedVid, val); e.target.commentInput.value = ''; } }} className="flex gap-2 pt-2 border-t">
+                  <input type="text" name="commentInput" placeholder="Scribble video feedback..." className="flex-1 px-3 py-2 bg-slate-50 border rounded-xl text-xs focus:outline-none" required />
+                  <button type="submit" className="bg-[#C5A03A] text-white text-xs px-4 py-2 rounded-xl font-bold">Post</button>
                 </form>
               </div>
             </div>
           ) : (
-            <div className="bg-white/60 border-2 border-dashed border-[#EADFC9] p-16 text-center rounded-2xl text-slate-400 font-sans shadow-inner">Select any video draft below to open timeline player & comments feed.</div>
+            <div className="bg-white/60 border-2 border-dashed p-16 text-center rounded-2xl text-slate-400 shadow-inner">Select any video draft below to open player & feedback loop.</div>
           )}
         </div>
-
-        <div className="lg:col-span-1 space-y-4 font-sans animate-fadeIn">
-          <h4 className="font-serif font-bold text-sm text-slate-700">Video Draft Playlist ({videos.length})</h4>
+        <div className="space-y-4">
+          <h4 className="font-serif font-bold text-sm text-slate-700">Playlist ({videos.length})</h4>
           <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
             {videos.map((v, i) => (
-              <div key={i} className={`bg-white border-b-[4px] border-[#EADFC9] border-r border-l border-t p-3 rounded-xl hover:-translate-y-1 hover:shadow-skeuo-sm transition-all flex justify-between items-center animate-fadeIn ${selectedVid?.id === v.id ? 'border-[#C5A03A] bg-amber-50/20' : ''}`}>
-                <div onClick={() => setSelectedVid(v)} className="cursor-pointer flex-1 min-w-0 pr-2">
+              <div key={i} className={`bg-white border p-3 rounded-xl hover:shadow-skeuo-sm transition-all flex justify-between items-center ${selectedVid?.id === v.id ? 'border-[#C5A03A] bg-amber-50/20' : ''}`}>
+                <div onClick={() => setSelectedVid(v)} className="cursor-pointer flex-1 truncate">
                   <h5 className="font-bold text-xs text-slate-800 truncate">{v.title}</h5>
-                  <span className="text-[10px] text-slate-400 font-sans">Uploaded by {v.uploaderName} • {v.comments?.length || 0} Comments</span>
+                  <span className="text-[10px] text-slate-400">By {v.uploaderName} • {v.comments?.length || 0} Notes</span>
                 </div>
-                {(isAdmin || v.uploaderUid === auth.currentUser?.uid) && (
-                  <button onClick={() => handleDeleteVideo(v.id)} className="text-rose-550 font-bold p-1 hover:text-rose-700 transition">🗑️</button>
-                )}
+                {isAdmin && <button onClick={() => handleDeleteVideo(v.id)} className="text-rose-500 font-bold p-1">🗑️</button>}
               </div>
             ))}
-
-            {videos.length === 0 && (
-              <p className="text-xs text-slate-400 italic py-6 text-center">No video track segments uploaded yet.</p>
-            )}
           </div>
         </div>
-
       </div>
-
       {showUploadModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={startParallelUploader} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
-            <h4 className="font-serif font-bold text-slate-800">Upload Real Video File</h4>
-            
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase">Video Title</label>
-              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} placeholder="e.g. My Watercolor Vlog" className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase">Select File</label>
-              <input type="file" accept="video/*" onChange={handleVideoFileChange} className="w-full text-xs text-slate-500 mt-1 font-sans" required />
-            </div>
-
+          <form onSubmit={startParallelUploader} className="bg-white border-2 p-6 rounded-2xl w-full max-w-sm space-y-4 shadow-skeuo-lg">
+            <h4 className="font-serif font-bold text-slate-800">Upload Video Asset</h4>
+            <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} placeholder="Video Track Title..." className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs focus:outline-none" required />
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px] hover:bg-red-700 transition">Ingest Video</button>
+              <button type="submit" className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl">Ingest Asset</button>
             </div>
           </form>
         </div>
@@ -1296,66 +730,41 @@ function VideoVault({ videos, handleAddVideo, handleAddVideoComment, handleDelet
   );
 }
 
-// --- PROJECT SPREADSHEET CORKBOARD COMPONENT ---
 function ProjectBoard({ projects, tasks, handleCreateConcept, handleAddTask, handleToggleTaskStatus, showToast, selectedProject, setSelectedProject }) {
   const [newConcept, setNewConcept] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
 
-  const createConcept = (e) => {
-    e.preventDefault();
-    if (!newConcept.trim()) return;
-    handleCreateConcept(newConcept.trim());
-    setNewConcept('');
-    showToast("Artboard concept mapped!", "success");
-  };
-
-  const activeTasks = useMemo(() => tasks.filter(t => t.projectId === selectedProject?.id), [tasks, selectedProject]);
-
   return (
-    <section className="py-4 animate-fadeIn font-sans">
+    <section className="py-4 font-sans">
       {!selectedProject ? (
-        <div className="space-y-4 font-sans">
-          <form onSubmit={createConcept} className="max-w-md mx-auto flex gap-2 bg-white border border-[#EADFC9] p-4 rounded-xl shadow-skeuo-sm">
-            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New video conceptual sprint..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
-            <button type="submit" className="px-4 bg-[#C5A03A] text-white text-xs rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow">Pin Board</button>
+        <div className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); if (newConcept.trim()) { handleCreateConcept(newConcept.trim()); setNewConcept(''); showToast("Artboard appended!", "success"); } }} className="max-w-md mx-auto flex gap-2 bg-white border p-4 rounded-xl shadow">
+            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New timeline concept sprint..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs focus:outline-none" required />
+            <button type="submit" className="px-4 bg-[#C5A03A] text-white text-xs rounded-lg font-bold">Pin Board</button>
           </form>
-
-          <div 
-            className="p-8 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-3xl grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn"
-            style={{ 
-              backgroundColor: '#deb887',
-              backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)',
-              backgroundSize: '20px 20px'
-            }}
-          >
+          <div className="p-8 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-3xl grid grid-cols-1 md:grid-cols-3 gap-6 bg-[#deb887]">
             {projects.map((p, idx) => (
-              <div key={idx} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl cursor-pointer shadow-skeuo-md hover:-translate-y-1 hover:shadow-skeuo-3d transition-all relative">
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-2xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
-                <h4 className="font-serif font-bold text-slate-800 pt-3 text-center line-clamp-2">{p.title}</h4>
+              <div key={idx} onClick={() => setSelectedProject(p)} className="bg-white border p-5 rounded-2xl cursor-pointer shadow-skeuo-md hover:-translate-y-1 transition-all relative pt-6">
+                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-xl">📌</span>
+                <h4 className="font-serif font-bold text-slate-800 text-center line-clamp-2">{p.title}</h4>
               </div>
             ))}
-
-            {projects.length === 0 && (
-              <p className="text-center text-slate-700 italic col-span-full py-12">Roster Corkboard is currently pristine. Pin down a concept to start!</p>
-            )}
           </div>
         </div>
       ) : (
-        <div className="space-y-4 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md animate-fadeIn font-sans">
-          <button onClick={() => setSelectedProject(null)} className="text-xs font-bold text-[#C5A03A] hover:underline transition">◀ Back to Cork Board</button>
+        <div className="space-y-4 bg-white p-6 border rounded-3xl shadow-skeuo-md">
+          <button onClick={() => setSelectedProject(null)} className="text-xs font-bold text-[#C5A03A] hover:underline">◀ Back to Corkboard</button>
           <h3 className="font-serif text-2xl font-bold text-slate-800">{selectedProject.title}</h3>
-          
           <div className="divide-y text-xs">
-            {activeTasks.map((t, idx) => (
+            {tasks.filter(t => t.projectId === selectedProject.id).map((t, idx) => (
               <div key={idx} className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50" onClick={() => handleToggleTaskStatus(t)}>
                 <span className={`font-semibold ${t.status === 'Completed' ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.title}</span>
-                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</span>
+                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{t.status}</span>
               </div>
             ))}
           </div>
-
-          <form onSubmit={e => { e.preventDefault(); if (!taskTitle.trim()) return; handleAddTask(selectedProject.id, taskTitle.trim()); setTaskTitle(''); }} className="flex gap-2 max-w-sm pt-4">
-            <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add specific sprint work card" className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs" required />
+          <form onSubmit={(e) => { e.preventDefault(); if (taskTitle.trim()) { handleAddTask(selectedProject.id, taskTitle.trim()); setTaskTitle(''); } }} className="flex gap-2 max-w-sm pt-4">
+            <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add sprint task description..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:outline-none" required />
             <button type="submit" className="px-3 bg-slate-800 text-white text-xs rounded-lg font-bold">Add</button>
           </form>
         </div>
@@ -1364,238 +773,97 @@ function ProjectBoard({ projects, tasks, handleCreateConcept, handleAddTask, han
   );
 }
 
-// --- CHATROOM PANEL ---
-function WhiteboardChat({ chats, handleAddChat, chatChannel, setChatChannel }) {
-  const [inputText, setInputText] = useState('');
-  
-  const commit = (e) => {
-    e.preventDefault();
-    if (!inputText.trim()) return;
-    handleAddChat(inputText.trim(), chatChannel);
-    setInputText('');
-  };
-
+function WhiteboardChat({ chats, handleAddChat, chatChannel }) {
+  const [msg, setMsg] = useState('');
   return (
-    <section className="grid grid-cols-4 border-2 border-[#EADFC9] rounded-[2rem] h-[400px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
-      <div className="col-span-1 bg-[#FFFDF9] p-3 space-y-2 border-r text-xs border-[#EADFC9]/50">
-        <button onClick={() => setChatChannel('general')} className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition ${chatChannel === 'general' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : ''}`}>🌍 Studio Room</button>
+    <section className="border rounded-[2rem] h-[350px] bg-white overflow-hidden shadow-skeuo-md flex flex-col justify-between max-w-xl mx-auto font-sans">
+      <div className="p-4 overflow-y-auto space-y-2 flex-1 bg-slate-50/50 custom-scrollbar flex flex-col-reverse">
+        {chats.filter(c => c.projectId === chatChannel).map((m, i) => (
+          <div key={i} className="text-xs p-3 bg-white border rounded-2xl max-w-[75%] shadow-sm self-start">
+            <span className="text-[9px] text-slate-400 block font-bold mb-0.5">{m.senderName}</span>
+            {m.text}
+          </div>
+        ))}
       </div>
-      <div className="col-span-3 flex flex-col h-full justify-between bg-slate-50/20 font-sans">
-        <div className="p-4 overflow-y-auto space-y-2 custom-scrollbar flex-1 font-sans">
-          {chats.filter(c => c.projectId === chatChannel).map((m, i) => (
-            <div key={i} className="text-xs p-3 bg-white border border-[#EADFC9]/40 rounded-2xl max-w-[70%] animate-fadeIn shadow-xs font-sans">
-              <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{m.senderName}</span>
-              {m.text}
-            </div>
-          ))}
-        </div>
-        <form onSubmit={commit} className="p-3 border-t flex gap-2 bg-white font-sans animate-fadeIn">
-          <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type studio track commentary..." className="flex-1 px-3 border rounded-xl text-xs focus:outline-none" />
-          <button type="submit" className="px-4 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold border-b-[4px] border-[#ab892c]">Send</button>
-        </form>
+      <div className="p-3 border-t flex gap-2 bg-white">
+        <input type="text" value={msg} onChange={e => setMsg(e.target.value)} placeholder="Type commentary..." className="flex-1 px-3 border rounded-xl text-xs focus:outline-none" />
+        <button onClick={() => { if(msg.trim()) { handleAddChat(msg.trim(), chatChannel); setMsg(''); } }} className="px-4 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold">Send</button>
       </div>
     </section>
   );
 }
 
-// --- INSTAGRAM SHOWCASE WORK FEED COMPONENT ---
 function PostsWorkspace({ posts, handleAddPost, handleLikePost, handleAddPostComment, userProfile, showToast, pushNotification, firebaseUser }) {
-  const [postTitle, setPostTitle] = useState('');
-  const [postImageBase64, setPostImageBase64] = useState('');
-  const [postText, setPostText] = useState('');
-  const [showCreateModal, setShowCreatePostModal] = useState(false);
-
-  const handlePostPhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPostImageBase64(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const publishPost = (e) => {
-    e.preventDefault();
-    if (!postTitle.trim() || !postImageBase64) {
-      showToast("Please provide title and visual asset proof.", "warning");
-      return;
-    }
-
-    handleAddPost(postTitle.trim(), postText.trim(), postImageBase64);
-    pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile?.name || 'Creator');
-    setPostTitle('');
-    setPostText('');
-    setPostImageBase64('');
-    setShowCreatePostModal(false);
-    showToast("Showcase published to Insta Feed!", "success");
-  };
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
 
   return (
-    <section className="py-4 animate-fadeIn space-y-6 font-sans">
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white border border-[#EADFC9]/50 p-5 rounded-2xl shadow-sm gap-4">
-        <div>
-          <h2 className="font-serif text-2xl font-bold text-slate-800">📸 Insta Showroom Feed</h2>
-          <p className="text-xs text-slate-400">Publish video thumbnails, design drafts, and timeline assets</p>
-        </div>
-
-        <button 
-          onClick={() => setShowCreatePostModal(true)}
-          className="bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 text-white font-bold text-xs px-5 py-2.5 rounded-full border-b-[4px] border-amber-700 active:border-b-[1px] active:translate-y-[3px] shadow transition-all font-sans"
-        >
-          <span>➕</span>
-          <span>Create Post</span>
-        </button>
-      </div>
-
-      <div className="max-w-md mx-auto space-y-8 animate-fadeIn">
-        {posts.map((post, index) => {
-          const amLiked = post.likedBy?.includes(firebaseUser?.uid);
-          return (
-            <div key={index} className="bg-white border-2 border-[#EADFC9] rounded-[2rem] overflow-hidden shadow-skeuo-md animate-fadeIn">
-              
-              <div className="p-3.5 flex items-center space-x-3 border-b border-slate-50">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 animate-fadeIn">
-                  {renderAvatar(post.authorAvatar)}
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-slate-800">{post.authorName}</h4>
-                  <span className="text-[9px] text-slate-400 font-mono">{new Date(post.createdAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-
-              <div className="w-full h-80 overflow-hidden bg-slate-100 relative flex items-center justify-center">
-                {post.image?.startsWith('data:') || post.image?.startsWith('http') ? (
-                  <img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" />
-                ) : (
-                  <div className="w-full h-full p-4 flex items-center justify-center bg-amber-50/10" dangerouslySetInnerHTML={{ __html: post.image || PRESET_AVATARS[0].svg }} />
-                )}
-              </div>
-
-              <div className="p-3.5 space-y-2 border-t border-slate-50 font-sans">
-                <div className="flex items-center justify-between font-sans">
-                  <div className="flex items-center space-x-3 font-sans">
-                    <button 
-                      onClick={() => handleLikePost(post)}
-                      className="text-xl transition-transform active:scale-150"
-                    >
-                      {amLiked ? '❤️' : '🤍'}
-                    </button>
-                    <span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span>
-                  </div>
-                </div>
-
-                <div className="text-xs">
-                  <span className="font-bold text-slate-800 mr-2">{post.authorName}</span>
-                  <span className="font-semibold text-slate-700">{post.title}</span>
-                  {post.description && <p className="text-slate-500 mt-1 leading-relaxed font-sans">{post.description}</p>}
-                </div>
-
-                <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-                  {(post.comments || []).map((c, i) => (
-                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans">
-                      <span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span>
-                      <span className="text-slate-600">{c.text}</span>
-                    </div>
-                  ))}
-                  {(!post.comments || post.comments.length === 0) && (
-                    <p className="text-[10px] text-slate-400 italic font-sans">No comments published yet.</p>
-                  )}
-                </div>
-
-                <form onSubmit={(e) => { e.preventDefault(); const val = e.target.commentInputText.value.trim(); if(val) { handleAddPostComment(post, val); e.target.commentInputText.value = ''; showToast("Comment published!", "success"); } }} className="pt-2 border-t border-[#EADFC9]/20 flex gap-2 font-sans">
-                  <input 
-                    name="commentInputText"
-                    type="text" 
-                    placeholder="Add comment..." 
-                    className="flex-1 text-[11px] px-3 py-1.5 bg-slate-50 border rounded-lg focus:outline-none"
-                    required
-                  />
-                  <button type="submit" className="text-[10px] font-bold text-[#C5A03A] font-sans">Post</button>
-                </form>
-              </div>
-
+    <section className="max-w-md mx-auto space-y-4 font-sans">
+      <form onSubmit={(e) => { e.preventDefault(); if (title.trim()) { handleAddPost(title.trim(), desc.trim(), PRESET_AVATARS[1].svg); pushNotification(`Published showcase item: "${title}"`, userProfile?.name); setTitle(''); setDesc(''); showToast("Published!", "success"); } }} className="bg-white p-4 border rounded-2xl shadow space-y-2">
+        <h3 className="font-serif text-sm font-bold text-slate-800">Create Showroom Post</h3>
+        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Thumbnail Title..." className="w-full text-xs px-3 py-1.5 border rounded-lg focus:outline-none" required />
+        <input type="text" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Asset logs context details..." className="w-full text-xs px-3 py-1.5 border rounded-lg focus:outline-none" />
+        <button type="submit" className="w-full bg-[#C5A03A] text-white text-xs py-2 rounded-xl font-bold">Publish Showcase</button>
+      </form>
+      {posts.map((p, i) => {
+        const hasLiked = p.likedBy?.includes(firebaseUser?.uid);
+        return (
+          <div key={i} className="bg-white border rounded-[2rem] overflow-hidden shadow-skeuo-md pb-3 space-y-2">
+            <div className="p-3 border-b text-xs font-black flex items-center space-x-2">
+              <div className="w-6 h-6 rounded-full overflow-hidden bg-slate-50 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: p.authorAvatar || PRESET_AVATARS[0].svg }} />
+              <span>{p.authorName}</span>
             </div>
-          );
-        })}
-
-        {posts.length === 0 && (
-          <div className="py-24 text-center text-slate-400 font-handwritten text-xl bg-white/50 border-2 border-dashed rounded-2xl p-8 animate-fadeIn">
-            "No showroom posts loaded yet. Publish your completed B-rolls, thumbnails, or scripts above!"
+            <div className="w-full h-48 bg-slate-50 flex items-center justify-center p-4">
+              <div className="w-20 h-24" dangerouslySetInnerHTML={{ __html: p.image }} />
+            </div>
+            <div className="p-3.5 space-y-2">
+              <div className="flex items-center space-x-2">
+                <button onClick={() => handleLikePost(p)} className="text-sm">{hasLiked ? '❤️' : '🤍'}</button>
+                <span className="text-[10px] font-bold text-slate-500">{p.likes || 0} likes</span>
+              </div>
+              <div className="text-xs"><span className="font-bold mr-1">{p.authorName}</span>{p.title}</div>
+              <div className="space-y-1 max-h-24 overflow-y-auto border-t pt-2">
+                {(p.comments || []).map((c, idx) => (
+                  <div key={idx} className="text-[10px]"><strong>{c.authorName}:</strong> {c.text}</div>
+                ))}
+              </div>
+              <form onSubmit={(e) => { e.preventDefault(); const val = e.target.comment.value.trim(); if(val) { handleAddPostComment(p, val); e.target.comment.value = ''; } }} className="flex gap-2 border-t pt-2">
+                <input type="text" name="comment" placeholder="Add comment..." className="flex-1 text-[10px] border px-2 py-1 rounded focus:outline-none" required />
+                <button type="submit" className="text-[10px] font-bold text-[#C5A03A]">Post</button>
+              </form>
+            </div>
           </div>
-        )}
-      </div>
-
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="w-full max-w-md animate-fadeIn bg-white border border-[#EADFC9] rounded-[2.5rem] p-6 shadow-2xl relative">
-            <button onClick={() => setShowCreatePostModal(false)} className="absolute top-4 right-4 font-bold text-slate-400">✕</button>
-            <h3 className="font-serif text-lg font-bold border-b pb-2 mb-4 font-serif">Create Roster Post</h3>
-            <form onSubmit={publishPost} className="space-y-4 text-xs font-sans">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Post Title</label>
-                <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="e.g. Episode Thumbnail Cut 1" className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none" required />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Context details</label>
-                <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Scribble context details..." className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none" rows="2" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Screenshot upload</label>
-                <input type="file" accept="image/*" onChange={handlePostPhotoUpload} className="w-full text-xs text-slate-500 mt-2 font-sans" required />
-              </div>
-              <button type="submit" className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold uppercase rounded-xl font-sans">Share Post</button>
-            </form>
-          </div>
-        </div>
-      )}
+        );
+      })}
     </section>
   );
 }
 
-// --- MY PROFILE SETTINGS WORKSPACE ---
 function MyProfileWorkspace({ userProfile }) {
   return (
-    <section className="max-w-2xl mx-auto bg-white border border-[#EADFC9] rounded-[2.5rem] p-8 shadow-lg relative animate-fadeIn font-sans text-center">
+    <section className="max-w-md mx-auto bg-white border p-8 rounded-[2.5rem] shadow-lg text-center font-sans">
       <WatercolorOverlay />
-      <span className="text-xs font-bold uppercase tracking-wider text-[#C5A03A]">My Badge Profile</span>
-      <h2 className="font-serif text-3xl font-bold text-slate-800 mt-1 mb-4">Workspace Active Profile</h2>
-      <p className="text-xs text-slate-500 font-mono">Registered Address: {userProfile?.email || 'Active Workspace Session'}</p>
+      <h3 className="font-serif text-2xl font-bold mb-2">My Profile Badge</h3>
+      <p className="text-xs text-slate-500 font-mono">Session Email: {userProfile?.email || 'Active Workspace Instance'}</p>
     </section>
   );
 }
 
-// --- DEDICATED ADMIN CONTROL HUB PANEL ---
 function AdminPanel({ profiles, handleToggleRole, handleRemoveProfile, handleSaveBrandLabel, siteSettings, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText);
 
-  const saveLogo = (e) => {
-    e.preventDefault();
-    if(logoTxt.trim()) {
-      handleSaveBrandLabel(logoTxt.trim());
-      showToast("Branding label updated!", "success");
-    }
-  };
-
   return (
-    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn font-sans">
-      <div className="col-span-1 space-y-6">
-        <form onSubmit={saveLogo} className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
-          <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Studio Branding</h3>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase">Logo Brand Text</label>
-            <input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1" required />
-          </div>
-          <button type="submit" className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
-        </form>
-      </div>
-
-      <div className="col-span-2 bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans">
-        <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Roster Access Level Control</h3>
-        <table className="w-full text-xs text-left font-sans">
+    <section className="space-y-6 max-w-2xl mx-auto font-sans">
+      <form onSubmit={(e) => { e.preventDefault(); if (logoTxt.trim()) { handleSaveBrandLabel(logoTxt.trim()); showToast("Label synchronized!", "success"); } }} className="bg-white border p-5 rounded-[2rem] shadow-skeuo-md space-y-3">
+        <h3 className="font-serif font-bold text-slate-800">Studio Branding</h3>
+        <input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs focus:outline-none" required />
+        <button type="submit" className="w-full py-2 bg-[#C5A03A] text-white text-xs rounded-lg font-bold">Save Label</button>
+      </form>
+      <div className="bg-white border p-6 rounded-[2rem] shadow-skeuo-md">
+        <h3 className="font-serif font-bold border-b pb-2 mb-4 text-slate-800">Roster Access Level Control</h3>
+        <table className="w-full text-xs text-left">
           <thead>
-            <tr className="text-slate-400 font-sans font-semibold">
+            <tr className="text-slate-400">
               <th className="pb-2">Profile Handle</th>
               <th className="pb-2">Current Role</th>
               <th className="pb-2 text-right">Actions</th>
@@ -1603,26 +871,14 @@ function AdminPanel({ profiles, handleToggleRole, handleRemoveProfile, handleSav
           </thead>
           <tbody>
             {profiles.map((p, index) => (
-              <tr key={index} className="border-t font-sans animate-fadeIn">
-                <td className="py-2.5 font-bold">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50">
-                      {renderAvatar(p.photoURL)}
-                    </div>
-                    <div className="flex flex-col font-sans">
-                      <span>{p.name}</span>
-                      <span className="text-[9px] text-slate-400 font-normal">{p.email}</span>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-2.5 uppercase font-mono text-[10px] font-semibold">{p.role}</td>
-                <td className="py-2.5 text-right space-x-1.5 font-sans">
+              <tr key={index} className="border-t">
+                <td className="py-3 font-bold">{p.name}<br/><span className="text-[9px] font-normal text-slate-400">{p.email}</span></td>
+                <td className="py-3 uppercase font-mono text-[10px] font-semibold">{p.role}</td>
+                <td className="py-3 text-right">
                   {p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() ? (
-                    <div className="flex items-center justify-end gap-1.5 flex-wrap font-sans">
-                      <button onClick={() => handleToggleRole(p)} className="bg-amber-50 text-amber-700 px-3 py-1 rounded font-bold hover:bg-amber-100 font-sans border border-amber-200">
-                        {p.role === 'admin' ? 'Demote' : 'Promote'}
-                      </button>
-                      <button onClick={() => handleRemoveProfile(p.uid)} className="bg-rose-50 text-rose-600 px-3 py-1 rounded font-bold hover:bg-rose-100 font-sans border border-rose-200">Remove</button>
+                    <div className="flex justify-end gap-1.5">
+                      <button onClick={() => handleToggleRole(p)} className="bg-amber-50 text-amber-700 px-3 py-1 rounded-md font-bold border border-amber-200">{p.role === 'admin' ? 'Demote' : 'Promote'}</button>
+                      <button onClick={() => handleRemoveProfile(p.uid)} className="bg-rose-50 text-rose-600 px-3 py-1 rounded-md font-bold border border-rose-200">Remove</button>
                     </div>
                   ) : <span className="text-slate-400 italic">Owner</span>}
                 </td>
@@ -1635,1823 +891,17 @@ function AdminPanel({ profiles, handleToggleRole, handleRemoveProfile, handleSav
   );
 }
 
-// --- ACCESS EXITS ---
 function PendingScreen({ userProfile }) {
   return (
-    <div className="min-h-[60vh] flex items-center justify-center text-center p-4">
-      <div className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl max-w-sm shadow-skeuo-md animate-fadeIn font-sans">
+    <div className="min-h-[60vh] flex items-center justify-center text-center p-4 font-sans">
+      <div className="bg-white p-6 border rounded-2xl max-w-sm shadow-skeuo-md">
         <h3 className="font-serif font-bold text-xl mb-2"> Roster Waiting Room</h3>
-        <p className="text-xs text-slate-500 mb-4 font-sans">Hello {userProfile?.name}! Your account request has been routed to the pending list for review.</p>
+        <p className="text-xs text-slate-500 mb-4">Hello {userProfile?.name}! Your request has been logged and queued.</p>
       </div>
     </div>
   );
 }
 
-function RejectedScreen({ userProfile }) {
-  return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact Owner direct link.</div>;
-    }    
-    /* Custom Scrollbar */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(234, 223, 201, 0.2);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(197, 160, 58, 0.4);
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(197, 160, 58, 0.6);
-    }
-
-    /* 3D Skeuomorphic Shadows and Transformations */
-    .shadow-skeuo-sm {
-      box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06);
-    }
-    .shadow-skeuo-md {
-      box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1);
-    }
-    .shadow-skeuo-lg {
-      box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15);
-    }
-    .shadow-skeuo-3d {
-      box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9);
-    }
-  `;
-  document.head.appendChild(styleBlock);
-};
-
-// --- INITIAL CREW DATA SETS ---
-const INITIAL_PROFILES = [
-  { uid: 'owner-id', name: 'Naitik Saxena', email: 'Naitiksaxena06@gmail.com', role: 'owner', status: 'approved', workCategory: 'Creativity', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.2"/><path d="M30,75 C30,55 40,45 50,45 C60,45 70,55 70,75" fill="none" stroke="#C5A03A" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="30" r="12" fill="#C5A03A"/></svg>`, createdAt: Date.now() - 1000000 },
-  { uid: 'editor-1', name: 'Alex Thompson', email: 'alex@creators.studio', role: 'admin', status: 'approved', workCategory: 'Editing', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.2"/><path d="M25,70 Q50,40 75,70" fill="none" stroke="#f43f5e" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="32" r="10" fill="#f43f5e"/></svg>`, createdAt: Date.now() - 900000 },
-  { uid: 'designer-1', name: 'Sarah Connor', email: 'sarah@creators.studio', role: 'member', status: 'approved', workCategory: 'Writing', photoURL: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.2"/><path d="M30,72 Q50,45 70,72" fill="none" stroke="#1D4ED8" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="34" r="9" fill="#1D4ED8"/></svg>`, createdAt: Date.now() - 800000 },
-];
-
-const PRESET_AVATARS = [
-  { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
-  { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.15"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#1D4ED8" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#1D4ED8"/></svg>` },
-  { id: 'gold-palette', name: 'Golden Drop', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.15"/><path d="M30,40 A20,20 0 0,0 70,60 A20,20 0 0,0 30,40" fill="#C5A03A"/><circle cx="45" cy="48" r="3" fill="#ffffff"/></svg>` },
-  { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#10B981" opacity="0.15"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"/></svg>` },
-];
-
-const ADMIN_EMAIL = "Naitiksaxena06@gmail.com";
-
-// --- CUSTOM AVATAR RENDERER ---
-const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
-  if (!photoURL || typeof photoURL !== 'string') return <div className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans">?</div>;
-  if (photoURL.startsWith('<svg') || photoURL.includes('<circle') || photoURL.includes('<path')) {
-    return <div className={className} dangerouslySetInnerHTML={{ __html: photoURL }} />;
-  }
-  return <img src={photoURL} alt="Crew Avatar" className={className} onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=60"; }} />;
-};
-
-// --- WATERCOLOR TEXTURE OVERLAY ---
-const WatercolorOverlay = () => (
-  <div 
-    className="absolute inset-0 pointer-events-none opacity-[0.22] mix-blend-multiply z-10" 
-    style={{ 
-      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` 
-    }} 
-  />
-);
-
-export default function App() {
-  const [loadingLibraries, setLoadingLibraries] = useState(true);
-  const [threeReady, setThreeReady] = useState(false);
-  const [gsapReady, setGsapReady] = useState(false);
-  const [firebaseUser, setFirebaseUser] = useState(null);
-
-  const [currentPage, setCurrentPage] = useState('home'); 
-  const [loggedInEmail, setLoggedInEmail] = useState(() => localStorage.getItem('sa_logged_in_user_email') || '');
-  const [siteSettings, setSiteSettings] = useState({ logoText: 'YOUTUBERS STUDIO', logoUrl: '' });
-  const [showSignInModal, setShowSignInModal] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // Firestore Sync Collections States
-  const [categories, setCategoriesState] = useState(['Creativity', 'Editing', 'Writing', 'AI Related Expertise']);
-  const [posts, setPostsState] = useState([]);
-  const [notifications, setNotificationsState] = useState([]);
-  const [ytConfig, setYtConfigState] = useState({
-    channelId: 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-', 
-    apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg',
-    subscribers: '14,820',
-    latestVideoViews: '4,512',
-    latestVideoTitle: 'Painting My Dreams: Watercolor Masterclass'
-  });
-  const [profiles, setProfilesState] = useState([]);
-  const [projects, setProjectsState] = useState([]);
-  const [tasks, setTasksState] = useState([]);
-  const [chats, setChatsState] = useState([]);
-  const [videos, setVideosState] = useState([]);
-
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [chatChannel, setChatChannel] = useState('general');
-  const [customToast, setCustomToast] = useState(null);
-
-  // Initialize Auth
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (err) {
-        console.error("Authentication init error:", err);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setFirebaseUser);
-    return () => unsubscribe();
-  }, []);
-
-  // Sync Listeners
-  useEffect(() => {
-    if (!firebaseUser) return;
-    const unsubscribes = [];
-
-    // 1. Profiles
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snapshot) => {
-      const cloudProfiles = [];
-      snapshot.forEach((doc) => { cloudProfiles.push({ uid: doc.id, ...doc.data() }); });
-      if (cloudProfiles.length > 0) {
-        setProfilesState(cloudProfiles);
-      } else {
-        INITIAL_PROFILES.forEach(p => {
-          setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', p.uid), p);
-        });
-        setProfilesState(INITIAL_PROFILES);
-      }
-    }));
-
-    // 2. Projects
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), (snapshot) => {
-      const cloudProjects = [];
-      snapshot.forEach((doc) => { cloudProjects.push({ id: doc.id, ...doc.data() }); });
-      setProjectsState(cloudProjects);
-    }));
-
-    // 3. Tasks
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), (snapshot) => {
-      const cloudTasks = [];
-      snapshot.forEach((doc) => { cloudTasks.push({ id: doc.id, ...doc.data() }); });
-      setTasksState(cloudTasks);
-    }));
-
-    // 4. Chats
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'chats'), (snapshot) => {
-      const cloudChats = [];
-      snapshot.forEach((doc) => { cloudChats.push({ id: doc.id, ...doc.data() }); });
-      cloudChats.sort((a, b) => b.timestamp - a.timestamp);
-      setChatsState(cloudChats);
-    }));
-
-    // 5. Videos
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'videos'), (snapshot) => {
-      const cloudVideos = [];
-      snapshot.forEach((doc) => { cloudVideos.push({ id: doc.id, ...doc.data() }); });
-      setVideosState(cloudVideos);
-    }));
-
-    // 6. Posts
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), (snapshot) => {
-      const cloudPosts = [];
-      snapshot.forEach((doc) => { cloudPosts.push({ id: doc.id, ...doc.data() }); });
-      setPostsState(cloudPosts);
-    }));
-
-    // 7. Notifications
-    unsubscribes.push(onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), (snapshot) => {
-      const cloudNotifs = [];
-      snapshot.forEach((doc) => { cloudNotifs.push({ id: doc.id, ...doc.data() }); });
-      cloudNotifs.sort((a, b) => b.timestamp - a.timestamp);
-      setNotificationsState(cloudNotifs.length > 0 ? cloudNotifs : [
-        { id: 'init-notif', message: 'Studio Command Center initialized.', actor: 'System', timestamp: Date.now() - 500000 }
-      ]);
-    }));
-
-    // 8. Categories Configuration Doc
-    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().list) {
-        setCategoriesState(docSnap.data().list);
-      }
-    }));
-
-    // 9. YtConfig Auto-Sync Configuration Doc
-    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'ytConfig'), (docSnap) => {
-      if (docSnap.exists()) {
-        setYtConfigState(docSnap.data());
-      }
-    }));
-
-    // 10. Branding Configuration
-    unsubscribes.push(onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'siteSettings'), (docSnap) => {
-      if (docSnap.exists()) {
-        setSiteSettings(docSnap.data());
-      }
-    }));
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [firebaseUser]);
-
-  // Firestore Writes (Rule 1 & Rule 3 Compliant)
-  const handleCreateConcept = async (title) => {
-    if (!firebaseUser) return;
-    const id = 'p_' + Date.now();
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', id), {
-      title,
-      creatorName: userProfile?.name || 'Creator',
-      createdAt: Date.now()
-    });
-    pushNotification(`Created video concept whiteboard: "${title}"`, userProfile?.name);
-  };
-
-  const handleAddTask = async (projectId, title) => {
-    if (!firebaseUser) return;
-    const id = 't_' + Date.now();
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', id), {
-      projectId,
-      title,
-      status: 'To Do'
-    });
-  };
-
-  const handleToggleTaskStatus = async (task) => {
-    if (!firebaseUser) return;
-    const nextStatus = task.status === 'To Do' ? 'Completed' : 'To Do';
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), {
-      ...task,
-      status: nextStatus
-    });
-  };
-
-  const handleAddChat = async (text, channel) => {
-    if (!firebaseUser) return;
-    const id = 'c_' + Date.now();
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chats', id), {
-      projectId: channel,
-      text,
-      senderName: userProfile?.name || loggedInEmail.split('@')[0],
-      senderUid: firebaseUser.uid,
-      timestamp: Date.now()
-    };
-  };
-
-  const handleAddVideo = async (title, url, size) => {
-    if (!firebaseUser) return;
-    const id = 'v_' + Date.now();
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', id), {
-      title,
-      uploaderUid: firebaseUser.uid,
-      uploaderName: userProfile?.name || 'Creator',
-      hlsUrl: url,
-      size: size || '15 MB',
-      comments: []
-    });
-  };
-
-  const handleAddVideoComment = async (video, text) => {
-    if (!firebaseUser) return;
-    const newComment = {
-      id: 'comment_' + Date.now(),
-      authorName: userProfile?.name || 'Creator',
-      text,
-      timestamp: Date.now()
-    };
-    const updatedComments = [...(video.comments || []), newComment];
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', video.id), {
-      ...video,
-      comments: updatedComments
-    });
-  };
-
-  const handleDeleteVideo = async (id) => {
-    if (!firebaseUser) return;
-    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'videos', id));
-  };
-
-  const handleAddPost = async (title, description, imageBase64) => {
-    if (!firebaseUser) return;
-    const id = 'post_' + Date.now();
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', id), {
-      title,
-      description,
-      image: imageBase64,
-      authorName: userProfile?.name || 'Creator',
-      authorAvatar: userProfile?.photoURL || '',
-      likes: 0,
-      likedBy: [],
-      comments: [],
-      createdAt: Date.now()
-    });
-  };
-
-  const handleLikePost = async (post) => {
-    if (!firebaseUser) return;
-    const hasLiked = post.likedBy?.includes(firebaseUser.uid);
-    const newLikedBy = hasLiked 
-      ? post.likedBy.filter(uid => uid !== firebaseUser.uid)
-      : [...(post.likedBy || []), firebaseUser.uid];
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', post.id), {
-      ...post,
-      likes: newLikedBy.length,
-      likedBy: newLikedBy
-    });
-  };
-
-  const handleAddPostComment = async (post, text) => {
-    if (!firebaseUser) return;
-    const newComment = {
-      id: 'p_comment_' + Date.now(),
-      authorName: userProfile?.name || 'Creator',
-      text
-    };
-    const updatedComments = [...(post.comments || []), newComment];
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'posts', post.id), {
-      ...post,
-      comments: updatedComments
-    });
-  };
-
-  const pushNotification = async (message, actorName = 'Crew Member') => {
-    if (!firebaseUser) return;
-    const id = 'notif_' + Date.now();
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', id), {
-      message,
-      actor: actorName,
-      timestamp: Date.now()
-    });
-  };
-
-  const handleAddCategory = async (newCat) => {
-    if (!firebaseUser) return;
-    const updated = [...categories, newCat];
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'categories'), { list: updated });
-  };
-
-  const handleSaveBrandLabel = async (text) => {
-    if (!firebaseUser) return;
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'siteSettings'), { logoText: text, logoUrl: siteSettings.logoUrl || '' });
-  };
-
-  const handleToggleRole = async (targetProfile) => {
-    if (!firebaseUser) return;
-    const nextRole = targetProfile.role === 'admin' ? 'member' : 'admin';
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetProfile.uid), {
-      ...targetProfile,
-      role: nextRole
-    });
-  };
-
-  const handleRemoveProfile = async (targetUid) => {
-    if (!firebaseUser) return;
-    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetUid));
-  };
-
-  // Derived Logged-in User Profile for flawless real-time roster sync
-  const userProfile = useMemo(() => {
-    if (!loggedInEmail) return null;
-    return profiles.find(p => p.email.toLowerCase() === loggedInEmail.toLowerCase()) || null;
-  }, [profiles, loggedInEmail]);
-
-  const isAdmin = useMemo(() => {
-    return loggedInEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase() || (userProfile && userProfile.role === 'admin');
-  }, [userProfile, loggedInEmail]);
-
-  const showToast = (message, type = 'info') => {
-    setCustomToast({ message, type });
-    setTimeout(() => setCustomToast(null), 4000);
-  };
-
-  // YouTube statistics syncer logic
-  const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
-    const activeChannelId = targetChannelId || ytConfig.channelId || 'https://youtube.com/@naitik._.artist-16?si=xHmSTQgtr9YRAa9-';
-    const activeApiKey = targetApiKey || ytConfig.apiKey || 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg';
-
-    let url = '';
-    if (activeChannelId.includes('UC') && !activeChannelId.includes('/') && activeChannelId.trim().startsWith('UC')) {
-      url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${activeChannelId.trim()}&key=${activeApiKey}`;
-    } else {
-      let handle = 'naitik._.artist-16';
-      const match = activeChannelId.match(/@([^/?#\s]+)/);
-      if (match) {
-        handle = match[1];
-      } else if (activeChannelId.includes('youtube.com/')) {
-        const parts = activeChannelId.split('/');
-        const lastPart = parts[parts.length - 1];
-        handle = lastPart.replace('@', '').split('?')[0];
-      } else {
-        handle = activeChannelId.replace('@', '').trim();
-      }
-      url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=${handle}&key=${activeApiKey}`;
-    }
-
-    try {
-      const channelRes = await fetch(url);
-      if (!channelRes.ok) throw new Error("API call failed.");
-      const channelData = await channelRes.json();
-      const item = channelData.items?.[0];
-      if (!item) throw new Error("YouTube Channel not found.");
-      
-      const subsCount = item.statistics.subscriberCount;
-      const channelTitle = item.snippet.title;
-      const channelIdActual = item.id;
-
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId=${channelIdActual}&maxResults=1&order=date&type=video&key=${activeApiKey}`;
-      const searchRes = await fetch(searchUrl);
-      let views = "4,512";
-      let videoTitle = "Painting My Dreams: Watercolor Masterclass";
-
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        const videoItem = searchData.items?.[0];
-        if (videoItem) {
-          const videoId = videoItem.id.videoId;
-          videoTitle = videoItem.snippet.title;
-          
-          const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoId}&key=${activeApiKey}`);
-          if (videoRes.ok) {
-            const videoData = await videoRes.json();
-            views = videoData.items?.[0]?.statistics?.viewCount || "0";
-          }
-        }
-      }
-
-      const updatedConfig = {
-        channelId: activeChannelId,
-        apiKey: activeApiKey,
-        subscribers: parseInt(subsCount, 10).toLocaleString(),
-        latestVideoViews: parseInt(views, 10).toLocaleString(),
-        latestVideoTitle: videoTitle
-      };
-
-      setYtConfigState(updatedConfig);
-      if (!silent) {
-        showToast(`Successfully synced with ${channelTitle}!`, "success");
-      }
-    } catch (err) {
-      console.warn("YouTube metrics falling back to manual refresh configurations.");
-    }
-  };
-
-  // Capture latest config fields to avoid resetting the sync timer
-  const channelIdRef = useRef(ytConfig.channelId);
-  const apiKeyRef = useRef(ytConfig.apiKey);
-
-  useEffect(() => {
-    channelIdRef.current = ytConfig.channelId;
-    apiKeyRef.current = ytConfig.apiKey;
-  }, [ytConfig.channelId, ytConfig.apiKey]);
-
-  // Persistent 30-Second API Resynchronization Polling Engine
-  useEffect(() => {
-    if (loadingLibraries) return;
-
-    // Trigger initial stats loading
-    syncYouTubeStats(channelIdRef.current, apiKeyRef.current, true);
-
-    const timer = setInterval(() => {
-      syncYouTubeStats(channelIdRef.current, apiKeyRef.current, true);
-    }, 30000);
-
-    return () => clearInterval(timer);
-  }, [loadingLibraries]);
-
-  const handleProfileSignIn = async (crewName, crewEmail, profilePhotoBase64, categorySelected) => {
-    const emailKey = crewEmail.trim().toLowerCase();
-    const isOwner = emailKey === ADMIN_EMAIL.toLowerCase();
-
-    let matchedProfile = profiles.find(p => p.email.toLowerCase() === emailKey);
-
-    if (!matchedProfile) {
-      const finalAvatar = profilePhotoBase64 || PRESET_AVATARS[0].svg;
-      const id = 'user_' + Date.now();
-      matchedProfile = {
-        uid: id,
-        name: crewName || crewEmail.split('@')[0],
-        email: crewEmail,
-        role: isOwner ? 'owner' : 'member',
-        status: 'approved',
-        workCategory: categorySelected || 'Editing',
-        photoURL: finalAvatar,
-        createdAt: Date.now()
-      };
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', id), matchedProfile);
-    }
-
-    setLoggedInEmail(matchedProfile.email);
-    localStorage.setItem('sa_logged_in_user_email', matchedProfile.email);
-    setShowSignInModal(false);
-    showToast(`Welcome back, ${matchedProfile.name}!`, "success");
-    setCurrentPage('home');
-  };
-
-  const handleNavigationChange = (targetPage) => {
-    setIsSidebarOpen(false);
-    if (targetPage === 'home') {
-      setCurrentPage(targetPage);
-      return;
-    }
-    if (!loggedInEmail) {
-      setShowSignInModal(true);
-      return;
-    }
-    setCurrentPage(targetPage);
-  };
-
-  // Safe CDN Loader Guard for Three.js & GSAP
-  useEffect(() => {
-    injectArtStyleStyles();
-    const loadScript = (src) => {
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
-      });
-    };
-
-    const prepareEngine = async () => {
-      try {
-        const loadedThree = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
-        if (loadedThree) setThreeReady(true);
-        const loadedGsap = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js');
-        const loadedTrigger = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js');
-        if (loadedGsap && loadedTrigger) setGsapReady(true);
-      } catch (err) {
-        console.warn("Studio visual engines loading in fallback mode.");
-      } finally {
-        setLoadingLibraries(false);
-      }
-    };
-    prepareEngine();
-  }, []);
-
-  if (loadingLibraries) {
-    return (
-      <div className="min-h-screen bg-[#FCFAF2] flex flex-col items-center justify-center font-serif text-[#C5A03A]">
-        <div className="w-16 h-16 border-4 border-dashed border-[#C5A03A] rounded-full animate-spin mb-4" />
-        <h2 className="text-2xl font-bold tracking-widest animate-pulse font-serif">SYNCING TIMELINES</h2>
-        <p className="text-xs font-sans tracking-wide text-slate-500 mt-1">Booting Studio Workspace Engines...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen relative overflow-x-hidden bg-[#FCFBF8] text-slate-800 font-sans selection:bg-[#C5A03A]/20">
-      <WatercolorOverlay />
-      {threeReady && <ThreeArtBackground />}
-
-      {/* Global Toast Alert */}
-      {customToast && (
-        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white transition-all animate-bounce ${customToast.type === 'success' ? 'bg-[#2ba640]' : 'bg-[#C5A03A]'}`}>
-          {customToast.message}
-        </div>
-      )}
-
-      {/* Global Header */}
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-6 py-4 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
-        <div className="flex items-center space-x-3">
-          {/* Hamburger Menu */}
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path>
-            </svg>
-          </button>
-
-          <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => handleNavigationChange('home')}>
-            {siteSettings.logoUrl ? (
-              <img src={siteSettings.logoUrl} alt="Logo" className="w-10 h-10 object-cover rounded-xl shadow-[0_4px_15px_rgba(135,112,58,0.25)] border-2 border-white transform hover:scale-105 transition" />
-            ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-lg shadow-[0_4px_15px_rgba(197,160,58,0.3)] border-2 border-white">
-                Y
-              </div>
-            )}
-            <span className="font-serif text-lg tracking-wider text-[#C5A03A] font-extrabold hidden sm:inline">{siteSettings.logoText}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          {loggedInEmail ? (
-            <div className="flex items-center space-x-3">
-              <div className="hidden sm:flex flex-col text-right">
-                <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name || loggedInEmail.split('@')[0]}</p>
-                <span className="text-[9px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{isAdmin ? 'Admin/Owner' : 'Crew Member'}</span>
-              </div>
-              <div className="w-9 h-9 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
-                {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-5 py-2.5 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95 animate-pulse">🔑 Crew Sign In</button>
-          )}
-        </div>
-      </header>
-
-      {/* --- SCROLLABLE VERTICAL SIDEBAR DRAWER --- */}
-      <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
-        <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-6 pb-20">
-            <div className="flex items-center justify-between pb-4 border-b border-[#EADFC9]/50">
-              <span className="font-serif font-black text-lg text-[#C5A03A] tracking-wider uppercase">Navigation</span>
-              <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">✕</button>
-            </div>
-
-            <nav className="space-y-1.5 font-sans">
-              <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
-              <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
-              <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
-              <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎞️</span><span>Video Vault</span></button>
-              <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📌</span><span>Project Board</span></button>
-              <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
-              <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>📸</span><span>Insta Feed</span></button>
-              {loggedInEmail && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A] border-l-4 border-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile</span></button>}
-              
-              {isAdmin && (
-                <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1 font-sans">Admin Controls</span>
-                  <button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-3.5 px-4 py-2.5 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'admin' ? 'bg-rose-50 text-rose-600 border-l-4 border-rose-500' : 'text-slate-500 hover:bg-rose-50/40'}`}><span>👥</span><span>Manage Roster</span></button>
-                </div>
-              )}
-            </nav>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Container Workspace */}
-      <main className="relative z-20 max-w-7xl mx-auto px-4 py-8 studio-page-wrap animate-fadeIn">
-        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} notifications={notifications} handleNavigation={handleNavigationChange} />}
-        {currentPage === 'crew' && <CrewSection profiles={profiles} setProfiles={setProfilesState} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
-        {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} setCategories={setCategories} showToast={showToast} />}
-        {currentPage === 'vault' && <VideoVault videos={videos} handleAddVideo={handleAddVideo} handleAddVideoComment={handleAddVideoComment} handleDeleteVideo={handleDeleteVideo} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
-        {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} handleCreateConcept={handleCreateConcept} handleAddTask={handleAddTask} handleToggleTaskStatus={handleToggleTaskStatus} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} setCurrentPage={setCurrentPage} setChatChannel={setChatChannel} pushNotification={pushNotification} />}
-        {currentPage === 'chat' && <WhiteboardChat chats={chats} handleAddChat={handleAddChat} chatChannel={chatChannel} setChatChannel={setChatChannel} />}
-        {currentPage === 'posts' && <PostsWorkspace posts={posts} handleAddPost={handleAddPost} handleLikePost={handleLikePost} handleAddPostComment={handleAddPostComment} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} firebaseUser={firebaseUser} />}
-        {currentPage === 'profile' && <MyProfileWorkspace userProfile={userProfile} profiles={profiles} setProfiles={setProfilesState} categories={categories} setCategories={setCategories} showToast={showToast} />}
-        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} handleToggleRole={handleToggleRole} handleRemoveProfile={handleRemoveProfile} handleSaveBrandLabel={handleSaveBrandLabel} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
-      </main>
-
-      {/* --- SIGN IN MODAL WINDOW --- */}
-      {showSignInModal && <SignInModal handleProfileSignIn={handleProfileSignIn} setShowSignInModal={setShowSignInModal} categories={categories} profiles={profiles} />}
-    </div>
-  );
+function RejectedScreen() {
+  return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact workspace manager.</div>;
 }
-
-// --- THREEJS BACKGROUND GRAPHICS ---
-function ThreeArtBackground() {
-  const mountRef = useRef(null);
-  useEffect(() => {
-    if (!window.THREE) return;
-    const THREE = window.THREE;
-    const scene = new THREE.Scene();
-    
-    // Low field of view camera to exaggerate the 3D depth and parallax feel
-    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.z = 11;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    mountRef.current.appendChild(renderer.domElement);
-
-    // Warm atmospheric studio lights
-    scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
-    
-    // Dynamic Specular Spotlight that follows cursor movement
-    const specularSpot = new THREE.SpotLight(0xffedd5, 12, 40, Math.PI / 4, 0.5, 1);
-    specularSpot.position.set(0, 0, 8);
-    specularSpot.castShadow = true;
-    scene.add(specularSpot);
-
-    // Neon Cobalt fill light
-    const cobaltPoint = new THREE.PointLight(0x1d4ed8, 2.5, 18);
-    cobaltPoint.position.set(-5, -3, 2);
-    scene.add(cobaltPoint);
-
-    // Neon Rose rim light
-    const rosePoint = new THREE.PointLight(0xf43f5e, 2.5, 18);
-    rosePoint.position.set(5, 3, 2);
-    scene.add(rosePoint);
-
-    // Main Master Camera Gimbal Assembly Group
-    const cameraRigGroup = new THREE.Group();
-
-    // 1. Titanium outer gimbal ring
-    const outerRingGeo = new THREE.TorusGeometry(1.9, 0.12, 16, 100);
-    const darkTitaniumMat = new THREE.MeshStandardMaterial({ 
-      color: 0x2d3748, 
-      metalness: 0.95, 
-      roughness: 0.15,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.1
-    });
-    const outerRing = new THREE.Mesh(outerRingGeo, darkTitaniumMat);
-    cameraRigGroup.add(outerRing);
-
-    // 2. Shiny Chrome inner gimbal ring
-    const innerRingGeo = new THREE.TorusGeometry(1.5, 0.08, 16, 100);
-    const chromeMat = new THREE.MeshStandardMaterial({ 
-      color: 0xe2e8f0, 
-      metalness: 1.0, 
-      roughness: 0.05 
-    });
-    const innerRing = new THREE.Mesh(innerRingGeo, chromeMat);
-    innerRing.rotation.x = Math.PI / 2;
-    cameraRigGroup.add(innerRing);
-
-    // 3. Central Gold Lens Cylinder Barrel
-    const lensBarrelGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 32, 1, true);
-    const goldMat = new THREE.MeshStandardMaterial({ 
-      color: 0xD4AF37, 
-      metalness: 0.9, 
-      roughness: 0.1,
-      clearcoat: 0.8
-    });
-    const lensBarrel = new THREE.Mesh(lensBarrelGeo, goldMat);
-    lensBarrel.rotation.x = Math.PI / 2;
-    cameraRigGroup.add(lensBarrel);
-
-    // 4. Refracting Glass Core spherical element
-    const glassGeo = new THREE.SphereGeometry(0.75, 32, 32);
-    const glassMat = new THREE.MeshPhysicalMaterial({ 
-      color: 0xffffff,
-      metalness: 0.1,
-      roughness: 0.05,
-      transparent: true,
-      opacity: 0.65,
-      transmission: 0.9,
-      ior: 1.5,
-      thickness: 1.0
-    });
-    const glassLens = new THREE.Mesh(glassGeo, glassMat);
-    cameraRigGroup.add(glassLens);
-
-    // 5. Aperture Blades assembly
-    const bladeGeo = new THREE.BoxGeometry(0.04, 0.55, 0.02);
-    const blackAnodizedMat = new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 0.4 });
-    const bladesCount = 8;
-    for (let i = 0; i < bladesCount; i++) {
-      const blade = new THREE.Mesh(bladeGeo, blackAnodizedMat);
-      const angle = (i / bladesCount) * Math.PI * 2;
-      blade.position.set(Math.cos(angle) * 1.0, Math.sin(angle) * 1.0, 0);
-      blade.rotation.z = angle + Math.PI / 4;
-      cameraRigGroup.add(blade);
-    }
-
-    cameraRigGroup.position.set(-3.5, 1.5, -2);
-    scene.add(cameraRigGroup);
-
-    // Cinematic Film Reels
-    const reelGroup = new THREE.Group();
-    const diskGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.1, 32);
-    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
-    const disk = new THREE.Mesh(diskGeo, darkMetal);
-    disk.rotation.x = Math.PI / 2;
-    reelGroup.add(disk);
-
-    // Ring details
-    const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 100);
-    const brassMat = new THREE.MeshStandardMaterial({ color: 0xC5A03A, metalness: 0.9, roughness: 0.1 });
-    const brassRing = new THREE.Mesh(ringGeo, brassMat);
-    brassRing.position.set(0, 0, 0.06);
-    reelGroup.add(brassRing);
-
-    reelGroup.position.set(4, -1, -2);
-    scene.add(reelGroup);
-
-    // Parallax background particle embers
-    const pCount = 100;
-    const pPositions = new Float32Array(pCount * 3);
-    const pSpeeds = [];
-    const pGeometry = new THREE.BufferGeometry();
-
-    for (let i = 0; i < pCount; i++) {
-      pPositions[i * 3] = (Math.random() - 0.5) * 18; 
-      pPositions[i * 3 + 1] = (Math.random() - 0.5) * 10; 
-      pPositions[i * 3 + 2] = (Math.random() - 0.5) * 4 - 3; 
-      pSpeeds.push({
-        x: (Math.random() - 0.5) * 0.01,
-        y: (Math.random() - 0.5) * 0.01
-      });
-    }
-
-    pGeometry.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
-    const pMaterial = new THREE.PointsMaterial({
-      color: 0xC5A03A,
-      size: 0.14,
-      transparent: true,
-      opacity: 0.7,
-      blending: THREE.AdditiveBlending
-    });
-    const particleSystem = new THREE.Points(pGeometry, pMaterial);
-    scene.add(particleSystem);
-
-    let mouseX = 0, mouseY = 0;
-    const targetMouse = { x: 0, y: 0 };
-    const handleWindowMouseMove = (e) => {
-      targetMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-      targetMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    };
-    window.addEventListener('mousemove', handleWindowMouseMove);
-
-    const clock = new THREE.Clock();
-    const animate = () => {
-      requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
-
-      // Extraordinary multi-axis 3D rotation of gimbal rings
-      outerRing.rotation.y = elapsed * 0.14;
-      outerRing.rotation.x = elapsed * 0.07;
-      innerRing.rotation.x = elapsed * 0.22;
-      innerRing.rotation.z = elapsed * 0.16;
-      lensBarrel.rotation.y = elapsed * 0.28;
-
-      cameraRigGroup.position.y = 1.5 + Math.sin(elapsed * 0.45) * 0.2;
-
-      reelGroup.rotation.z = elapsed * 0.35;
-      reelGroup.rotation.y = elapsed * 0.15;
-      reelGroup.position.y = -1 + Math.cos(elapsed * 0.5) * 0.15;
-
-      // Smooth camera interpolation based on cursor coordinates
-      mouseX += (targetMouse.x - mouseX) * 0.05;
-      mouseY += (targetMouse.y - mouseY) * 0.05;
-
-      specularSpot.position.x = 5 + mouseX * 4;
-      specularSpot.position.y = 5 + mouseY * 4;
-
-      camera.position.x = mouseX * 0.8;
-      camera.position.y = mouseY * 0.8;
-      camera.lookAt(scene.position);
-
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    const resize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
-    window.addEventListener('resize', resize);
-
-    return () => {
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('mousemove', handleWindowMouseMove);
-      if (mountRef.current) mountRef.current.innerHTML = '';
-    };
-  }, []);
-  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40 animate-fadeIn" />;
-}
-
-// --- SIGN IN STEPWISE FORM MODAL ---
-function SignInModal({ handleProfileSignIn, setShowSignInModal, categories, profiles }) {
-  const [email, setEmail] = useState('');
-  const [step, setStep] = useState(1);
-  const [name, setName] = useState('');
-  const [cat, setCat] = useState(categories[0] || 'Editing');
-  const [avatar, setAvatar] = useState(PRESET_AVATARS[0].svg);
-  const [uploadedBase64, setUploadedBase64] = useState('');
-
-  const checkEmailOnboard = (e) => {
-    e.preventDefault();
-    const matched = profiles.find(p => p.email.toLowerCase() === email.trim().toLowerCase());
-    if (matched) handleProfileSignIn(matched.name, matched.email, matched.photoURL, matched.workCategory);
-    else setStep(2);
-  };
-
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedBase64(reader.result);
-        setAvatar(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn font-sans">
-      <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative font-sans animate-fadeIn">
-        <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600 transition">✕</button>
-        {step === 1 ? (
-          <form onSubmit={checkEmailOnboard} className="space-y-4 font-sans">
-            <h3 className="font-serif text-xl font-bold text-center text-slate-800">Crew Member Identity</h3>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter Creator Gmail Address" className="w-full px-4 py-2.5 bg-slate-50 border-2 border-[#EADFC9] rounded-xl text-xs focus:ring-2 focus:ring-[#C5A03A] focus:outline-none transition shadow-inner font-sans" required />
-            <button type="submit" className="w-full py-2.5 bg-gradient-to-r from-[#C5A03A] to-[#E3BE5C] hover:from-[#b38e2f] hover:to-[#dcb650] text-white text-xs font-bold uppercase rounded-xl border-b-[5px] border-[#ab892c] active:border-b-[2px] active:translate-y-[3px] shadow transition-all font-sans font-semibold">Next Step</button>
-          </form>
-        ) : (
-          <form onSubmit={e => { e.preventDefault(); handleProfileSignIn(name, email, avatar, cat); }} className="space-y-4 font-sans overflow-y-auto max-h-[90vh] pb-4">
-            <h3 className="font-serif text-lg font-bold text-slate-800 border-b pb-2">Register New Profile</h3>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name Handle" className="w-full px-3 py-2 border rounded-lg text-xs font-sans animate-fadeIn" required />
-            <select value={cat} onChange={e => setCat(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-xs font-sans animate-fadeIn bg-white">
-              {categories.map((c, i) => <option key={i} value={c}>{c}</option>)}
-            </select>
-            
-            {/* Embedded Avatar Picker */}
-            <div className="space-y-2 font-sans animate-fadeIn">
-              <label className="block text-[10px] font-bold text-slate-500 uppercase font-sans">Choose Badge Avatar</label>
-              <div className="grid grid-cols-4 gap-2">
-                {PRESET_AVATARS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => { setAvatar(preset.svg); setUploadedBase64(''); }}
-                    className={`p-1.5 rounded-xl border-2 transition-all ${avatar === preset.svg && !uploadedBase64 ? 'border-[#C5A03A] bg-amber-50/40 scale-105' : 'border-slate-100 hover:border-slate-200'}`}
-                    dangerouslySetInnerHTML={{ __html: preset.svg }}
-                  />
-                ))}
-              </div>
-              
-              <div className="flex flex-col space-y-1 pt-1 font-sans">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Or upload image file:</span>
-                <input type="file" accept="image/*" onChange={handlePhotoUpload} className="text-[11px] text-slate-500" />
-              </div>
-            </div>
-
-            <button type="submit" className="w-full py-2 bg-gradient-to-r from-[#C5A03A] to-[#E3BE5C] text-white text-xs font-bold uppercase rounded-xl border-b-[5px] border-[#ab892c] active:border-b-[2px] active:translate-y-[3px] font-sans animate-fadeIn font-semibold">Submit Roster Application</button>
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// --- HOMEPAGE HUB ---
-function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, notifications, handleNavigation }) {
-  return (
-    <section className="space-y-10 py-4 animate-fadeIn font-sans">
-      <div className="text-center py-4">
-        <h1 className="font-serif text-4xl md:text-5xl font-black text-slate-800 uppercase tracking-tight">{siteSettings.logoText}</h1>
-        <p className="text-slate-500 font-serif italic text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        {[
-          { 
-            label: 'YouTube Subscribers', 
-            value: ytConfig.subscribers, 
-            icon: '📈', 
-            change: '@naitik._.artist-16 channel feed',
-            action: (
-              <button 
-                onClick={() => syncYouTubeStats()} 
-                className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans"
-              >
-                🔄 Fetch Live
-              </button>
-            )
-          },
-          { 
-            label: 'Latest Video Views', 
-            value: ytConfig.latestVideoViews, 
-            icon: '📺', 
-            change: ytConfig.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 32)}..."` : 'Ep 5 Draft track',
-            action: null
-          },
-          { label: 'Vault Records', value: `${videos.length} Masters`, icon: '🎞️', change: 'Chunked HLS Segmented', action: null },
-          { label: 'Active Ideas', value: `${projects.length} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
-        ].map((stat, idx) => (
-          <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-5 shadow-skeuo-md hover:-translate-y-1 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-40">
-            <div>
-              <div className="flex justify-between items-center text-slate-400 mb-2">
-                <span className="text-[10px] uppercase font-bold tracking-wider font-sans">{stat.label}</span>
-                <span className="text-xl">{stat.icon}</span>
-              </div>
-              <p className="text-xl md:text-2xl font-black text-slate-800 font-sans">{stat.value}</p>
-            </div>
-            <div className="mt-2 font-sans">
-              <span className="text-[9px] text-[#C5A03A] font-semibold block truncate">{stat.change}</span>
-              {stat.action}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Production Logs Section */}
-      <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md font-sans animate-fadeIn">
-        <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-3 mb-4 font-serif">
-          <h3 className="font-serif text-lg font-bold text-[#C5A03A]">⚡ Production Stream Logs</h3>
-          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full font-sans">Live Logs</span>
-        </div>
-        <div className="space-y-3 max-h-56 overflow-y-auto custom-scrollbar font-sans pr-1">
-          {notifications.map(notif => (
-            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-2 animate-fadeIn">
-              <span className="font-bold text-slate-800 font-sans">{notif.actor}: </span>
-              <span className="text-slate-600 font-sans">{notif.message}</span>
-              <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// --- CREW DIRECTORY SECTION WITH INLINE MODERATION ---
-function CrewSection({ profiles, setProfiles, userProfile, showToast, isAdmin }) {
-  const [focusIdx, setFocusIdx] = useState(0);
-  const approvedProfiles = useMemo(() => profiles.filter(p => p.status === 'approved'), [profiles]);
-  
-  return (
-    <section className="py-4 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-      <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl text-center shadow-skeuo-md animate-fadeIn">
-        <div className="w-28 h-28 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">
-          {approvedProfiles.length > 0 ? renderAvatar(approvedProfiles[focusIdx]?.photoURL) : renderAvatar('')}
-        </div>
-        <h3 className="font-serif text-2xl font-bold text-slate-800">{approvedProfiles[focusIdx]?.name || 'No Active Member'}</h3>
-        <p className="text-xs text-slate-400 mt-1 font-sans">{approvedProfiles[focusIdx]?.email || 'Empty roster'}</p>
-        <span className="bg-[#C5A03A] text-white text-[10px] px-3 py-1 rounded-full font-bold mt-3 inline-block font-sans shadow-sm">{approvedProfiles[focusIdx]?.role || 'none'}</span>
-      </div>
-
-      <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md max-h-[500px] overflow-y-auto custom-scrollbar animate-fadeIn">
-        <h4 className="font-serif font-bold text-base border-b pb-2 mb-3">Production Team Members</h4>
-        <div className="space-y-3 font-sans">
-          {profiles.map((p, i) => (
-            <div key={i} className="flex justify-between items-center p-3 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm" onClick={() => setFocusIdx(profiles.indexOf(p))}>
-                  {renderAvatar(p.photoURL)}
-                </div>
-                <div className="cursor-pointer" onClick={() => setFocusIdx(profiles.indexOf(p))}>
-                  <p className="text-xs font-bold text-slate-800">{p.name}</p>
-                  <span className="text-[9px] font-mono text-slate-400">{p.email} • {p.role} • {p.workCategory}</span>
-                </div>
-              </div>
-              {isAdmin && p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() && (
-                <div className="flex space-x-1 font-sans">
-                  <button onClick={() => setProfiles(prev => prev.filter(x => x.uid !== p.uid))} className="bg-rose-50 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-1 rounded-full transition hover:bg-rose-100 font-sans">Remove</button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// --- TIMELINE CATEGORIES FRAME ---
-function CategoriesViewSection({ profiles, categories, setCategories, showToast }) {
-  const [activeCategory, setActiveCategory] = useState(categories[0] || 'Editing');
-  const [newCatInput, setNewCustomCategory] = useState('');
-
-  const handleAddCategory = (e) => {
-    e.preventDefault();
-    const clean = newCatInput.trim();
-    if (!clean) return;
-
-    if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) {
-      showToast("Category tag already exists.", "warning");
-      return;
-    }
-
-    setCategories(prev => [...prev, clean]);
-    setActiveCategory(clean);
-    setNewCustomCategory('');
-    showToast(`Category "${clean}" added successfully!`, "success");
-  };
-
-  const matchedMembers = useMemo(() => {
-    return profiles.filter(p => p.status === 'approved' && p.workCategory === activeCategory);
-  }, [profiles, activeCategory]);
-
-  return (
-    <section className="py-4 animate-fadeIn space-y-6 font-sans">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 font-sans">
-        
-        {/* Left Side: Create Custom Category & Category Selector List */}
-        <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-3xl shadow-skeuo-md space-y-5 animate-fadeIn">
-          <div>
-            <h4 className="font-serif text-sm font-bold text-slate-800 mb-2">Add Custom Category</h4>
-            <form onSubmit={handleAddCategory} className="space-y-2 font-sans font-semibold">
-              <input 
-                type="text" 
-                value={newCatInput}
-                onChange={(e) => setNewCustomCategory(e.target.value)}
-                placeholder="e.g. 3D Matte Shader"
-                className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none"
-                required
-              />
-              <button type="submit" className="w-full py-1.5 bg-[#C5A03A] text-white text-[10px] font-bold uppercase rounded-lg border-b-[4px] border-[#ab892c] active:border-b-[2px] active:translate-y-[2px] shadow-sm">
-                Add Role Tag
-              </button>
-            </form>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 space-y-1">
-            <span className="text-[10px] font-bold text-[#C5A03A] uppercase tracking-wider block mb-2 font-sans">Role tags</span>
-            {categories.map((cat, idx) => (
-              <button
-                key={idx}
-                onClick={() => setActiveCategory(cat)}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}
-              >
-                🎥 {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Right Side: Showcase matching members */}
-        <div className="lg:col-span-3 bg-white/70 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md space-y-4 animate-fadeIn">
-          <div className="flex justify-between items-center border-b pb-3 border-slate-100 font-serif">
-            <h3 className="font-serif text-lg font-bold text-slate-800">Specialization: <span className="text-[#C5A03A]">{activeCategory}</span></h3>
-            <span className="text-xs bg-slate-100 px-2 py-1 rounded font-bold text-slate-500 font-sans">{matchedMembers.length} Specialists</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans animate-fadeIn">
-            {matchedMembers.map((member) => (
-              <div key={member.uid} className="flex items-center space-x-3 p-4 border bg-white rounded-xl shadow-sm animate-fadeIn">
-                <div className="w-10 h-10 rounded-full border bg-white overflow-hidden p-0.5 flex items-center justify-center animate-fadeIn">
-                  {renderAvatar(member.photoURL)}
-                </div>
-                <div>
-                  <h5 className="font-bold text-xs text-slate-800 font-sans">{member.name}</h5>
-                  <p className="text-[10px] text-slate-400 font-sans">{member.email}</p>
-                  <span className="inline-block bg-amber-50 text-[#C5A03A] text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 font-sans">{member.role}</span>
-                </div>
-              </div>
-            ))}
-
-            {matchedMembers.length === 0 && (
-              <div className="col-span-full py-16 text-center text-slate-400 italic">
-                "No crew member is currently assigned to this specialization."
-              </div>
-            )}
-          </div>
-        </div>
-
-      </div>
-    </section>
-  );
-}
-
-// --- VIDEO VAULT SIMULATOR ---
-function VideoVault({ videos, handleAddVideo, handleAddVideoComment, handleDeleteVideo, userProfile, showToast, isAdmin, pushNotification }) {
-  const [selectedVid, setSelectedVid] = useState(null);
-  const [videoTitle, setVideoTitle] = useState('');
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-
-  // Form submission handler for posting a comment on selected video
-  const handlePostVideoComment = (e) => {
-    e.preventDefault();
-    const commentText = e.target.commentInput.value.trim();
-    if (!commentText || !selectedVid) return;
-
-    handleAddVideoComment(selectedVid, commentText);
-    pushNotification(`Commented on video draft "${selectedVid.title}"`, userProfile.name);
-    showToast("Feedback comment posted!", "success");
-    e.target.commentInput.value = '';
-  };
-
-  const handleVideoFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-    }
-  };
-
-  const startParallelUploader = (e) => {
-    e.preventDefault();
-    if (!videoTitle.trim()) return;
-
-    // Use selected video file object URL, fallback to default loop
-    const finalVideoUrl = selectedFile 
-      ? URL.createObjectURL(selectedFile) 
-      : 'https://assets.mixkit.co/videos/preview/mixkit-watercolor-ink-drops-in-water-43313-large.mp4';
-
-    handleAddVideo(videoTitle.trim(), finalVideoUrl, selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB` : '15 GB (HLS Track)');
-    pushNotification(`Uploaded real raw video asset: "${videoTitle}"`, userProfile.name);
-    setVideoTitle('');
-    setSelectedFile(null);
-    setShowUploadModal(false);
-    showToast("Video draft successfully processed & loaded!", "success");
-  };
-
-  return (
-    <section className="py-4 space-y-4 font-sans animate-fadeIn">
-      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans animate-fadeIn">
-        <div>
-          <h3 className="font-serif font-bold text-slate-800 text-lg">Timeline Asset Vault</h3>
-          <p className="text-xs text-slate-400 font-sans">Collaborate with live chunk uploads & segment comments</p>
-        </div>
-        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans font-semibold">+ Upload Track</button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-        
-        {/* Left main view (Active Video Detail & Comments) */}
-        <div className="lg:col-span-2 space-y-4 animate-fadeIn font-sans">
-          {selectedVid ? (
-            <div className="space-y-4 animate-fadeIn font-sans">
-              <div className="bg-[#1b1915] rounded-2xl overflow-hidden relative border-4 border-white shadow-skeuo-md">
-                <video key={selectedVid.id} src={selectedVid.hlsUrl} className="w-full h-64 md:h-80 object-cover animate-fadeIn" controls autoPlay />
-              </div>
-              
-              <div className="p-4 bg-white border-b-[4px] border-[#EADFC9] rounded-xl shadow-sm">
-                <h4 className="font-serif font-bold text-slate-800 text-base">{selectedVid.title}</h4>
-                <p className="text-xs text-slate-400 font-sans">Uploaded by {selectedVid.uploaderName} • {selectedVid.size}</p>
-              </div>
-
-              {/* VIDEO FEEDBACK & COMMENTS MODULE */}
-              <div className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
-                <h4 className="font-serif font-bold text-slate-800 text-sm border-b pb-2">Crew Feedback ({selectedVid.comments?.length || 0})</h4>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                  {(selectedVid.comments || []).map((comment, index) => (
-                    <div key={index} className="text-xs p-3 bg-slate-50 rounded-xl border flex justify-between items-start animate-fadeIn">
-                      <div>
-                        <span className="font-bold text-slate-800 mr-2">{comment.authorName}</span>
-                        <span className="text-slate-600">{comment.text}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  ))}
-                  {(!selectedVid.comments || selectedVid.comments.length === 0) && (
-                    <p className="text-xs text-slate-400 italic py-2">No feedback notes posted yet. Start the conversation below!</p>
-                  )}
-                </div>
-                
-                <form onSubmit={handlePostVideoComment} className="flex gap-2 pt-1.5 border-t">
-                  <input 
-                    type="text" 
-                    name="commentInput" 
-                    placeholder="Scribble video feedback (e.g. frame timing at 0:15 is a bit long)..." 
-                    className="flex-1 px-3 py-2 bg-slate-50 border rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" 
-                    required 
-                  />
-                  <button type="submit" className="bg-[#C5A03A] text-white text-xs px-4 py-2 rounded-xl font-bold font-sans transition hover:bg-[#b08d32]">Post</button>
-                </form>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white/60 border-2 border-dashed border-[#EADFC9] p-16 text-center rounded-2xl text-slate-400 font-sans shadow-inner">Select any video draft below to open timeline player & comments feed.</div>
-          )}
-        </div>
-
-        {/* Right side Playlist Grid */}
-        <div className="lg:col-span-1 space-y-4 font-sans animate-fadeIn">
-          <h4 className="font-serif font-bold text-sm text-slate-700">Video Draft Playlist ({videos.length})</h4>
-          <div className="grid grid-cols-1 gap-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
-            {videos.map((v, i) => (
-              <div key={i} className={`bg-white border-b-[4px] border-[#EADFC9] border-r border-l border-t p-3 rounded-xl hover:-translate-y-1 hover:shadow-skeuo-sm transition-all flex justify-between items-center animate-fadeIn ${selectedVid?.id === v.id ? 'border-[#C5A03A] bg-amber-50/20' : ''}`}>
-                <div onClick={() => setSelectedVid(v)} className="cursor-pointer flex-1 min-w-0 pr-2">
-                  <h5 className="font-bold text-xs text-slate-800 truncate">{v.title}</h5>
-                  <span className="text-[10px] text-slate-400 font-sans">Uploaded by {v.uploaderName} • {v.comments?.length || 0} Comments</span>
-                </div>
-                {(isAdmin || v.uploaderUid === userProfile?.uid) && (
-                  <button onClick={() => handleDeleteVideo(v.id)} className="text-rose-550 font-bold p-1 hover:text-rose-700 transition" title="Delete Video">🗑️</button>
-                )}
-              </div>
-            ))}
-
-            {videos.length === 0 && (
-              <p className="text-xs text-slate-400 italic py-6 text-center">No video track segments uploaded yet.</p>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {showUploadModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <form onSubmit={startParallelUploader} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
-            <h4 className="font-serif font-bold text-slate-800">Upload Real Video File</h4>
-            
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase">Video Title</label>
-              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} placeholder="e.g. My Watercolor Vlog" className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs mt-1 font-sans" required />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase">Select File</label>
-              <input type="file" accept="video/*" onChange={handleVideoFileChange} className="w-full text-xs text-slate-500 mt-1 font-sans" required />
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px] hover:bg-red-700 transition">Ingest Video</button>
-            </div>
-          </form>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// --- PROJECT SPREADSHEET CORKBOARD COMPONENT ---
-function ProjectBoard({ projects, tasks, handleCreateConcept, handleAddTask, handleToggleTaskStatus, userProfile, showToast, selectedProject, setSelectedProject, setCurrentPage, setChatChannel, pushNotification }) {
-  const [newConcept, setNewConcept] = useState('');
-  const [taskTitle, setTaskTitle] = useState('');
-
-  const createConcept = (e) => {
-    e.preventDefault();
-    if (!newConcept.trim()) return;
-    handleCreateConcept(newConcept.trim());
-    setNewConcept('');
-    showToast("Artboard concept mapped!", "success");
-  };
-
-  const activeTasks = useMemo(() => tasks.filter(t => t.projectId === selectedProject?.id), [tasks, selectedProject]);
-
-  return (
-    <section className="py-4 animate-fadeIn font-sans">
-      {!selectedProject ? (
-        <div className="space-y-4 font-sans">
-          <form onSubmit={createConcept} className="max-w-md mx-auto flex gap-2 bg-white border border-[#EADFC9] p-4 rounded-xl shadow-skeuo-sm">
-            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New video conceptual sprint..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
-            <button type="submit" className="px-4 bg-[#C5A03A] text-white text-xs rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow">Pin Board</button>
-          </form>
-
-          {/* Heavy 3D Wood Carved Framed Corkboard */}
-          <div 
-            className="p-8 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-3xl grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn"
-            style={{ 
-              backgroundColor: '#deb887',
-              backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)',
-              backgroundSize: '20px 20px'
-            }}
-          >
-            {projects.map((p, idx) => (
-              <div key={idx} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl cursor-pointer shadow-skeuo-md hover:-translate-y-1 hover:shadow-skeuo-3d transition-all relative">
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-2xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
-                <h4 className="font-serif font-bold text-slate-800 pt-3 text-center line-clamp-2">{p.title}</h4>
-              </div>
-            ))}
-
-            {projects.length === 0 && (
-              <p className="text-center text-slate-700 italic col-span-full py-12">Roster Corkboard is currently pristine. Pin down a concept to start!</p>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-4 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-6 rounded-3xl shadow-skeuo-md animate-fadeIn font-sans">
-          <button onClick={() => setSelectedProject(null)} className="text-xs font-bold text-[#C5A03A] hover:underline transition">◀ Back to Cork Board</button>
-          <h3 className="font-serif text-2xl font-bold text-slate-800">{selectedProject.title}</h3>
-          
-          <div className="divide-y text-xs">
-            {activeTasks.map((t, idx) => (
-              <div key={idx} className="py-3 flex justify-between items-center cursor-pointer hover:bg-slate-50" onClick={() => handleToggleTaskStatus(t)}>
-                <span className={`font-semibold ${t.status === 'Completed' ? 'line-through text-slate-450' : 'text-slate-700'}`}>{t.title}</span>
-                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</span>
-              </div>
-            ))}
-          </div>
-
-          <form onSubmit={e => { e.preventDefault(); if (!taskTitle.trim()) return; handleAddTask(selectedProject.id, taskTitle.trim()); setTaskTitle(''); }} className="flex gap-2 max-w-sm pt-4">
-            <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add specific sprint work card" className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs" required />
-            <button type="submit" className="px-3 bg-slate-800 text-white text-xs rounded-lg font-bold">Add</button>
-          </form>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// --- CHATROOM PANEL ---
-function WhiteboardChat({ chats, handleAddChat, chatChannel, setChatChannel }) {
-  const [inputText, setInputText] = useState('');
-  
-  const commit = (e) => {
-    e.preventDefault();
-    if (!inputText.trim()) return;
-    handleAddChat(inputText.trim(), chatChannel);
-    setInputText('');
-  };
-
-  return (
-    <section className="grid grid-cols-4 border-2 border-[#EADFC9] rounded-[2rem] h-[400px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
-      <div className="col-span-1 bg-[#FFFDF9] p-3 space-y-2 border-r text-xs border-[#EADFC9]/50">
-        <button onClick={() => setChatChannel('general')} className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition ${chatChannel === 'general' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : ''}`}>🌍 Studio Room</button>
-      </div>
-      <div className="col-span-3 flex flex-col h-full justify-between bg-slate-50/20 font-sans">
-        <div className="p-4 overflow-y-auto space-y-2 custom-scrollbar flex-1 font-sans">
-          {chats.filter(c => c.projectId === chatChannel).map((m, i) => (
-            <div key={i} className="text-xs p-3 bg-white border border-[#EADFC9]/40 rounded-2xl max-w-[70%] animate-fadeIn shadow-xs font-sans">
-              <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{m.senderName}</span>
-              {m.text}
-            </div>
-          ))}
-        </div>
-        <form onSubmit={commit} className="p-3 border-t flex gap-2 bg-white font-sans animate-fadeIn">
-          <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type studio track commentary..." className="flex-1 px-3 border rounded-xl text-xs focus:outline-none" />
-          <button type="submit" className="px-4 py-2 bg-[#C5A03A] text-white text-xs rounded-xl font-bold border-b-[4px] border-[#ab892c]">Send</button>
-        </form>
-      </div>
-    </section>
-  );
-}
-
-// --- INSTAGRAM SHOWCASE WORK FEED COMPONENT ---
-function PostsWorkspace({ posts, handleAddPost, handleLikePost, handleAddPostComment, userProfile, showToast, pushNotification, firebaseUser }) {
-  const [postTitle, setPostTitle] = useState('');
-  const [postImageBase64, setPostImageBase64] = useState('');
-  const [postText, setPostText] = useState('');
-  const [showCreateModal, setShowCreatePostModal] = useState(false);
-
-  const handlePostPhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPostImageBase64(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const publishPost = (e) => {
-    e.preventDefault();
-    if (!postTitle.trim() || !postImageBase64) {
-      showToast("Please provide title and visual asset proof.", "warning");
-      return;
-    }
-
-    handleAddPost(postTitle.trim(), postText.trim(), postImageBase64);
-    pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name);
-    setPostTitle('');
-    setPostText('');
-    setPostImageBase64('');
-    setShowCreatePostModal(false);
-    showToast("Showcase published to Insta Feed!", "success");
-  };
-
-  const toggleLikePost = (post) => {
-    handleLikePost(post);
-  };
-
-  const handleAddComment = (e, post) => {
-    e.preventDefault();
-    const commentVal = e.target.commentInputText.value.trim();
-    if (!commentVal) return;
-
-    handleAddPostComment(post, commentVal);
-    e.target.commentInputText.value = '';
-    showToast("Comment published!", "success");
-  };
-
-  return (
-    <section className="py-4 animate-fadeIn space-y-6 font-sans">
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-white border border-[#EADFC9]/50 p-5 rounded-2xl shadow-sm gap-4">
-        <div>
-          <h2 className="font-serif text-2xl font-bold text-slate-800">📸 Insta Showroom Feed</h2>
-          <p className="text-xs text-slate-400">Publish video thumbnails, design drafts, and timeline assets</p>
-        </div>
-
-        <button 
-          onClick={() => setShowCreatePostModal(true)}
-          className="bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 text-white font-bold text-xs px-5 py-2.5 rounded-full border-b-[4px] border-amber-700 active:border-b-[1px] active:translate-y-[3px] shadow transition-all font-sans"
-        >
-          <span>➕</span>
-          <span>Create Post</span>
-        </button>
-      </div>
-
-      <div className="max-w-md mx-auto space-y-8 animate-fadeIn">
-        {posts.map((post, idx) => {
-          const amLiked = post.likedBy?.includes(firebaseUser?.uid);
-          return (
-            <div key={idx} className="bg-white border-2 border-[#EADFC9] rounded-[2rem] overflow-hidden shadow-skeuo-md animate-fadeIn">
-              
-              {/* Instagram Card Header */}
-              <div className="p-3.5 flex items-center space-x-3 border-b border-slate-50">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 animate-fadeIn">
-                  {renderAvatar(post.authorAvatar)}
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-slate-800">{post.authorName}</h4>
-                  <span className="text-[9px] text-slate-400 font-mono">{new Date(post.createdAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-
-              {/* Card Main Image */}
-              <div className="w-full h-80 overflow-hidden bg-slate-100 relative">
-                {post.image?.startsWith('data:') || post.image?.startsWith('http') ? (
-                  <img src={post.image} alt={post.title} className="w-full h-full object-cover animate-fadeIn" />
-                ) : (
-                  <div className="w-full h-full p-4 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: post.image || PRESET_AVATARS[0].svg }} />
-                )}
-              </div>
-
-              {/* Action Ribbon & Comment Module */}
-              <div className="p-3.5 space-y-2 border-t border-slate-50 font-sans">
-                <div className="flex items-center justify-between font-sans">
-                  <div className="flex items-center space-x-3 font-sans">
-                    <button 
-                      onClick={() => toggleLikePost(post)}
-                      className="text-xl transition-transform active:scale-150"
-                    >
-                      {amLiked ? '❤️' : '🤍'}
-                    </button>
-                    <span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span>
-                  </div>
-                </div>
-
-                <div className="text-xs">
-                  <span className="font-bold text-slate-800 mr-2">{post.authorName}</span>
-                  <span className="font-semibold text-slate-700">{post.title}</span>
-                  {post.description && <p className="text-slate-500 mt-1 leading-relaxed font-sans">{post.description}</p>}
-                </div>
-
-                {/* SHOWCASE POST COMMENTS */}
-                <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-                  {(post.comments || []).map((c, i) => (
-                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans">
-                      <span className="font-bold text-slate-800 mr-1.5">{c.authorName}</span>
-                      <span className="text-slate-600">{c.text}</span>
-                    </div>
-                  ))}
-                  {(!post.comments || post.comments.length === 0) && (
-                    <p className="text-[10px] text-slate-400 italic font-sans">No comments published yet.</p>
-                  )}
-                </div>
-
-                {/* Add Comment Input */}
-                <form onSubmit={(e) => handleAddComment(e, post)} className="pt-2 border-t border-[#EADFC9]/20 flex gap-2 font-sans">
-                  <input 
-                    name="commentInputText"
-                    type="text" 
-                    placeholder="Add comment..." 
-                    className="flex-1 text-[11px] px-3 py-1.5 bg-slate-50 border rounded-lg focus:outline-none"
-                    required
-                  />
-                  <button type="submit" className="text-[10px] font-bold text-[#C5A03A] font-sans">Post</button>
-                </form>
-              </div>
-
-            </div>
-          );
-        })}
-
-        {posts.length === 0 && (
-          <div className="py-24 text-center text-slate-400 font-handwritten text-xl bg-white/50 border-2 border-dashed rounded-2xl p-8 animate-fadeIn">
-            "No showroom posts loaded yet. Publish your completed B-rolls, thumbnails, or scripts above!"
-          </div>
-        )}
-      </div>
-
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="w-full max-w-md animate-fadeIn bg-white border border-[#EADFC9] rounded-[2.5rem] p-6 shadow-2xl relative">
-            <button onClick={() => setShowCreatePostModal(false)} className="absolute top-4 right-4 font-bold text-slate-400">✕</button>
-            <h3 className="font-serif text-lg font-bold border-b pb-2 mb-4 font-serif">Create Roster Post</h3>
-            <form onSubmit={publishPost} className="space-y-4 text-xs font-sans">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Post Title</label>
-                <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="e.g. Episode Thumbnail Cut 1" className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none" required />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Context details</label>
-                <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Scribble context details..." className="w-full px-3 py-2 border rounded-xl mt-1 focus:outline-none" rows="2" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase font-semibold">Screenshot upload</label>
-                <input type="file" accept="image/*" onChange={handlePostPhotoUpload} className="w-full text-xs text-slate-500 mt-2 font-sans" required />
-              </div>
-              <button type="submit" className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold uppercase rounded-xl font-sans">Share Post</button>
-            </form>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// --- MY PROFILE SETTINGS WORKSPACE ---
-function MyProfileWorkspace({ userProfile, profiles, setProfiles, categories, setCategories, showToast }) {
-  const [fullName, setFullName] = useState(userProfile?.name || '');
-  const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
-  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(userProfile?.photoURL || '');
-  const [newCatInp, setNewCatInp] = useState('');
-
-  // Keep internal component state synced when userProfile changes
-  useEffect(() => {
-    if (userProfile) {
-      setFullName(userProfile.name || '');
-      setSelectedCat(userProfile.workCategory || categories[0] || 'Editing');
-      setUploadedPhotoUrl(userProfile.photoURL || '');
-    }
-  }, [userProfile, categories]);
-
-  const triggerPfpUpdate = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedPhotoUrl(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const saveProfileSettings = async (e) => {
-    e.preventDefault();
-    if (!fullName.trim() || !userProfile) return;
-
-    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', userProfile.uid), {
-      ...userProfile,
-      name: fullName.trim(),
-      workCategory: selectedCat,
-      photoURL: uploadedPhotoUrl
-    });
-    showToast("Your profile updates saved successfully!", "success");
-  };
-
-  const handleRegisterCategory = (e) => {
-    e.preventDefault();
-    const refined = newCatInp.trim();
-    if (!refined) return;
-
-    if (categories.some(c => c.toLowerCase() === refined.toLowerCase())) {
-      showToast("Category tag already exists.", "warning");
-      return;
-    }
-
-    setCategories(refined);
-    setSelectedCat(refined);
-    setNewCatInp('');
-    showToast("Category registered!", "success");
-  };
-
-  return (
-    <section className="max-w-2xl mx-auto bg-white border border-[#EADFC9] rounded-[2.5rem] p-8 shadow-lg relative animate-fadeIn font-sans">
-      <WatercolorOverlay />
-      
-      <div className="text-center mb-6">
-        <span className="text-xs font-bold uppercase tracking-wider text-[#C5A03A]">My Badge Profile</span>
-        <h2 className="font-serif text-3xl font-bold text-slate-800">Configure Profile Details</h2>
-      </div>
-
-      <div className="flex flex-col items-center mb-6 font-sans">
-        <div className="w-24 h-24 rounded-full border-4 border-[#C5A03A]/20 bg-white overflow-hidden shadow-md flex items-center justify-center mb-2 font-sans">
-          {renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-full")}
-        </div>
-        <p className="text-xs text-slate-400 font-sans">Live PFP Preview</p>
-      </div>
-
-      <form onSubmit={saveProfileSettings} className="space-y-4 font-sans animate-fadeIn">
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 uppercase">Display Name</label>
-          <input 
-            type="text" 
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none"
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase font-sans">Specialization Category</label>
-            <select 
-              value={selectedCat}
-              onChange={(e) => setSelectedCat(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]"
-            >
-              {categories.map((cat, idx) => (
-                <option key={idx} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase">Upload New PFP (Image file)</label>
-            <input 
-              type="file"
-              accept="image/*"
-              onChange={triggerPfpUpdate}
-              className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-amber-50 file:text-amber-700"
-            />
-          </div>
-        </div>
-
-        <button type="submit" className="w-full py-3 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-serif font-bold uppercase rounded-xl tracking-wider hover:bg-[#ae8b30] shadow transition">
-          Save Profile Details
-        </button>
-      </form>
-
-      {/* Inline Section to write your own category */}
-      <div className="border-t border-[#EADFC9]/50 mt-6 pt-6 font-sans">
-        <h4 className="font-serif text-sm font-bold text-slate-800 mb-2">Create & Register Custom Category tag</h4>
-        <form onSubmit={handleRegisterCategory} className="flex gap-2 font-sans font-semibold">
-          <input 
-            type="text" 
-            value={newCatInp}
-            onChange={(e) => setNewCatInp(e.target.value)}
-            placeholder="e.g. 3D Animation Specialist"
-            className="flex-1 px-4 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:outline-none"
-            required
-          />
-          <button type="submit" className="px-4 py-2 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">
-            Add Role Tag
-          </button>
-        </form>
-      </div>
-
-    </section>
-  );
-}
-
-// --- DEDICATED ADMIN CONTROL HUB PANEL ---
-function AdminPanel({ profiles, handleToggleRole, handleRemoveProfile, handleSaveBrandLabel, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
-  const [logoTxt, setLogoTxt] = useState(siteSettings.logoText);
-  const [editingUserId, setEditingUserId] = useState(null);
-
-  const saveLogo = (e) => {
-    e.preventDefault();
-    if (logoTxt.trim()) {
-      handleSaveBrandLabel(logoTxt.trim());
-      showToast("Logo brand label custom settings modified!", "success");
-    }
-  };
-
-  return (
-    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn font-sans">
-      
-      {/* Branding and YouTube API Setup */}
-      <div className="col-span-1 space-y-6">
-        
-        {/* Branding Configuration */}
-        <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md space-y-4 font-sans animate-fadeIn">
-          <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Studio Branding</h3>
-          <form onSubmit={saveLogo} className="space-y-3">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase">Logo Brand Text</label>
-              <input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1" required />
-            </div>
-            <button type="submit" className="w-full py-2 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs rounded-lg font-bold font-sans">Save Label</button>
-          </form>
-        </div>
-
-      </div>
-
-      <div className="col-span-2 bg-white border-2 border-[#EADFC9] p-5 rounded-[2rem] shadow-skeuo-md font-sans">
-        <h3 className="font-serif font-bold border-b pb-2 mb-3 text-slate-800">Roster Control & Applicants</h3>
-        <table className="w-full text-xs text-left font-sans">
-          <thead>
-            <tr className="text-slate-400 font-sans font-semibold">
-              <th className="pb-2">Crew Profile</th>
-              <th className="pb-2">Access Role</th>
-              <th className="pb-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profiles.map((p, index) => (
-              <tr key={index} className="border-t font-sans animate-fadeIn">
-                <td className="py-2.5 font-bold">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50">
-                      {renderAvatar(p.photoURL)}
-                    </div>
-                    <div className="flex flex-col font-sans">
-                      <span>{p.name}</span>
-                      <span className="text-[9px] text-slate-400 font-normal">{p.email}</span>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-2.5 uppercase font-mono text-[10px] font-semibold">{p.role}</td>
-                <td className="py-2.5 text-right space-x-1.5 font-sans">
-                  {p.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase() ? (
-                    <div className="flex items-center justify-end gap-1.5 flex-wrap font-sans">
-                      <button onClick={() => handleToggleRole(p)} className="bg-amber-50 text-amber-700 px-3 py-1 rounded font-bold hover:bg-amber-100 font-sans border border-amber-200">
-                        {p.role === 'admin' ? 'Demote' : 'Promote'}
-                      </button>
-                      <button onClick={() => handleRemoveProfile(p.uid)} className="bg-rose-50 text-rose-600 px-3 py-1 rounded font-bold hover:bg-rose-100 font-sans border border-rose-200">Remove</button>
-                    </div>
-                  ) : <span className="text-slate-400 italic">Owner</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-// --- ACCESS EXITS ---
-function PendingScreen({ userProfile }) {
-  return (
-    <div className="min-h-[60vh] flex items-center justify-center text-center p-4">
-      <div className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl max-w-sm shadow-skeuo-md animate-fadeIn font-sans">
-        <h3 className="font-serif font-bold text-xl mb-2"> Roster Waiting Room</h3>
-        <p className="text-xs text-slate-500 mb-4 font-sans">Hello {userProfile?.name}! Your account request has been routed to the pending list for review.</p>
-      </div>
-    </div>
-  );
-}
-
-function RejectedScreen({ userProfile }) {
-  return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact Owner direct link.</div>;
-}
-
-```
