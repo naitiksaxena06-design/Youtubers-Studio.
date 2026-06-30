@@ -5,6 +5,8 @@ import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as fbSignOut,
   onAuthStateChanged,
 } from "firebase/auth";
@@ -67,6 +69,8 @@ export {
   getDownloadURL,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   fbSignOut,
 };
 
