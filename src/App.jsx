@@ -1,54 +1,45 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  auth, db, googleProvider,
+  doc, setDoc, updateDoc, deleteDoc, getDoc,
+  collection, addDoc, onSnapshot, query, orderBy, fbLimit,
+  arrayUnion, onAuthStateChanged, signInWithPopup, fbSignOut,
+} from './firebase';
 
-// --- FIREBASE IMPORTS ---
-import { initializeApp } from "firebase/app";
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  signInWithPopup, 
-  signOut as fbSignOut 
-} from "firebase/auth";
-import { 
-  getFirestore, 
-  doc, setDoc, updateDoc, deleteDoc, getDoc, 
-  collection, addDoc, onSnapshot, query, orderBy, limit as fbLimit, 
-  arrayUnion 
-} from "firebase/firestore";
-import { 
-  getStorage, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL 
-} from "firebase/storage";
-
-// --- FIREBASE CONFIGURATION ---
-const firebaseConfig = {
-  apiKey: "AIzaSyDi1RdcZnzYQx7oGYmHsbOPU8wlnxlm6TY",
-  authDomain: "rs-studio-c152d.firebaseapp.com",
-  databaseURL: "https://rs-studio-c152d-default-rtdb.firebaseio.com",
-  projectId: "rs-studio-c152d",
-  storageBucket: "rs-studio-c152d.firebasestorage.app",
-  messagingSenderId: "319185394502",
-  appId: "1:319185394502:web:fb4c3d619ed2c40dc06347",
-  measurementId: "G-18PE8WD0SV"
+// --- STYLING INJECTION (YOUR COMPLETE PREMIUM ART STYLE) ---
+const injectArtStyleStyles = () => {
+  if (document.getElementById('studio-aurum-styles')) return;
+  const styleBlock = document.createElement('style');
+  styleBlock.id = 'studio-aurum-styles';
+  styleBlock.innerHTML = `
+    .font-serif { font-family: 'Playfair Display', Georgia, serif; }
+    .font-sans { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .font-handwritten { font-family: 'Oranienbaum', Georgia, serif; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(234, 223, 201, 0.2); border-radius: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(197, 160, 58, 0.4); border-radius: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(197, 160, 58, 0.6); }
+    .shadow-skeuo-sm { box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06); }
+    .shadow-skeuo-md { box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1); }
+    .shadow-skeuo-lg { box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15); }
+    .shadow-skeuo-3d { box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9); }
+  `;
+  document.head.appendChild(styleBlock);
 };
 
-// Initialize Firebase Services
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
-const googleProvider = new GoogleAuthProvider();
+// --- PRESET AVATARS ---
+const PRESET_AVATARS = [
+  { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
+  { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.15"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#1D4ED8" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#1D4ED8"/></svg>` },
+  { id: 'gold-palette', name: 'Golden Drop', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.15"/><path d="M30,40 A20,20 0 0,0 70,60 A20,20 0 0,0 30,40" fill="#C5A03A"/><circle cx="45" cy="48" r="3" fill="#ffffff"/></svg>` },
+  { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#10B981" opacity="0.15"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"/></svg>` },
+];
 
-// Storage Upload Helper (used for larger files like Videos and High-Res Insta Posts)
-const uploadToStorage = async (path, file) => {
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  return await getDownloadURL(storageRef);
-};
+const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
+const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
+const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
-// --- FOOLPROOF LOCAL COMPRESSION UTILITY (Bypasses Storage issues for Avatars & Logos) ---
+// --- FOOLPROOF LOCAL COMPRESSION UTILITY (Bypasses Storage constraints entirely) ---
 const compressAndConvertImage = (file, maxDim = 150) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -62,24 +53,16 @@ const compressAndConvertImage = (file, maxDim = 150) => {
         let height = img.height;
         
         if (width > height) {
-          if (width > maxDim) {
-            height *= maxDim / width;
-            width = maxDim;
-          }
+          if (width > maxDim) { height *= maxDim / width; width = maxDim; }
         } else {
-          if (height > maxDim) {
-            width *= maxDim / height;
-            height = maxDim;
-          }
+          if (height > maxDim) { width *= maxDim / height; height = maxDim; }
         }
         
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        
-        // Output compressed JPEG at 75% quality as data url
-        resolve(canvas.toDataURL('image/jpeg', 0.75));
+        resolve(canvas.toDataURL('image/jpeg', 0.70));
       };
       img.onerror = (err) => reject(err);
     };
@@ -87,36 +70,34 @@ const compressAndConvertImage = (file, maxDim = 150) => {
   });
 };
 
-// --- STYLING INJECTION ---
-const injectArtStyleStyles = () => {
-  if (document.getElementById('studio-aurum-styles')) return;
-  const styleBlock = document.createElement('style');
-  styleBlock.id = 'studio-aurum-styles';
-  styleBlock.innerHTML = `
-    .font-serif { font-family: 'Playfair Display', Georgia, serif; }
-    .font-sans { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(234, 223, 201, 0.2); border-radius: 8px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(197, 160, 58, 0.4); border-radius: 8px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(197, 160, 58, 0.6); }
-    .shadow-skeuo-sm { box-shadow: 0 4px 6px -1px rgba(135, 112, 58, 0.1), 0 2px 4px -1px rgba(135, 112, 58, 0.06); }
-    .shadow-skeuo-md { box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1); }
-    .shadow-skeuo-lg { box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15); }
-    .shadow-skeuo-3d { box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9); }
-  `;
-  document.head.appendChild(styleBlock);
+// --- SMART EMBEDDABLE PLAYER RESOLVER (Plays Drive, YT, or direct MP4 inside the app) ---
+const resolvePlayableVideo = (url) => {
+  if (!url) return { type: 'none', src: '' };
+  const cleaned = url.trim();
+
+  // 1. YouTube Resolvers
+  const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+  const ytMatch = cleaned.match(ytRegex);
+  if (ytMatch) {
+    return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1` };
+  }
+
+  // 2. Google Drive Preview Embed
+  const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
+  const driveMatch = cleaned.match(driveRegex);
+  if (driveMatch) {
+    return { type: 'drive', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview` };
+  }
+
+  // 3. Direct video format files (MP4, WebM, etc.)
+  const isDirect = /\.(mp4|webm|mov|ogv|m4v)(?:\?|$)/i.test(cleaned) || cleaned.startsWith('data:video/');
+  if (isDirect) {
+    return { type: 'direct', src: cleaned };
+  }
+
+  // 4. Fallback (Raw URLs)
+  return { type: 'fallback', src: cleaned };
 };
-
-const PRESET_AVATARS = [
-  { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#f43f5e" opacity="0.15"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#f43f5e"/><circle cx="60" cy="45" r="5" fill="#C5A03A"/></svg>` },
-  { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#1D4ED8" opacity="0.15"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#1D4ED8" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#1D4ED8"/></svg>` },
-  { id: 'gold-palette', name: 'Golden Drop', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#C5A03A" opacity="0.15"/><path d="M30,40 A20,20 0 0,0 70,60 A20,20 0 0,0 30,40" fill="#C5A03A"/><circle cx="45" cy="48" r="3" fill="#ffffff"/></svg>` },
-  { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#10B981" opacity="0.15"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#10B981" stroke-width="10" stroke-linecap="round"/></svg>` },
-];
-
-const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
-const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
-const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
 const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
   if (!photoURL || typeof photoURL !== 'string') return <div className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans">?</div>;
@@ -128,7 +109,7 @@ const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
 
 const WatercolorOverlay = () => (
   <div
-    className="absolute inset-0 pointer-events-none opacity-[0.12] mix-blend-multiply z-10"
+    className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10"
     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }}
   />
 );
@@ -136,7 +117,6 @@ const WatercolorOverlay = () => (
 // --- NOTIFICATION BELL WITH SCREEN-TAP DISMISSAL ---
 function NotificationBell({ notifications, userProfile, isAdmin }) {
   const [open, setOpen] = useState(false);
-  const [permState, setPermState] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
   const containerRef = useRef(null);
 
   const visible = useMemo(() => notifications.filter(n => {
@@ -155,22 +135,13 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
     }
   };
 
-  const requestPermission = async () => {
-    if (typeof Notification === 'undefined') return;
-    const result = await Notification.requestPermission();
-    setPermState(result);
-  };
-
   useEffect(() => {
-    const handleClose = () => {
-      setOpen(false);
-    };
+    const handleClose = () => setOpen(false);
     if (open) {
       const timer = setTimeout(() => {
         document.addEventListener('click', handleClose);
         document.addEventListener('touchstart', handleClose);
       }, 50);
-
       return () => {
         clearTimeout(timer);
         document.removeEventListener('click', handleClose);
@@ -181,24 +152,17 @@ function NotificationBell({ notifications, userProfile, isAdmin }) {
 
   return (
     <div className="relative font-sans" ref={containerRef}>
-      <button onClick={openPanel} className="relative p-2 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
+      <button onClick={openPanel} className="relative p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
         {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
 
       {open && (
-        <div className="fixed top-20 left-4 right-4 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden animate-fadeIn max-h-[80vh] flex flex-col">
+        <div className="fixed top-20 left-4 right-4 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-50 overflow-hidden max-h-[80vh] flex flex-col">
           <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0" onClick={(e) => e.stopPropagation()}>
             <span className="font-serif font-bold text-sm text-slate-800">Notifications</span>
             <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold p-1">✕</button>
           </div>
-
-          {permState !== 'granted' && permState !== 'unsupported' && (
-            <div className="p-3 bg-amber-50/60 border-b border-[#EADFC9]/40 shrink-0" onClick={(e) => e.stopPropagation()}>
-              <button onClick={requestPermission} className="w-full text-[10px] font-bold text-[#C5A03A] bg-white border border-[#C5A03A]/30 rounded-lg py-1.5">🔔 Enable browser alerts</button>
-            </div>
-          )}
-
           <div className="overflow-y-auto custom-scrollbar flex-1" onClick={(e) => e.stopPropagation()}>
             {visible.slice(0, 30).map(n => (
               <div key={n.id} className={`p-3 border-b border-slate-50 text-[11px] ${n.timestamp > lastSeen ? 'bg-amber-50/40' : ''}`}>
@@ -222,11 +186,7 @@ function useFirestoreCollection(name, orderField = null, limitN = null, enabled 
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!enabled) {
-      setItems([]);
-      setLoaded(false);
-      return;
-    }
+    if (!enabled) { setItems([]); setLoaded(false); return; }
     let q = collection(db, name);
     if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
     const unsub = onSnapshot(q, (snap) => {
@@ -244,17 +204,13 @@ function useFirestoreDoc(path, fallback, enabled = false) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!enabled) {
-      setData(fallback);
-      setLoaded(false);
-      return;
-    }
+    if (!enabled) { setData(fallback); setLoaded(false); return; }
     const ref = doc(db, path);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) setData({ ...fallback, ...snap.data() });
       else setData(fallback);
       setLoaded(true);
-    }, (err) => { setLoaded(true); });
+    }, () => setLoaded(true));
     return () => unsub();
   }, [path, enabled]);
 
@@ -922,13 +878,12 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   );
 }
 
-// --- VIDEO VAULT ---
+// --- VIDEO VAULT WITH DIRECT IN-APP PLAYBACK FOR ALL VIDEO LINKS ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [selectedVid, setSelectedVid] = useState(null);
   const [videoTitle, setVideoTitle] = useState('');
+  const [videoUrlInput, setVideoUrlInput] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (selectedVid) {
@@ -956,18 +911,21 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
 
   const startUpload = async (e) => {
     e.preventDefault();
-    if (!videoTitle.trim() || !selectedFile) return;
-    setUploading(true);
+    if (!videoTitle.trim() || !videoUrlInput.trim()) return;
     try {
-      const url = await uploadToStorage(`videos/${Date.now()}_${selectedFile.name}`, selectedFile);
       await addDoc(collection(db, 'videos'), {
-        title: videoTitle, uploaderUid: userProfile.id, uploaderName: userProfile.name, hlsUrl: url,
-        size: `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB`, comments: [], createdAt: Date.now(),
+        title: videoTitle.trim(),
+        hlsUrl: videoUrlInput.trim(), // We use hlsUrl or direct fields to hold the video URL link!
+        uploaderUid: userProfile.id,
+        uploaderName: userProfile.name,
+        size: "External URL Link",
+        comments: [],
+        createdAt: Date.now(),
       });
-      pushNotification(`Uploaded video asset: "${videoTitle}"`, userProfile.name);
-      setVideoTitle(''); setSelectedFile(null); setShowUploadModal(false);
-      showToast('Video uploaded successfully!', 'success');
-    } catch (err) { showToast('Upload failed — check your Firestore permissions.', 'warning'); } finally { setUploading(false); }
+      pushNotification(`Added tracked video workspace: "${videoTitle}"`, userProfile.name);
+      setVideoTitle(''); setVideoUrlInput(''); setShowUploadModal(false);
+      showToast('Video added successfully! Ready to play.', 'success');
+    } catch (err) { showToast('Upload failed — check your Firestore permissions.', 'warning'); }
   };
 
   const removeVideo = async (id, e) => {
@@ -977,11 +935,17 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
     showToast('Video removed from Vault.', 'info');
   };
 
+  // Resolve direct playbacks inside app
+  const embedData = useMemo(() => {
+    if (!selectedVid) return { type: 'none', src: '' };
+    return resolvePlayableVideo(selectedVid.hlsUrl || selectedVid.videoUrl);
+  }, [selectedVid]);
+
   return (
     <section className="py-2 space-y-4 font-sans animate-fadeIn">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans animate-fadeIn">
         <h3 className="font-serif font-bold text-slate-800 text-sm sm:text-base">Timeline Asset Vault</h3>
-        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-3.5 py-1.5 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">+ Upload Draft</button>
+        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-3.5 py-1.5 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">+ Add Video Link</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
@@ -989,15 +953,41 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
           {selectedVid ? (
             <div className="space-y-4 animate-fadeIn font-sans">
               <div className="bg-[#1b1915] rounded-2xl overflow-hidden relative border-4 border-white shadow-skeuo-md">
-                <video key={selectedVid.id} src={selectedVid.hlsUrl} className="w-full h-60 md:h-80 object-cover animate-fadeIn" controls autoPlay />
+                
+                {/* --- SMART DYNAMIC MULTI-SOURCE DIRECT PLAYER --- */}
+                {embedData.type === 'youtube' || embedData.type === 'drive' ? (
+                  <iframe 
+                    key={selectedVid.id}
+                    src={embedData.src} 
+                    className="w-full h-64 md:h-80 rounded-xl border-none" 
+                    allow="autoplay; encrypted-media; picture-in-picture" 
+                    allowFullScreen 
+                  />
+                ) : embedData.type === 'direct' ? (
+                  <video 
+                    key={selectedVid.id}
+                    src={embedData.src} 
+                    className="w-full h-64 md:h-80 object-cover animate-fadeIn" 
+                    controls 
+                    autoPlay 
+                  />
+                ) : (
+                  <div className="w-full h-64 md:h-80 flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center font-mono">
+                    <p className="text-amber-400 font-bold mb-2">🎞️ Video Link Blueprint Asset</p>
+                    <a href={embedData.src} target="_blank" rel="noreferrer" className="underline break-all text-xs text-blue-300 block hover:text-blue-200">
+                      {embedData.src}
+                    </a>
+                    <span className="text-[10px] text-slate-400 mt-4 block">Click the link above to view/stream asset in a secure tab</span>
+                  </div>
+                )}
               </div>
               
               <div className="p-4 bg-white border-b-[4px] border-[#EADFC9] rounded-xl shadow-sm flex justify-between items-center">
                 <div>
                   <h4 className="font-serif font-bold text-slate-800 text-sm sm:text-base">{selectedVid.title}</h4>
-                  <p className="text-[10px] text-slate-400 font-sans">Uploaded by {selectedVid.uploaderName} • {selectedVid.size}</p>
+                  <p className="text-[10px] text-slate-400 font-sans">Tracked by {selectedVid.uploaderName} • {selectedVid.size || "External Link"}</p>
                 </div>
-                {isAdmin && (
+                {(isAdmin || selectedVid.uploaderUid === userProfile?.id) && (
                   <button onClick={(e) => removeVideo(selectedVid.id, e)} className="bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 text-[10px] font-bold px-3 py-1.5 rounded-lg transition">
                     🗑 Delete Draft
                   </button>
@@ -1021,7 +1011,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                       </div>
                     </div>
                   ))}
-                  {(!selectedVid.comments || selectedVid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic py-2">No feedback notes posted yet.</p>}
+                  {(!selectedVid.comments || selectedVid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic py-2">No feedback notes posted yet. Start the conversation below!</p>}
                 </div>
                 <form onSubmit={handlePostVideoComment} className="flex gap-2 pt-2 border-t">
                   <input type="text" name="commentInput" placeholder="Scribble video feedback..." className="flex-1 px-3 py-1.5 bg-slate-50 border rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
@@ -1057,19 +1047,19 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
       {showUploadModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
-            <h4 className="font-serif font-bold text-slate-800 text-sm">Upload Video Draft</h4>
+            <h4 className="font-serif font-bold text-slate-800 text-sm">Track Video Link Asset</h4>
             <div>
               <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Title</label>
-              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1 font-sans" required />
+              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1 font-sans" placeholder="e.g. Episode 10 Final Cut" required />
             </div>
             <div>
-              <label className="block text-[9px] font-bold text-slate-500 uppercase">Select File</label>
-              <input type="file" accept="video/*" onChange={e => setSelectedFile(e.target.files[0])} className="w-full text-xs text-slate-500 mt-1 font-sans" required />
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Asset Link (Google Drive, YouTube, MP4 URL)</label>
+              <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1 font-sans" placeholder="https://drive.google.com/file/d/..." required />
             </div>
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" disabled={uploading} className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px] hover:bg-red-700 transition disabled:opacity-50">
-                {uploading ? 'Uploading…' : 'Ingest Video'}
+              <button type="submit" className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 active:border-b-[1px] active:translate-y-[3px]">
+                Track Video Link
               </button>
             </div>
           </form>
@@ -1124,7 +1114,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
       {!selectedProject ? (
         <div className="space-y-4 font-sans">
           <form onSubmit={createConcept} className="max-w-md mx-auto flex gap-2 bg-white border border-[#EADFC9] p-3 rounded-xl shadow-skeuo-sm">
-            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New video conceptual sprint..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
+            <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New video conceptual whiteboard sprint..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
             <button type="submit" className="px-4 bg-[#C5A03A] text-white text-[11px] rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow">Pin Board</button>
           </form>
           
@@ -1336,7 +1326,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
         <div className="overflow-x-auto sm:overflow-y-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-1.5 sm:gap-2 flex-1">
           {channels.map(ch => (
             <div key={ch.id} className="relative group inline-block sm:block w-auto sm:w-full">
-              <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-3 sm:px-2.5 py-2 rounded-xl text-[11px] font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 border-[#C5A03A]/30 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
+              <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-3 sm:px-2.5 py-2 rounded-xl text-[11px] font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
               {isAdmin && ch.id !== 'general' && (
                 <button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1 py-0.5 border shadow-sm text-[8px]">✕</button>
               )}
@@ -1375,44 +1365,30 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   );
 }
 
-// --- INSTA FEED ---
+// --- INSTA FEED (UPGRADED BASE64 STORAGE BYPASS FALLBACK) ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin }) {
   const [postTitle, setPostTitle] = useState('');
-  const [postFile, setPostFile] = useState(null);
   const [postText, setPostText] = useState('');
   const [showCreateModal, setShowCreatePostModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const fileInputRef = useRef(null);
 
   const publishPost = async (e) => {
     e.preventDefault();
-    if (!postTitle.trim() || !postFile) return;
+    const file = fileInputRef.current?.files[0];
+    if (!postTitle.trim() || !file) return;
     setPublishing(true);
     try {
-      // For showcase images, compress to 600px width so they load instantly and easily fit within Firestore if needed, but save to Storage first
-      const imageUrl = await uploadToStorage(`posts/${Date.now()}_${postFile.name}`, postFile);
+      // Local canvas optimization converts the post image directly to text. 0 Storage interaction!
+      const compressedString = await compressAndConvertImage(file, 500);
       await addDoc(collection(db, 'posts'), {
-        title: postTitle.trim(), description: postText.trim(), image: imageUrl,
-        authorName: userProfile.name, authorUid: userProfile.id, authorAvatar: userProfile.photoURL,
+        title: postTitle.trim(), description: postText.trim(), image: compressedString,
+        authorName: userProfile.name, authorAvatar: userProfile.photoURL,
         likes: 0, likedBy: [], comments: [], createdAt: Date.now(),
       });
-      pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name);
-      setPostTitle(''); setPostText(''); setPostFile(null); setShowCreatePostModal(false); showToast('Showcase published to Insta Feed!', 'success');
-    } catch (err) { 
-      // Safe base64 fallback for posts too in case storage fails completely!
-      try {
-        const compressedBase64 = await compressAndConvertImage(postFile, 500);
-        await addDoc(collection(db, 'posts'), {
-          title: postTitle.trim(), description: postText.trim(), image: compressedBase64,
-          authorName: userProfile.name, authorUid: userProfile.id, authorAvatar: userProfile.photoURL,
-          likes: 0, likedBy: [], comments: [], createdAt: Date.now(),
-        });
-        pushNotification(`Published a showroom draft proof: "${postTitle}"`, userProfile.name);
-        setPostTitle(''); setPostText(''); setPostFile(null); setShowCreatePostModal(false); 
-        showToast('Showcase published (Fallback Mode)!', 'success');
-      } catch (fallbackErr) {
-        showToast('Publish failed.', 'warning'); 
-      }
-    } finally { setPublishing(false); }
+      pushNotification(`Shared showroom feed display card: "${postTitle}"`, userProfile.name);
+      setPostTitle(''); setPostText(''); setShowCreatePostModal(false); showToast('Showcase uploaded to feed!', 'success');
+    } catch (err) { showToast('Upload failed — check size.', 'warning'); } finally { setPublishing(false); }
   };
 
   const toggleLikePost = async (post) => {
@@ -1457,7 +1433,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                   <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(post.authorAvatar)}</div>
                   <div className="min-w-0"><h4 className="text-xs font-black text-slate-800 truncate">{post.authorName}</h4><span className="text-[8px] text-slate-400 font-mono block">{new Date(post.createdAt).toLocaleDateString()}</span></div>
                 </div>
-                {(isAdmin || post.authorUid === userProfile.id) && (
+                {isAdmin && (
                   <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete Post</button>
                 )}
               </div>
@@ -1504,7 +1480,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
             <h4 className="font-serif font-bold text-slate-800 text-xs sm:text-sm">Create Showroom Post</h4>
             <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="Title" className="w-full px-3 py-2 border rounded-xl focus:outline-none text-xs font-sans" required />
             <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Context description..." className="w-full px-3 py-2 border rounded-xl focus:outline-none text-xs font-sans" rows="2" />
-            <input type="file" accept="image/*" onChange={e => setPostFile(e.target.files[0])} className="w-full text-xs text-slate-500 font-sans" required />
+            <input type="file" ref={fileInputRef} accept="image/*" className="w-full text-xs text-slate-500 font-sans" required />
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowCreatePostModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
               <button type="submit" disabled={publishing} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] disabled:opacity-50">
@@ -1518,13 +1494,11 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   );
 }
 
-// --- MY PROFILE (UPGRADED WITH INSTANT CANVAS BASE64 COMPRESSION) ---
+// --- MY PROFILE ---
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(userProfile?.photoURL || '');
-  const [pendingFile, setPendingFile] = useState(null);
-  const [newCatInp, setNewCatInp] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1533,44 +1507,17 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
     }
   }, [userProfile, categories]);
 
-  const triggerPfpUpdate = async (e) => { 
-    const file = e.target.files[0]; 
-    if (file) { 
-      setPendingFile(file); 
-      // Instant local compression & visualization
-      try {
-        const base64 = await compressAndConvertImage(file, 150);
-        setUploadedPhotoUrl(base64);
-      } catch (err) {
-        setUploadedPhotoUrl(URL.createObjectURL(file));
-      }
-    } 
-  };
-
   const saveProfileSettings = async (e) => {
     e.preventDefault(); 
     if (!fullName.trim()) return; 
     setSaving(true);
     try {
-      let finalPhotoURL = uploadedPhotoUrl;
-      
-      // If user selected a new file, compress it and save it directly as a base64 string in Firestore
-      if (pendingFile) {
-        try {
-          finalPhotoURL = await compressAndConvertImage(pendingFile, 150);
-        } catch (compressErr) {
-          showToast("Image compression failed.", "warning");
-        }
-      }
-      
       await updateDoc(doc(db, 'profiles', userProfile.id), { 
         name: fullName.trim(), 
         workCategory: selectedCat, 
-        photoURL: finalPhotoURL 
+        photoURL: uploadedPhotoUrl 
       });
-      
       showToast('Profile updated successfully!', 'success');
-      setPendingFile(null);
     } catch (err) { 
       showToast('Save failed.', 'warning'); 
     } finally { 
@@ -1600,7 +1547,18 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
         <div><label className="block text-[9px] font-bold text-slate-500 uppercase">Display Name</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]" required /></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div><label className="block text-[9px] font-bold text-slate-500 uppercase font-sans">Role Specialization</label><select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A]">{categories.map((cat, idx) => <option key={idx} value={cat}>{cat}</option>)}</select></div>
-          <div><label className="block text-[9px] font-bold text-slate-500 uppercase font-sans">Upload New PFP</label><input type="file" accept="image/*" onChange={triggerPfpUpdate} className="w-full text-[10px] text-slate-500 mt-1 file:py-1.5 file:px-2.5 file:border file:rounded-lg file:bg-amber-50" /></div>
+          <div>
+            <label className="block text-[9px] font-bold text-slate-500 uppercase font-sans">Upload New PFP</label>
+            <input type="file" accept="image/*" onChange={async (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                try {
+                  const b64 = await compressAndConvertImage(file, 150);
+                  setUploadedPhotoUrl(b64);
+                } catch (err) { showToast('Image compression failed.', 'warning'); }
+              }
+            }} className="w-full text-[10px] text-slate-500 mt-1 file:py-1.5 file:px-2.5 file:border file:rounded-lg file:bg-amber-50" />
+          </div>
         </div>
         <button type="submit" disabled={saving} className="w-full py-2.5 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] text-white text-xs font-bold uppercase rounded-xl tracking-wider hover:bg-[#ae8b30] shadow transition disabled:opacity-50">{saving ? 'Saving…' : 'Save Profile Details'}</button>
       </form>
@@ -1616,7 +1574,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut 
   );
 }
 
-// --- ADMIN PANEL (UPGRADED FOR LOGO AND MEMBER OVERRIDES TO BYPASS STORAGE ISSUES) ---
+// --- ADMIN PANEL ---
 function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText || '');
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
@@ -1639,7 +1597,6 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   const saveMemberPhotoOverride = async (userId) => {
     if (!editedFile) return;
     try {
-      // Compress locally to Base64 and write directly to Firestore! Bypasses Firebase Storage entirely.
       const compressedBase64 = await compressAndConvertImage(editedFile, 150);
       await updateDoc(doc(db, 'profiles', userId), { photoURL: compressedBase64 });
       setEditingUserId(null); setEditedFile(null); 
@@ -1652,10 +1609,9 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   const triggerSiteLogoUpload = async (e) => {
     const file = e.target.files[0]; if (!file) return;
     try {
-      // Compresses custom dynamic logo to tiny lightweight 200px Base64 and saves directly in Firestore!
       const compressedBase64 = await compressAndConvertImage(file, 200);
       await setDoc(doc(db, 'meta/settings'), { logoUrl: compressedBase64 }, { merge: true }); 
-      showToast('Dynamic Custom Logo updated successfully!', 'success');
+      showToast('Branding Custom Logo updated successfully!', 'success');
     } catch (err) {
       showToast('Logo processing failed.', 'warning');
     }
