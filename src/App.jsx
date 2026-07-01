@@ -1,14 +1,38 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  auth, db, googleProvider,
-  doc, setDoc, updateDoc, deleteDoc, getDoc,
-  collection, addDoc, onSnapshot, query, orderBy, fbLimit,
-  arrayUnion, onAuthStateChanged, signInWithPopup, fbSignOut,
-} from './firebase';
+import { initializeApp } from 'firebase/app';
 import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword 
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, 
+  onAuthStateChanged, signInAnonymously, signInWithCustomToken,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword 
 } from 'firebase/auth';
+import { 
+  getFirestore, doc as fbDoc, setDoc, updateDoc, deleteDoc, getDoc,
+  collection as fbCollection, addDoc, onSnapshot, query, orderBy, limit as fbLimit,
+  arrayUnion 
+} from 'firebase/firestore';
+
+// --- FIREBASE INITIALIZATION & SECURITY PATH WRAPPERS ---
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+const collection = (dbRef, path, ...segments) => {
+  if (dbRef === db && typeof path === 'string' && !path.startsWith('artifacts')) {
+    return fbCollection(dbRef, 'artifacts', appId, 'public', 'data', path, ...segments);
+  }
+  return fbCollection(dbRef, path, ...segments);
+};
+
+const doc = (dbRefOrCol, path, ...segments) => {
+  if (dbRefOrCol === db && typeof path === 'string' && !path.startsWith('artifacts')) {
+    const parts = path.split('/');
+    return fbDoc(dbRefOrCol, 'artifacts', appId, 'public', 'data', ...parts, ...segments);
+  }
+  return fbDoc(dbRefOrCol, path, ...segments);
+};
 
 // --- STYLING INJECTION (YOUR COMPLETE PREMIUM ART STYLE) ---
 const injectArtStyleStyles = () => {
@@ -287,9 +311,18 @@ export default function App() {
   const ensureProfileDocRef = useRef(() => {});
 
   useEffect(() => {
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    };
+    initAuth();
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
-      if (user) {
+      if (user && !user.isAnonymous) {
         try { await ensureProfileDocRef.current(user); } catch (e) {}
       }
       setAuthLoading(false);
@@ -406,17 +439,47 @@ export default function App() {
   }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts]);
 
   useEffect(() => {
+    if (notifsError && isAuthReady && !isRoastingWaiter) {
+      showToast(`Notifications blocked: ${notifsError}.`, 'warning');
+    }
+  }, [notifsError, isAuthReady, isRoastingWaiter]);
+
+  // BULLETPROOFED: Safe unread notification checker that won't crash on logout
+  const unreadMap = useMemo(() => {
+    if (isRoastingWaiter) return { vault: false, projects: false, scripts: false, posts: false };
+    const lastSeen = userProfile?.lastSeenNotifAt || 0;
+    
+    // Safely verify 'n' and 'n.message' exist before filtering
+    const unread = (notifications || []).filter(n => n && n.message && n.timestamp > lastSeen && n.actor !== 'System');
+    
+    return {
+      vault: unread.some(n => {
+        const msg = String(n.message).toLowerCase();
+        return msg.includes('video asset') || msg.includes('commented on video');
+      }),
+      projects: unread.some(n => String(n.message).toLowerCase().includes('concept whiteboard')),
+      scripts: unread.some(n => String(n.message).toLowerCase().includes('script topic')),
+      posts: unread.some(n => String(n.message).toLowerCase().includes('showroom draft')),
+    };
+  }, [notifications, userProfile, isRoastingWaiter]);
+
+  const seenNotifIdsRef = useRef(new Set());
+  const firstNotifLoadRef = useRef(true);
+  
+  useEffect(() => {
     if (!userProfile || isRoastingWaiter || userProfile.status !== 'approved') return;
     if (firstNotifLoadRef.current) {
-      notifications.forEach(n => seenNotifIdsRef.current.add(n.id));
+      (notifications || []).forEach(n => n && seenNotifIdsRef.current.add(n.id));
       firstNotifLoadRef.current = false;
       return;
     }
-    notifications.forEach(n => {
-      if (seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
+    (notifications || []).forEach(n => {
+      // BULLETPROOFED: Catch missing messages immediately
+      if (!n || !n.message || seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
       seenNotifIdsRef.current.add(n.id);
       if (n.actor === userProfile.name) return;
-      const msg = n.message.toLowerCase();
+      
+      const msg = String(n.message).toLowerCase();
       if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
       if (currentPage === 'projects' && msg.includes('concept whiteboard')) return;
       if (currentPage === 'scripts' && msg.includes('script topic')) return;
@@ -1012,7 +1075,10 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
 
 // --- HOMEPAGE HUB ---
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications, onNavigate, onInspectUser }) {
-  const studioUpdates = useMemo(() => notifications.filter(n => !n.message.startsWith('"') && n.actor !== 'System'), [notifications]);
+  // BULLETPROOFED: Safe mapping to prevent crashing if notification text is corrupt
+  const studioUpdates = useMemo(() => {
+    return (notifications || []).filter(n => n && n.message && !String(n.message).startsWith('"') && n.actor !== 'System');
+  }, [notifications]);
 
   return (
     <section className="space-y-8 py-2 animate-fadeIn font-sans px-4 sm:px-0">
@@ -2532,4 +2598,4 @@ function RejectedScreen({ handleSignOut }) {
       <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 bg-rose-50 px-4 py-2 rounded-full border border-rose-200 hover:bg-rose-100 transition-colors">Sign Out</button>
     </div>
   );
-}
+               }
