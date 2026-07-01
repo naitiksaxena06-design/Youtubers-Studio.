@@ -162,20 +162,20 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
 
-  // Filter out system and audience permissions
-  const visible = useMemo(() => notifications.filter(n => {
-    if (n.actor === 'System') return false; 
+  // Filter out system and audience permissions safely
+  const visible = useMemo(() => (notifications || []).filter(n => {
+    if (!n || n.actor === 'System') return false; 
     const audience = n.audience || 'all';
     return audience === 'all' || (audience === 'admin' && isAdmin);
   }), [notifications, isAdmin]);
 
-  const lastSeen = userProfile.lastSeenNotifAt || 0;
-  const unreadCount = useMemo(() => visible.filter(n => n.timestamp > lastSeen).length, [visible, lastSeen]);
+  const lastSeen = userProfile?.lastSeenNotifAt || 0;
+  const unreadCount = useMemo(() => visible.filter(n => n && n.timestamp > lastSeen).length, [visible, lastSeen]);
 
   const openPanel = async (e) => {
     e.stopPropagation();
     setOpen(o => !o);
-    if (!open) {
+    if (!open && userProfile?.id) {
       try { await updateDoc(doc(db, 'profiles', userProfile.id), { lastSeenNotifAt: Date.now() }); } catch (e) {}
     }
   };
@@ -195,12 +195,12 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
   // Navigate to appropriate section and optionally active targeted elements
   const handleNotificationClick = (notif) => {
     setOpen(false);
-    const msg = (notif.message || '').toLowerCase();
+    const msg = String(notif?.message || '').toLowerCase();
     
     if (msg.includes('video asset') || msg.includes('commented on video')) {
       onNavigate('vault');
       // Attempt to auto-find target video and trigger active view mode
-      const match = videos.find(v => msg.includes(v.title.toLowerCase()));
+      const match = (videos || []).find(v => v && v.title && msg.includes(String(v.title).toLowerCase()));
       if (match) onSetActiveVideo(match);
     } else if (msg.includes('concept whiteboard') || msg.includes('task')) {
       onNavigate('projects');
@@ -237,7 +237,7 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
               >
                 <span className="font-bold text-slate-800">{n.actor}: </span>
                 <span className="text-slate-600">{n.message}</span>
-                <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(n.timestamp).toLocaleString()}</p>
+                <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{n.timestamp ? new Date(n.timestamp).toLocaleString() : ''}</p>
               </div>
             ))}
             {visible.length === 0 && <p className="text-xs text-slate-400 italic p-4 text-center">No notifications yet.</p>}
@@ -333,7 +333,7 @@ export default function App() {
   const isAuthReady = !!authUser;
   const [profiles] = useFirestoreCollection('profiles', null, null, isAuthReady);
   const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES }, isAuthReady);
-  const categories = categoriesDoc.list || DEFAULT_CATEGORIES;
+  const categories = categoriesDoc?.list || DEFAULT_CATEGORIES;
   const [posts] = useFirestoreCollection('posts', 'createdAt', null, isAuthReady);
   const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50, isAuthReady);
   const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG, isAuthReady);
@@ -346,17 +346,17 @@ export default function App() {
 
   const userProfile = useMemo(() => {
     if (!authUser) return null;
-    return profiles.find(p => p.id === authUser.uid) || null;
+    return (profiles || []).find(p => p && p.id === authUser.uid) || null;
   }, [profiles, authUser]);
 
   const isAdmin = useMemo(() => {
     if (!userProfile) return false;
-    return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
+    return userProfile.role === 'admin' || userProfile.role === 'owner' || String(userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
 
   const isRoastingWaiter = useMemo(() => {
     if (!userProfile) return false;
-    const roleLower = (userProfile.role || '').toLowerCase();
+    const roleLower = String(userProfile.role || '').toLowerCase();
     return roleLower === 'roasting waiter' || roleLower === 'waiter';
   }, [userProfile]);
 
@@ -364,7 +364,7 @@ export default function App() {
   const isProfileIncomplete = useMemo(() => {
     if (!authUser || !userProfile) return false;
     // Require a designated display name, a specialized workCategory, and an initialized bio
-    return !userProfile.name || userProfile.name.trim() === '' || !userProfile.workCategory || userProfile.isProfileComplete === false;
+    return !userProfile.name || String(userProfile.name).trim() === '' || !userProfile.workCategory || userProfile.isProfileComplete === false;
   }, [authUser, userProfile]);
 
   // --- GLOBAL LOGOUT REDIRECT FAILSAFE ---
@@ -406,29 +406,29 @@ export default function App() {
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
       
-      chats.forEach(async (item) => {
-        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+      (chats || []).forEach(async (item) => {
+        if (item && item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {}
         }
       });
-      posts.forEach(async (item) => {
-        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+      (posts || []).forEach(async (item) => {
+        if (item && item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {}
         }
       });
       // 1-Day Notification Expiration Limit
-      notifications.forEach(async (item) => {
-        if (item.timestamp && item.timestamp < oneDayAgo) {
+      (notifications || []).forEach(async (item) => {
+        if (item && item.timestamp && item.timestamp < oneDayAgo) {
           try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {}
         }
       });
-      videos.forEach(async (item) => {
-        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+      (videos || []).forEach(async (item) => {
+        if (item && item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {}
         }
       });
-      scripts.forEach(async (item) => {
-        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+      (scripts || []).forEach(async (item) => {
+        if (item && item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {}
         }
       });
@@ -442,7 +442,7 @@ export default function App() {
     if (notifsError && isAuthReady && !isRoastingWaiter) {
       showToast(`Notifications blocked: ${notifsError}.`, 'warning');
     }
-  }, [notifsError, isAuthReady, isRoastingWaiter]);
+  }, [notifsError, isAuthReady, isRoastingWaiter, showToast]);
 
   // BULLETPROOFED: Safe unread notification checker that won't crash on logout
   const unreadMap = useMemo(() => {
@@ -477,7 +477,7 @@ export default function App() {
       // BULLETPROOFED: Catch missing messages immediately
       if (!n || !n.message || seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
       seenNotifIdsRef.current.add(n.id);
-      if (n.actor === userProfile.name) return;
+      if (n.actor === userProfile?.name) return;
       
       const msg = String(n.message).toLowerCase();
       if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
@@ -489,10 +489,10 @@ export default function App() {
       const audience = n.audience || 'all';
       const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
       if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try { new Notification('Youtubers Studio', { body: n.message, icon: siteSettings.logoUrl || undefined }); } catch (e) {}
+        try { new Notification('Youtubers Studio', { body: n.message, icon: siteSettings?.logoUrl || undefined }); } catch (e) {}
       }
     });
-  }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, isRoastingWaiter]);
+  }, [notifications, userProfile, isAdmin, siteSettings?.logoUrl, currentPage, isRoastingWaiter]);
 
   const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
     if (isRoastingWaiter || userProfile?.status !== 'approved') return; // Waiters and Pending cannot create notifications
@@ -500,16 +500,24 @@ export default function App() {
   }, [isRoastingWaiter, userProfile]);
 
   const ensureProfileDoc = useCallback(async (user) => {
+    if (!user) return;
     const ref = doc(db, 'profiles', user.uid);
     const snap = await getDoc(ref);
-    const emailLower = (user.email || '').toLowerCase();
+    const emailLower = String(user.email || '').toLowerCase();
     const isOwner = emailLower === ADMIN_EMAIL;
     if (!snap.exists()) {
+      // BULLETPROOFED: Ensure missing emails don't cause fatal .split() crash!
+      const safeNameFallback = user.email ? String(user.email).split('@')[0] : 'Guest Crew';
+      
       const newProfile = {
         id: user.uid,
-        name: user.displayName || user.email.split('@')[0], email: user.email, role: isOwner ? 'owner' : 'member',
-        status: isOwner ? 'approved' : 'pending', workCategory: categories[0] || 'Editing',
-        photoURL: user.photoURL || PRESET_AVATARS[0].svg, createdAt: Date.now(),
+        name: user.displayName || safeNameFallback, 
+        email: user.email || 'guest@studio.local', 
+        role: isOwner ? 'owner' : 'member',
+        status: isOwner ? 'approved' : 'pending', 
+        workCategory: categories[0] || 'Editing',
+        photoURL: user.photoURL || PRESET_AVATARS[0].svg, 
+        createdAt: Date.now(),
         bio: '',
         isProfileComplete: false
       };
@@ -581,11 +589,11 @@ export default function App() {
   };
 
   const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
-    const activeChannelId = targetChannelId || ytConfig.channelId || DEFAULT_YT_CONFIG.channelId;
-    const activeApiKey = targetApiKey || ytConfig.apiKey || DEFAULT_YT_CONFIG.apiKey;
+    const activeChannelId = targetChannelId || ytConfig?.channelId || DEFAULT_YT_CONFIG.channelId;
+    const activeApiKey = targetApiKey || ytConfig?.apiKey || DEFAULT_YT_CONFIG.apiKey;
 
     let url = '';
-    const trimmed = activeChannelId.trim();
+    const trimmed = String(activeChannelId || '').trim();
     if (trimmed.startsWith('UC') && !trimmed.includes('/') && !trimmed.includes('@')) {
       url = `https://www.googleapis.com/official/youtube/v3/channels?part=statistics,snippet&id=${trimmed}&key=${activeApiKey}`;
     } else {
@@ -613,8 +621,8 @@ export default function App() {
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId=${channelIdActual}&maxResults=5&order=date&type=video&key=${activeApiKey}`;
       const searchRes = await fetch(searchUrl);
       const searchData = await searchRes.json();
-      let views = ytConfig.latestVideoViews;
-      let videoTitle = ytConfig.latestVideoTitle;
+      let views = ytConfig?.latestVideoViews;
+      let videoTitle = ytConfig?.latestVideoTitle;
 
       if (searchRes.ok && searchData.items?.length) {
         const videoItem = searchData.items[0];
@@ -644,8 +652,8 @@ export default function App() {
 
   useEffect(() => {
     if (loadingLibraries || !isAdmin) return;
-    syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true);
-    const timer = setInterval(() => { syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true); }, 5 * 60 * 1000);
+    syncYouTubeStats(ytConfigRef.current?.channelId, ytConfigRef.current?.apiKey, true);
+    const timer = setInterval(() => { syncYouTubeStats(ytConfigRef.current?.channelId, ytConfigRef.current?.apiKey, true); }, 5 * 60 * 1000);
     return () => clearInterval(timer);
   }, [loadingLibraries, isAdmin]);
 
@@ -673,7 +681,7 @@ export default function App() {
   }
 
   // Find inspected user card metadata
-  const targetInspectProfile = profiles.find(p => p.id === inspectUser);
+  const targetInspectProfile = (profiles || []).find(p => p && p.id === inspectUser);
 
   return (
     <div className="min-h-screen relative overflow-x-hidden bg-[#FCFBF8] text-slate-800 font-sans selection:bg-[#C5A03A]/20">
@@ -693,13 +701,13 @@ export default function App() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
           </button>
           <div className="flex items-center space-x-2 cursor-pointer min-w-0" onClick={() => handleNavigationChange('home')}>
-            {siteSettings.logoUrl ? (
+            {siteSettings?.logoUrl ? (
               <img src={siteSettings.logoUrl} alt="Logo" className="w-8 h-8 object-cover rounded-lg shadow-[0_4px_15px_rgba(135,112,58,0.25)] border border-white shrink-0" />
             ) : (
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-sm shadow-[0_4px_15px_rgba(197,160,58,0.3)] border border-white shrink-0">Y</div>
             )}
             <span className="font-serif text-sm sm:text-base tracking-wide text-[#C5A03A] font-extrabold truncate max-w-[130px] sm:max-w-xs leading-none">
-              {siteSettings.logoText || 'YOUTUBERS STUDIO'}
+              {siteSettings?.logoText || 'YOUTUBERS STUDIO'}
             </span>
           </div>
         </div>
@@ -854,14 +862,14 @@ export default function App() {
             <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">
               {renderAvatar(targetInspectProfile.photoURL)}
             </div>
-            <h3 className="font-serif text-xl font-bold text-slate-800">{targetInspectProfile.name}</h3>
+            <h3 className="font-serif text-xl font-bold text-slate-800">{targetInspectProfile?.name}</h3>
             <span className="bg-[#C5A03A]/10 text-[#C5A03A] border border-[#C5A03A]/20 text-[9px] px-3 py-1 rounded-full font-bold mt-1.5 inline-block uppercase tracking-wider font-mono">
-              {targetInspectProfile.workCategory} • {targetInspectProfile.role}
+              {targetInspectProfile?.workCategory} • {targetInspectProfile?.role}
             </span>
             <div className="my-4 text-slate-500 font-serif italic text-xs px-2 leading-relaxed bg-amber-50/40 py-3 rounded-xl border border-[#EADFC9]/30">
-              {targetInspectProfile.bio || "No custom bio configured yet."}
+              {targetInspectProfile?.bio || "No custom bio configured yet."}
             </div>
-            <p className="text-[10px] text-slate-400">Production Crew Member • Verified {new Date(targetInspectProfile.createdAt).toLocaleDateString()}</p>
+            <p className="text-[10px] text-slate-400">Production Crew Member • Verified {targetInspectProfile?.createdAt ? new Date(targetInspectProfile.createdAt).toLocaleDateString() : ''}</p>
           </div>
         </div>
       )}
@@ -1091,10 +1099,10 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'YouTube Subscribers', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
-          { label: 'Latest Video Views', value: ytConfig?.latestVideoViews || '—', icon: '📺', change: ytConfig?.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
-          { label: 'Vault Records', value: `${videos?.length || 0} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
-          { label: 'Active Ideas', value: `${projects?.length || 0} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
+          { label: 'YouTube Subscribers', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig?.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
+          { label: 'Latest Video Views', value: ytConfig?.latestVideoViews || '—', icon: '📺', change: ytConfig?.latestVideoTitle ? `"${String(ytConfig.latestVideoTitle).substring(0, 24)}..."` : '—', action: null },
+          { label: 'Vault Records', value: `${(videos || []).length} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
+          { label: 'Active Ideas', value: `${(projects || []).length} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
         ].map((stat, idx) => (
           <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-4 shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-36">
             <div>
@@ -1124,7 +1132,7 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
                 {notif.actor}:{' '}
               </span>
               <span className="text-slate-600 font-sans">{notif.message}</span>
-              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
+              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{notif.timestamp ? new Date(notif.timestamp).toLocaleTimeString() : ''}</p>
             </div>
           ))}
           {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No updates mapped to log yet.</p>}
@@ -1137,7 +1145,7 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
 // --- CREW DIRECTORY SECTION ---
 function CrewSection({ profiles, userProfile, showToast, isAdmin, onInspectUser }) {
   const [focusIdx, setFocusIdx] = useState(0);
-  const approvedProfiles = useMemo(() => profiles.filter(p => p.status === 'approved'), [profiles]);
+  const approvedProfiles = useMemo(() => (profiles || []).filter(p => p && p.status === 'approved'), [profiles]);
 
   const removeMember = async (uid) => {
     try { await deleteDoc(doc(db, 'profiles', uid)); showToast('Crew member removed.', 'success'); } catch (err) { showToast('Failed to remove.', 'warning'); }
@@ -1164,22 +1172,25 @@ function CrewSection({ profiles, userProfile, showToast, isAdmin, onInspectUser 
       <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md max-h-[450px] overflow-y-auto custom-scrollbar animate-fadeIn">
         <h4 className="font-serif font-bold text-sm border-b pb-2 mb-3 text-slate-700">Production Team Members</h4>
         <div className="space-y-2 font-sans">
-          {profiles.map((p, i) => (
-            <div key={p.id} className="flex justify-between items-center p-2.5 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer shrink-0">
-                  {renderAvatar(p.photoURL, "w-full h-full object-cover", () => onInspectUser(p.id))}
+          {(profiles || []).map((p, i) => {
+            if (!p) return null;
+            return (
+              <div key={p.id} className="flex justify-between items-center p-2.5 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer shrink-0">
+                    {renderAvatar(p.photoURL, "w-full h-full object-cover", () => onInspectUser(p.id))}
+                  </div>
+                  <div className="cursor-pointer min-w-0" onClick={() => setFocusIdx(approvedProfiles.indexOf(p) !== -1 ? approvedProfiles.indexOf(p) : 0)}>
+                    <p className="text-xs font-bold text-slate-800 truncate hover:text-[#C5A03A]" onClick={() => onInspectUser(p.id)}>{p.name}</p>
+                    <span className="text-[9px] font-mono text-slate-400 block truncate">{p.email} • {p.role} • {p.workCategory}</span>
+                  </div>
                 </div>
-                <div className="cursor-pointer min-w-0" onClick={() => setFocusIdx(approvedProfiles.indexOf(p) !== -1 ? approvedProfiles.indexOf(p) : 0)}>
-                  <p className="text-xs font-bold text-slate-800 truncate hover:text-[#C5A03A]" onClick={() => onInspectUser(p.id)}>{p.name}</p>
-                  <span className="text-[9px] font-mono text-slate-400 block truncate">{p.email} • {p.role} • {p.workCategory}</span>
-                </div>
+                {isAdmin && String(p.email || '').toLowerCase() !== ADMIN_EMAIL && (
+                  <button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2.5 py-1 rounded-full hover:bg-rose-100 font-sans whitespace-nowrap">Remove</button>
+                )}
               </div>
-              {isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL && (
-                <button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2.5 py-1 rounded-full hover:bg-rose-100 font-sans whitespace-nowrap">Remove</button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -1195,12 +1206,12 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
     e.preventDefault();
     const clean = newCatInput.trim();
     if (!clean) return;
-    if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) { showToast('Category exists.', 'warning'); return; }
+    if ((categories || []).some(c => String(c).toLowerCase() === clean.toLowerCase())) { showToast('Category exists.', 'warning'); return; }
     await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(clean) }, { merge: true });
     setActiveCategory(clean); setNewCustomCategory(''); showToast(`Category added.`, 'success');
   };
 
-  const matchedMembers = useMemo(() => profiles.filter(p => p.status === 'approved' && p.workCategory === activeCategory), [profiles, activeCategory]);
+  const matchedMembers = useMemo(() => (profiles || []).filter(p => p && p.status === 'approved' && p.workCategory === activeCategory), [profiles, activeCategory]);
 
   return (
     <section className="py-2 animate-fadeIn grid grid-cols-1 lg:grid-cols-4 gap-6 font-sans">
@@ -1214,7 +1225,7 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
         </div>
         <div className="pt-3 border-t border-slate-100 space-y-1">
           <span className="text-[9px] font-bold text-[#C5A03A] uppercase tracking-wider block mb-1.5 font-sans">Role tags</span>
-          {categories.map((cat, idx) => (<button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>))}
+          {(categories || []).map((cat, idx) => (<button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>))}
         </div>
       </div>
 
@@ -1579,7 +1590,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
   };
 
   const deleteVideoComment = async (videoId, currentComments, commentId) => {
-    const updatedComments = currentComments.filter(c => c.id !== commentId);
+    const updatedComments = (currentComments || []).filter(c => c && c.id !== commentId);
     await updateDoc(doc(db, 'videos', videoId), { comments: updatedComments });
     
     // Refresh active video state
@@ -1625,7 +1636,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
         <div className="p-4 border-b border-slate-100">
           <h1 className="text-lg font-bold text-slate-900 leading-tight mb-2">{activeVideo.title}</h1>
           <div className="flex justify-between items-center text-xs text-slate-500">
-            <span>{new Date(activeVideo.createdAt).toLocaleDateString()}</span>
+            <span>{activeVideo.createdAt ? new Date(activeVideo.createdAt).toLocaleDateString() : ''}</span>
             <span className="bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded border border-rose-100 flex items-center gap-1">
               ⏳ {timeLeft}
             </span>
@@ -1651,7 +1662,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
         {/* Comments Section */}
         <div className="p-4 flex-1 bg-slate-50/50">
-          <h3 className="font-bold text-sm text-slate-800 mb-4">Feedback Notes ({activeVideo.comments?.length || 0})</h3>
+          <h3 className="font-bold text-sm text-slate-800 mb-4">Feedback Notes ({(activeVideo.comments || []).length})</h3>
           
           <form onSubmit={(e) => handlePostVideoComment(e, activeVideo.id)} className="flex gap-2 mb-6">
             <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 bg-white shrink-0 hidden sm:block">
@@ -1662,22 +1673,25 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           </form>
 
           <div className="space-y-3 pb-8">
-            {(activeVideo.comments || []).map((comment) => (
-              <div key={comment.id} className="text-xs flex items-start gap-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-slate-800 hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(comment.authorUid)}>
-                      {comment.authorName}
-                    </span>
-                    <span className="text-[9px] text-slate-400">{new Date(comment.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            {(activeVideo.comments || []).map((comment) => {
+              if (!comment) return null;
+              return (
+                <div key={comment.id} className="text-xs flex items-start gap-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-slate-800 hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(comment.authorUid)}>
+                        {comment.authorName}
+                      </span>
+                      <span className="text-[9px] text-slate-400">{comment.timestamp ? new Date(comment.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
+                    </div>
+                    <span className="text-slate-600 break-words leading-relaxed">{comment.text}</span>
                   </div>
-                  <span className="text-slate-600 break-words leading-relaxed">{comment.text}</span>
+                  {(isAdmin || comment.authorName === userProfile?.name) && (
+                    <button onClick={() => deleteVideoComment(activeVideo.id, activeVideo.comments, comment.id)} className="text-slate-400 hover:text-rose-500 text-lg leading-none shrink-0 px-1">×</button>
+                  )}
                 </div>
-                {(isAdmin || comment.authorName === userProfile?.name) && (
-                  <button onClick={() => deleteVideoComment(activeVideo.id, activeVideo.comments, comment.id)} className="text-slate-400 hover:text-rose-500 text-lg leading-none shrink-0 px-1">×</button>
-                )}
-              </div>
-            ))}
+              );
+            })}
             {(!activeVideo.comments || activeVideo.comments.length === 0) && <p className="text-xs text-slate-400 text-center py-6">Be the first to leave a feedback note on this video.</p>}
           </div>
         </div>
@@ -1694,7 +1708,8 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {videos.map((vid) => {
+        {(videos || []).map((vid) => {
+          if (!vid) return null;
           const embed = resolvePlayableVideo(vid.hlsUrl);
           const timeLeft = getDeletionTimeLeft(vid.createdAt);
           
@@ -1728,7 +1743,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
                 <div className="flex flex-col flex-1 min-w-0">
                   <h3 className="font-sans font-bold text-slate-900 text-sm leading-tight line-clamp-2 group-hover:text-[#C5A03A] transition-colors">{vid.title}</h3>
                   <div className="text-slate-500 text-[10px] mt-1 font-sans truncate">
-                    {vid.uploaderName} • {vid.comments?.length || 0} Notes
+                    {vid.uploaderName} • {(vid.comments || []).length} Notes
                   </div>
                 </div>
               </div>
@@ -1737,7 +1752,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
         })}
       </div>
       
-      {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs border-2 border-dashed border-[#EADFC9] rounded-2xl bg-white/50">The Video Vault showcase is currently empty.</div>}
+      {(!videos || videos.length === 0) && <div className="text-center text-slate-400 py-16 italic text-xs border-2 border-dashed border-[#EADFC9] rounded-2xl bg-white/50">The Video Vault showcase is currently empty.</div>}
 
       {/* Upload Modal */}
       {showUploadModal && (
@@ -1792,7 +1807,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
     setNewConcept(''); showToast('Artboard concept mapped!', 'success');
   };
 
-  const activeTasks = useMemo(() => tasks.filter(t => t.projectId === selectedProject?.id), [tasks, selectedProject]);
+  const activeTasks = useMemo(() => (tasks || []).filter(t => t && t.projectId === selectedProject?.id), [tasks, selectedProject]);
 
   const addTask = async (e) => {
     e.preventDefault();
@@ -1829,16 +1844,19 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
           </form>
           
           <div className="p-6 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-[2rem] grid grid-cols-1 md:grid-cols-3 gap-5 animate-fadeIn" style={{ backgroundColor: '#deb887', backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
-            {projects.map((p) => (
-              <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl cursor-pointer shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all relative">
-                <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
-                {isAdmin && (
-                  <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>
-                )}
-                <h4 className="font-serif font-bold text-slate-800 pt-2 text-center line-clamp-2 text-xs">{p.title}</h4>
-                <div className="text-[9px] text-slate-400 text-center mt-2 font-mono">⏳ {getDeletionTimeLeft(p.createdAt)}</div>
-              </div>
-            ))}
+            {(projects || []).map((p) => {
+              if (!p) return null;
+              return (
+                <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl cursor-pointer shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all relative">
+                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
+                  {isAdmin && (
+                    <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>
+                  )}
+                  <h4 className="font-serif font-bold text-slate-800 pt-2 text-center line-clamp-2 text-xs">{p.title}</h4>
+                  <div className="text-[9px] text-slate-400 text-center mt-2 font-mono">⏳ {getDeletionTimeLeft(p.createdAt)}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : (
@@ -1889,7 +1907,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   const [saving, setSaving] = useState(false);
   const [isEditingBody, setIsEditingBody] = useState(false);
 
-  const selectedScript = useMemo(() => scripts.find(s => s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
+  const selectedScript = useMemo(() => (scripts || []).find(s => s && s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
   useEffect(() => { if (selectedScript) setDraftText(selectedScript.content || ''); }, [selectedScriptId, selectedScript?.content]);
   
   const canEditSelected = selectedScript && userProfile && (isAdmin || selectedScript.authorUid === userProfile.id);
@@ -1928,17 +1946,20 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
         <div className="lg:col-span-1 bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-3 rounded-xl shadow-skeuo-md space-y-1.5 max-h-[400px] overflow-y-auto custom-scrollbar animate-fadeIn">
-          {scripts.map(s => (
-            <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-2.5 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
-                <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName} • ⏳ {getDeletionTimeLeft(s.createdAt)}</span>
+          {(scripts || []).map(s => {
+            if (!s) return null;
+            return (
+              <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-2.5 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
+                  <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName} • ⏳ {getDeletionTimeLeft(s.createdAt)}</span>
+                </div>
+                {(isAdmin || s.authorUid === userProfile?.id) && (
+                  <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>
+                )}
               </div>
-              {(isAdmin || s.authorUid === userProfile?.id) && (
-                <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn">
@@ -2007,7 +2028,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const [editingMessageId, setEditingMessageId] = useState(null);
 
   const longPressTimerRef = useRef(null);
-  const channels = siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
+  const channels = siteSettings?.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
 
   const commit = async (e) => {
     e.preventDefault();
@@ -2104,7 +2125,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       
       <div className="sm:col-span-3 flex flex-col h-full bg-slate-50/20 font-sans min-h-0 flex-1 relative">
         <div className="p-3.5 overflow-y-auto space-y-2.5 custom-scrollbar flex-1 font-sans min-h-0 select-none">
-          {chats.filter(c => c.projectId === chatChannel).slice().reverse().map((m) => (
+          {(chats || []).filter(c => c && c.projectId === chatChannel).slice().reverse().map((m) => (
             <div 
               key={m.id} 
               onMouseDown={() => handleTouchStart(m)}
@@ -2126,7 +2147,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
               <p className="text-slate-700 font-medium leading-relaxed font-sans break-words">{m.text}</p>
             </div>
           ))}
-          {chats.filter(c => c.projectId === chatChannel).length === 0 && <p className="text-slate-400 text-xs text-center py-6">Hold/Right-Click any sent commentary to Edit, Copy, or delete.</p>}
+          {(chats || []).filter(c => c && c.projectId === chatChannel).length === 0 && <p className="text-slate-400 text-xs text-center py-6">Hold/Right-Click any sent commentary to Edit, Copy, or delete.</p>}
         </div>
         <form onSubmit={commit} className="p-2.5 border-t flex gap-2 bg-white font-sans shrink-0">
           <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type commentary..." className="flex-1 px-3 py-1.5 border rounded-xl text-xs focus:outline-none" />
@@ -2219,7 +2240,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   };
 
   const removePostComment = async (postId, postComments, commentId) => {
-    const updatedComments = postComments.filter(x => x.id !== commentId);
+    const updatedComments = (postComments || []).filter(x => x && x.id !== commentId);
     await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
     showToast("Comment removed.", "info");
   };
@@ -2232,7 +2253,8 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
       </div>
 
       <div className="max-w-md mx-auto space-y-6 animate-fadeIn">
-        {posts.map(post => {
+        {(posts || []).map(post => {
+          if (!post) return null;
           const amLiked = post.likedBy?.includes(userProfile?.id);
           return (
             <div key={post.id} className="bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn">
@@ -2245,7 +2267,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                     <h4 className="text-xs font-black text-slate-800 truncate hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(post.authorUid)}>
                       {post.authorName}
                     </h4>
-                    <span className="text-[8px] text-slate-400 font-mono block">{new Date(post.createdAt).toLocaleDateString()}</span>
+                    <span className="text-[8px] text-slate-400 font-mono block">{post.createdAt ? new Date(post.createdAt).toLocaleDateString() : ''}</span>
                   </div>
                 </div>
                 {isAdmin && (
@@ -2270,19 +2292,22 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                 </div>
                 
                 <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
-                  {(post.comments || []).map((c, i) => (
-                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
-                      <div className="min-w-0 pr-2">
-                        <span className="font-bold text-slate-800 mr-1.5 hover:underline cursor-pointer" onClick={() => onInspectUser(c.authorUid)}>
-                          {c.authorName}
-                        </span>
-                        <span className="text-slate-600 break-words">{c.text}</span>
+                  {(post.comments || []).map((c, i) => {
+                    if (!c) return null;
+                    return (
+                      <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
+                        <div className="min-w-0 pr-2">
+                          <span className="font-bold text-slate-800 mr-1.5 hover:underline cursor-pointer" onClick={() => onInspectUser(c.authorUid)}>
+                            {c.authorName}
+                          </span>
+                          <span className="text-slate-600 break-words">{c.text}</span>
+                        </div>
+                        {(isAdmin || c.authorName === userProfile?.name) && (
+                          <button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 hover:text-rose-700 text-[9px] shrink-0 font-bold px-1.5">✕</button>
+                        )}
                       </div>
-                      {(isAdmin || c.authorName === userProfile.name) && (
-                        <button onClick={() => removePostComment(post.id, post.comments, c.id)} className="text-rose-500 hover:text-rose-700 text-[9px] shrink-0 font-bold px-1.5">✕</button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 
                 <form onSubmit={(e) => handleAddPostComment(e, post.id)} className="pt-2 border-t border-[#EADFC9]/20 flex gap-2 font-sans">
@@ -2318,7 +2343,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 // --- MY PROFILE (WITH ONBOARDING INTERACTION & INSTAGRAM BIO SETTINGS) ---
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut, isOnboarding }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
-  const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
+  const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || (categories && categories[0]) || 'Editing');
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(userProfile?.photoURL || '');
   const [bioInput, setBioInput] = useState(userProfile?.bio || '');
   const [newCatInp, setNewCatInp] = useState('');
@@ -2327,7 +2352,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
   useEffect(() => {
     if (userProfile) {
       setFullName(userProfile.name || ''); 
-      setSelectedCat(userProfile.workCategory || categories[0] || 'Editing'); 
+      setSelectedCat(userProfile.workCategory || (categories && categories[0]) || 'Editing'); 
       setUploadedPhotoUrl(userProfile.photoURL || '');
       setBioInput(userProfile.bio || '');
     }
@@ -2355,7 +2380,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
   const handleRegisterCategory = async (e) => {
     e.preventDefault(); const refined = newCatInp.trim(); if (!refined) return;
-    if (categories.some(c => c.toLowerCase() === refined.toLowerCase())) { showToast('Category tag already exists.', 'warning'); return; }
+    if ((categories || []).some(c => String(c).toLowerCase() === refined.toLowerCase())) { showToast('Category tag already exists.', 'warning'); return; }
     await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(refined) }, { merge: true });
     setSelectedCat(refined); setNewCatInp(''); showToast('Category registered!', 'success');
   };
@@ -2386,7 +2411,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
           <div>
             <label className="block text-[9px] font-bold text-slate-500 uppercase font-sans">Role Specialization</label>
             <select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none">
-              {categories.map((cat, idx) => <option key={idx} value={cat}>{cat}</option>)}
+              {(categories || []).map((cat, idx) => <option key={idx} value={cat}>{cat}</option>)}
             </select>
           </div>
           <div>
@@ -2442,16 +2467,16 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
 // --- ADMIN PANEL ---
 function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
-  const [logoTxt, setLogoTxt] = useState(siteSettings.logoText || '');
-  const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
-  const [apiKeyInput, setApiKeyInput] = useState(ytConfig.apiKey || '');
+  const [logoTxt, setLogoTxt] = useState(siteSettings?.logoText || '');
+  const [channelIdInput, setChannelIdInput] = useState(ytConfig?.channelId || '');
+  const [apiKeyInput, setApiKeyInput] = useState(ytConfig?.apiKey || '');
   const [editingUserId, setEditingUserId] = useState(null);
   const [editedFile, setEditedFile] = useState(null);
 
   useEffect(() => { if (siteSettings?.logoText) setLogoTxt(siteSettings.logoText); }, [siteSettings]);
-  useEffect(() => { setChannelIdInput(ytConfig.channelId || ''); setApiKeyInput(ytConfig.apiKey || ''); }, [ytConfig.channelId, ytConfig.apiKey]);
+  useEffect(() => { setChannelIdInput(ytConfig?.channelId || ''); setApiKeyInput(ytConfig?.apiKey || ''); }, [ytConfig?.channelId, ytConfig?.apiKey]);
 
-  const pendingCount = profiles.filter(p => p.status === 'pending').length;
+  const pendingCount = (profiles || []).filter(p => p && p.status === 'pending').length;
 
   const handleYtSave = async (e) => {
     e.preventDefault();
@@ -2506,7 +2531,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
 
         <div className="bg-white border-2 border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans">
           <h3 className="font-serif font-bold border-b pb-1.5 text-slate-800 text-sm">YouTube Auto-Sync Setup</h3>
-          {ytConfig.lastError && <p className="text-[9px] text-rose-600 mb-1.5 font-bold">⚠ Sync issue: {ytConfig.lastError}</p>}
+          {ytConfig?.lastError && <p className="text-[9px] text-rose-600 mb-1.5 font-bold">⚠ Sync issue: {ytConfig.lastError}</p>}
           <form onSubmit={handleYtSave} className="space-y-3 font-sans">
             <div><label className="block text-[9px] font-bold text-slate-400 uppercase">YouTube Channel ID / Handle</label><input type="text" value={channelIdInput} onChange={(e) => setChannelIdInput(e.target.value)} placeholder="@naitik._.artist-16" className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" required /></div>
             <div><label className="block text-[9px] font-bold text-slate-400 uppercase">YouTube API Key</label><input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" /></div>
@@ -2526,7 +2551,8 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
               <tr className="text-slate-400 font-semibold"><th className="pb-2">Crew Profile</th><th className="pb-2">Status & Role</th><th className="pb-2 text-right">Actions</th></tr>
             </thead>
             <tbody>
-              {profiles.map(p => {
+              {(profiles || []).map(p => {
+                if (!p) return null;
                 const isEditing = editingUserId === p.id;
                 return (
                   <tr key={p.id} className="border-t font-sans animate-fadeIn">
@@ -2545,7 +2571,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                     </td>
                     <td className="py-2 uppercase font-mono text-[9px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
                     <td className="py-2 text-right">
-                      {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
+                      {String(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
                         <div className="flex items-center justify-end gap-1 flex-wrap">
                           <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 border rounded hover:bg-blue-100 text-[9px]">Edit PFP</button>
                           {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 border rounded hover:bg-emerald-100 text-[9px]">Approve</button>}
@@ -2567,7 +2593,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                   </tr>
                 );
               })}
-              {profiles.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-slate-400 italic">No crew members yet.</td></tr>}
+              {(!profiles || profiles.length === 0) && <tr><td colSpan={3} className="py-6 text-center text-slate-400 italic">No crew members yet.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -2598,4 +2624,4 @@ function RejectedScreen({ handleSignOut }) {
       <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 bg-rose-50 px-4 py-2 rounded-full border border-rose-200 hover:bg-rose-100 transition-colors">Sign Out</button>
     </div>
   );
-          }
+  }
