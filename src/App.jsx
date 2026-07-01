@@ -1190,20 +1190,21 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
         {/* Video Canvas Box Node with Aspect-Ratio Adaptability Framework */}
         <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden flex justify-center p-4">
-          {embed.type === 'youtube' ? (
-             <div className="w-full relative aspect-video max-h-[75vh]">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
-             </div>
-          ) : embed.type === 'direct' ? (
-             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
-          ) : embed.type === 'iframe-stream' ? (
-             <div className="w-full relative aspect-video max-h-[75vh]">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="autoplay; encrypted-media" allowFullScreen />
-             </div>
-          ) : (
-             <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
-          )}
-        </div>
+        <div className="w-full bg-black relative overflow-hidden flex justify-center">
+  {embed.type === 'youtube' ? (
+    <div className="w-full aspect-video">
+      <iframe src={embed.src} className="w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+    </div>
+  ) : embed.type === 'direct' ? (
+    <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
+  ) : embed.type === 'iframe-stream' ? (
+    <div className="w-full" style={{ height: '75vh' }}>
+      <iframe src={embed.src} className="w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
+    </div>
+  ) : (
+    <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
+  )}
+</div>
 
         <div className="p-5 border-b border-slate-100">
           <h1 className="text-xl font-black text-slate-900 leading-tight mb-2 font-serif">{activeVideo.title}</h1>
