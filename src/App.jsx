@@ -1171,8 +1171,11 @@ function CustomVideoPlayer({ hlsUrl }) {
   }, []);
 
   return (
-    <div className="relative bg-black w-full overflow-hidden flex flex-col justify-center border-b border-slate-900 shadow-inner group/player rounded-t-xl" style={{ height: isFullscreen ? '100vh' : '70vh' }}>
-      <video ref={videoRef} src={hlsUrl} className="w-full h-full object-contain cursor-pointer" onLoadedMetadata={handleLoadedMetadata} onTimeUpdate={e => setCurrentTime(e.target.currentTime)} onClick={togglePlay} playsInline />
+    <div className="relative bg-black w-full flex flex-col justify-center border-b border-slate-900 shadow-inner rounded-t-xl" style={{ minHeight: '35vh', maxHeight: isFullscreen ? '100vh' : '75vh' }}>
+      
+      {/* FIXED: Removed aspect ratio constraints. Video naturally scales now. */}
+      <video ref={videoRef} src={hlsUrl} className="w-full h-full object-contain cursor-pointer" style={{ maxHeight: '75vh' }} onLoadedMetadata={handleLoadedMetadata} onTimeUpdate={e => setCurrentTime(e.target.currentTime)} onClick={togglePlay} playsInline />
+      
       <video ref={secondaryVideoRef} src={hlsUrl} className="hidden" muted preload="auto" onSeeked={onSecondaryVideoSeeked} />
 
       {!isPlaying && (
@@ -1184,35 +1187,32 @@ function CustomVideoPlayer({ hlsUrl }) {
       )}
 
       {showHoverPreview && (
-        <div className="absolute bottom-16 bg-black border border-white/20 p-1.5 rounded-lg shadow-2xl z-50 pointer-events-none transition" style={{ left: `${hoverX}px`, transform: 'translateX(-50%)' }}>
+        <div className="absolute bottom-20 bg-black border border-white/20 p-1.5 rounded-lg shadow-2xl z-50 pointer-events-none transition" style={{ left: `${hoverX}px`, transform: 'translateX(-50%)' }}>
           {hoverFrameSrc ? <img src={hoverFrameSrc} alt="Preview" className="w-32 h-18 object-cover rounded mb-1 bg-slate-950" /> : <div className="w-32 h-18 bg-slate-900 animate-pulse-slow flex items-center justify-center text-[8px] text-slate-500 rounded">Caching...</div>}
           <span className="text-[10px] text-white font-mono font-bold block text-center leading-none">{hoverTimeText}</span>
         </div>
       )}
 
-      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-12 pb-4 px-4 flex flex-col gap-3 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300 z-50">
+      {/* FIXED: Removed opacity-0 group-hover. Controls are now permanently visible so mobile users can always click them. */}
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-12 pb-4 px-4 flex flex-col gap-3 z-50">
         <div ref={progressBarRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={() => setShowHoverPreview(false)} className="h-2 bg-white/30 hover:h-3 rounded-full cursor-pointer relative transition-all shadow-inner">
           <div className="h-full bg-[#C5A03A] rounded-full relative" style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}>
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#C5A03A] border-[3px] border-white scale-0 group-hover/player:scale-100 transition-transform shadow-md" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#C5A03A] border-[3px] border-white transition-transform shadow-md" />
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-white text-xs font-bold select-none font-sans">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between text-white text-xs font-bold select-none font-sans overflow-x-auto custom-scrollbar pb-1">
+          <div className="flex items-center gap-4 shrink-0">
             <button onClick={togglePlay} className="text-lg hover:text-[#C5A03A] transition hover:scale-110">{isPlaying ? '⏸' : '▶'}</button>
-            <button onClick={() => skip10(-10)} className="hover:text-[#C5A03A] text-[10px] font-mono">⏪ 10s</button>
-            <button onClick={() => skip10(10)} className="hover:text-[#C5A03A] text-[10px] font-mono">⏩ 10s</button>
-            <span className="font-mono text-[10px] ml-2 text-slate-200">{Math.floor(currentTime/60)}:{(Math.floor(currentTime%60)<10?'0':'')}{Math.floor(currentTime%60)} / {Math.floor(duration/60)}:{(Math.floor(duration%60)<10?'0':'')}{Math.floor(duration%60)}</span>
+            <button onClick={() => skip10(-10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2 py-1 rounded">⏪ 10s</button>
+            <button onClick={() => skip10(10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2 py-1 rounded">⏩ 10s</button>
+            <span className="font-mono text-[10px] ml-1 text-slate-200">{Math.floor(currentTime/60)}:{(Math.floor(currentTime%60)<10?'0':'')}{Math.floor(currentTime%60)} / {Math.floor(duration/60)}:{(Math.floor(duration%60)<10?'0':'')}{Math.floor(duration%60)}</span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 shrink-0 ml-4">
             <div className="flex items-center bg-black/50 rounded-lg px-2 py-1 gap-1 border border-white/10 text-[9px] shadow-inner">
-              <span className="text-slate-400 mr-1 tracking-wider">SPEED</span>
+              <span className="text-slate-400 mr-1 tracking-wider hidden sm:inline">SPEED</span>
               {[0.5, 1, 1.5, 2].map(speed => <button key={speed} onClick={() => changeSpeed(speed)} className={`px-2 py-0.5 rounded transition ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'hover:bg-white/20'}`}>{speed}x</button>)}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm">🔊</span>
-              <input type="range" min="0" max="1" step="0.05" value={volume} onChange={e => { const val = parseFloat(e.target.value); setVolume(val); if (videoRef.current) videoRef.current.volume = val; }} className="w-16 h-1.5 bg-white/30 accent-[#C5A03A] rounded-full cursor-pointer" />
             </div>
             <button onClick={toggleFullscreen} className="text-lg hover:scale-110 transition hover:text-[#C5A03A]">⛶</button>
           </div>
@@ -1289,9 +1289,12 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
-        <div className="w-full bg-black shadow-md relative rounded-t-xl overflow-hidden">
+        {/* FIXED: Removed aspect-video wrapper. Now it handles Drive links responsibly without cropping */}
+        <div className="w-full bg-black shadow-md relative rounded-t-xl overflow-hidden flex justify-center">
           {embed.type === 'youtube' || embed.type === 'drive' ? (
-             <div className="w-full aspect-video"><iframe src={embed.src} className="w-full h-full border-none" allowFullScreen /></div>
+             <div className="w-full relative" style={{ paddingTop: '56.25%' }}>
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none" allowFullScreen />
+             </div>
           ) : embed.type === 'direct' ? (
              <CustomVideoPlayer hlsUrl={embed.src} />
           ) : embed.type === 'photos' ? (
@@ -1357,8 +1360,8 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
   return (
     <section className="py-2 space-y-6 font-sans animate-fadeIn px-4 sm:px-0">
-      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans">
-        <h3 className="font-serif font-bold text-slate-800 text-sm sm:text-base">🎞️ Premium Video Vault Feed</h3>
+      <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-sm gap-4">
+        <h2 className="font-serif text-lg font-bold text-slate-800">🎞️ Premium Video Vault Feed</h2>
         <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">➕ Link Dual Asset</button>
       </div>
 
