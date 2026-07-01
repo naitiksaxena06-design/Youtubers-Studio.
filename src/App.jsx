@@ -156,7 +156,7 @@ const resolvePlayableVideo = (url) => {
     return { type: 'iframe-stream', src: cleaned, thumbnail: null };
   }
 
-  const isDirect = /\.(mp4|webm|mov|ogv|m4v)(:\?|$)/i.test(cleaned) || cleaned.startsWith('data:video/') || cleaned.includes('firebasestorage.googleapis.com');
+  const isDirect = /\.(mp4|webm|mov|ogv|m4v)(?:\?|$)/i.test(cleaned) || cleaned.startsWith('data:video/') || cleaned.includes('firebasestorage.googleapis.com');
   if (isDirect) {
     return { type: 'direct', src: cleaned, thumbnail: null };
   }
@@ -392,22 +392,22 @@ export default function App() {
     if (!isAuthReady || !userProfile || !db || !db.app) return;
     const runSweep = async () => {
       const now = Date.now();
-      const sevenDays = 7 * 24 * 60 * 60 * 1000;
-      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-      const oneDay = 24 * 60 * 60 * 1000;
-      const safetyBaseline = 1735689600000; // Prevent flash drops of records on hot-reload hooks
+      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+      const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+      const oneDayAgo = now - 24 * 60 * 60 * 1000;
+      const safetyBaseline = 1735689600000; // Hardened timestamp fallback to prevent premature deletion of items on loading refresh loops
 
       const isDataOlderThan = (timestamp, threshold) => {
         if (!timestamp || typeof timestamp !== 'number' || timestamp < safetyBaseline) return false;
-        return (now - timestamp) > threshold;
+        return timestamp < threshold;
       };
 
-      chats.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDays)) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
-      posts.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDays)) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
-      videos.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDays)) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
-      projects.forEach(async (item) => { if (isDataOlderThan(item.createdAt, thirtyDays)) { try { await deleteDoc(doc(db, 'projects', item.id)); } catch (e) {} } });
-      scripts.forEach(async (item) => { if (isDataOlderThan(item.createdAt, thirtyDays)) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
-      notifications.forEach(async (item) => { if (isDataOlderThan(item.timestamp, oneDay)) { try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {} } });
+      chats.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDaysAgo)) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
+      posts.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDaysAgo)) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
+      videos.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDaysAgo)) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
+      projects.forEach(async (item) => { if (isDataOlderThan(item.createdAt, thirtyDaysAgo)) { try { await deleteDoc(doc(db, 'projects', item.id)); } catch (e) {} } });
+      scripts.forEach(async (item) => { if (isDataOlderThan(item.createdAt, thirtyDaysAgo)) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
+      notifications.forEach(async (item) => { if (isDataOlderThan(item.timestamp, oneDayAgo)) { try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {} } });
     };
     const delayTimer = setTimeout(() => { runSweep(); }, 15000);
     return () => clearTimeout(delayTimer);
@@ -929,7 +929,7 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
   );
 }
 
-// --- ADVANCED NATIVE ADAPTABLE PLAYER (Aspect Ratio Canvas Adaptability + Multi-Zoom + Frame Scrubbing) ---
+// --- ADVANCED ADVANCED YOUTUBE-LIKE ADAPTABLE PLAYER (Aspect Ratio Canvas Adaptability + Multi-Zoom + Frame Scrubbing) ---
 function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   const videoRef = useRef(null);
   const progressBarRef = useRef(null);
@@ -938,56 +938,32 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [volume, setVolume] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [zoomScale, setZoomScale] = useState(1); 
+  const [zoomScale, setZoomScale] = useState(1); // YouTube Zooming state feature
   const [hoverTime, setHoverTime] = useState(null);
   const [hoverX, setHoverX] = useState(0);
-  const [controlsVisible, setControlsVisible] = useState(true);
-  const [aspectRatio, setAspectRatio] = useState("16/9");
-
-  const hideTimerRef = useRef(null);
-
-  const resetHideTimer = useCallback(() => {
-    setControlsVisible(true);
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => {
-      if (videoRef.current && !videoRef.current.paused) {
-        setControlsVisible(false);
-      }
-    }, 1.500);
-  }, []);
-
-  useEffect(() => {
-    resetHideTimer();
-    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
-  }, [isPlaying, resetHideTimer]);
 
   const handleLoadedMetadata = (e) => {
     setDuration(e.target.duration || 0);
-    if (e.target.videoWidth && e.target.videoHeight) {
-      setAspectRatio(`${e.target.videoWidth}/${e.target.videoHeight}`);
-    }
   };
 
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (isPlaying) videoRef.current.pause(); else videoRef.current.play();
     setIsPlaying(!isPlaying);
-    resetHideTimer();
   };
 
   const skip10 = (secs) => {
     if (!videoRef.current) return;
     videoRef.current.currentTime = Math.min(Math.max(videoRef.current.currentTime + secs, 0), duration);
-    resetHideTimer();
   };
 
   const changeSpeed = (speed) => {
     if (!videoRef.current) return;
     videoRef.current.playbackRate = speed;
     setPlaybackSpeed(speed);
-    resetHideTimer();
   };
 
   const handleSeek = (e) => {
@@ -996,7 +972,6 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
       videoRef.current.currentTime = time;
       setCurrentTime(time);
     }
-    resetHideTimer();
   };
 
   const handleProgressBarMouseMove = (e) => {
@@ -1012,6 +987,7 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
     setHoverTime(null);
   };
 
+  // Double tap layout action implementation (Left/Right skip region map)
   const handlePlayerVideoTap = (e) => {
     if (e.detail === 2) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -1022,8 +998,7 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
         skip10(10);
       }
     } else if (e.detail === 1) {
-      setControlsVisible(prev => !prev);
-      if (!controlsVisible) resetHideTimer();
+      togglePlay();
     }
   };
 
@@ -1036,7 +1011,6 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
       document.exitFullscreen(); 
       setIsFullscreen(false); 
     }
-    resetHideTimer();
   };
 
   const handleCycleZoom = () => {
@@ -1045,7 +1019,6 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
       if (current === 1.35) return 1.75;
       return 1;
     });
-    resetHideTimer();
   };
 
   useEffect(() => {
@@ -1063,11 +1036,9 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   return (
     <div 
       ref={playerWrapperRef} 
-      onMouseMove={resetHideTimer}
-      onTouchStart={resetHideTimer}
-      style={{ aspectRatio: isFullscreen ? 'auto' : aspectRatio }}
-      className={`relative bg-black w-full border border-slate-800 shadow-skeuo-lg overflow-hidden group/player transition-all duration-300 ${isFullscreen ? 'h-screen w-screen' : 'h-auto max-w-full max-h-[82vh]'} rounded-2xl`}
+      className={`relative bg-black w-full border border-slate-800 shadow-skeuo-lg overflow-hidden group/player transition-all duration-300 aspect-video h-auto max-h-[82vh] rounded-2xl`}
     >
+      {/* Video Box Canvas with Adaptive Dynamic Scaling Framework */}
       <div className="w-full h-full flex items-center justify-center overflow-hidden">
         <video 
           ref={videoRef} 
@@ -1081,31 +1052,26 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
         />
       </div>
 
-      {/* Modern Center Play/Pause Overlay Toggle */}
-      <div 
-        onClick={togglePlay}
-        className={`absolute inset-0 bg-black/20 flex items-center justify-center cursor-pointer transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-      >
-        <div className="w-14 h-14 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center shadow-md transform scale-100 hover:scale-105 transition-transform">
-          {isPlaying ? (
-            <span className="text-white text-base">⏸</span>
-          ) : (
-            <div className="w-0 h-0 border-t-[7px] border-t-transparent border-l-[11px] border-l-white border-b-[7px] border-b-transparent ml-0.5" />
-          )}
+      {!isPlaying && (
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none transition">
+          <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl animate-pulse">
+            <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-[#C5A03A] border-b-[10px] border-b-transparent ml-1.5" />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Sleek Gradient Controls Panel */}
-      <div className={`absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-12 pb-4 px-4 flex flex-col gap-2 z-50 transition-all duration-300 transform ${controlsVisible ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0 pointer-events-none'}`}>
+      {/* Controller GUI Overlay Menu */}
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-16 pb-4 px-4 flex flex-col gap-3 z-50 opacity-0 group-hover/player:opacity-100 transition-opacity duration-200">
         
+        {/* RANGE SCRUBBER TIMELINE CONTROL PANEL + HOVER FRAME TIMELINE PREVIEW */}
         <div className="relative w-full group/scrub">
           {hoverTime !== null && (
             <div 
               style={{ left: `${hoverX}px` }} 
               className="absolute bottom-6 transform -translate-x-1/2 bg-slate-900/95 border border-amber-500/40 text-white rounded-lg p-2 flex flex-col items-center gap-1 shadow-skeuo-lg font-sans pointer-events-none z-50 w-24 text-center animate-fadeIn"
             >
-              <div className="w-full aspect-video bg-amber-500/10 border border-amber-500/20 rounded flex items-center justify-center text-[8px] font-mono font-bold text-amber-400 select-none uppercase truncate px-1">
-                {videoTitle ? videoTitle.substring(0, 10) : 'Preview'}
+              <div className="w-full aspect-video bg-amber-500/10 border border-amber-500/20 rounded flex items-center justify-center text-[8px] font-mono font-bold text-amber-500 select-none uppercase truncate px-1">
+                {videoTitle ? videoTitle.substring(0, 10) : 'Preview Frame'}
               </div>
               <span className="font-mono text-[10px] text-white font-bold tracking-tight">{formatTime(hoverTime)}</span>
             </div>
@@ -1119,7 +1085,7 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
             onMouseMove={handleProgressBarMouseMove}
             onMouseLeave={handleProgressBarMouseLeave}
             ref={progressBarRef}
-            className="w-full h-1 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-2 transition-all shadow-inner"
+            className="w-full h-1.5 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-2.5 transition-all shadow-inner"
           />
         </div>
 
@@ -1132,9 +1098,11 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 ml-4">
+            {/* Multi-Level Screen Zoom Trigger Overlay Button */}
             <button 
               onClick={handleCycleZoom} 
-              className="text-[10px] font-mono tracking-tight font-bold bg-[#C5A03A]/20 border border-[#C5A03A]/60 px-2.5 py-1 rounded-lg text-amber-400 hover:bg-[#C5A03A]/40 transition animate-pulse-slow"
+              className="text-[10px] font-mono tracking-tight font-bold bg-[#C5A03A]/20 border border-[#C5A03A]/60 px-2.5 py-1 rounded-lg text-amber-400 hover:bg-[#C5A03A]/40 transition"
+              title="YouTube-like Canvas Crop Scale Zoom"
             >
               🔍 ZOOM: {zoomScale}x
             </button>
@@ -1220,6 +1188,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
+        {/* Video Canvas Box Node with Aspect-Ratio Adaptability Framework */}
         <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden flex justify-center p-4">
           {embed.type === 'youtube' ? (
              <div className="w-full relative aspect-video max-h-[75vh]">
@@ -1228,10 +1197,8 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           ) : embed.type === 'direct' ? (
              <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
           ) : embed.type === 'iframe-stream' ? (
-             <div className="w-full max-w-full flex items-center justify-center bg-black rounded-xl overflow-hidden shadow-inner">
-               <div className="w-full relative aspect-video max-h-[75vh]">
-                 <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
-               </div>
+             <div className="w-full relative aspect-video max-h-[75vh]">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="autoplay; encrypted-media" allowFullScreen />
              </div>
           ) : (
              <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
@@ -1301,6 +1268,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           return (
             <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
               
+              {/* Premium Video Production Grid Card Fallback Template */}
               <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
                 {embed.thumbnail ? (
                   <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
@@ -2158,4 +2126,4 @@ function RejectedScreen({ handleSignOut }) {
       <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 bg-rose-50 px-4 py-2 rounded-full border border-rose-200 hover:bg-rose-100 transition-colors">Sign Out</button>
     </div>
   );
-}
+    }
