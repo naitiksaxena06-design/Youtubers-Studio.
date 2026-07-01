@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, 
-  onAuthStateChanged, signInWithCustomToken,
+  onAuthStateChanged, signInAnonymously, signInWithCustomToken,
   signInWithEmailAndPassword, createUserWithEmailAndPassword 
 } from 'firebase/auth';
 import { 
@@ -10,9 +10,8 @@ import {
   collection as fbCollection, addDoc, onSnapshot, query, orderBy, limit as fbLimit,
   arrayUnion 
 } from 'firebase/firestore';
-import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
-// --- SAFE FIREBASE INITIALIZATION & FALLBACKS ---
+// --- SAFE FIREBASE INITIALIZATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyBsFo07T-8_CA6EWzaLfeWLJ3ShuGx5KIM",
   authDomain: "rs-b5cf5.firebaseapp.com",
@@ -24,15 +23,14 @@ const firebaseConfig = {
   measurementId: "G-8P1NK42WJW"
 };
 
-let app, auth, db, storage;
+let app, auth, db;
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
-  storage = getStorage(app); 
 } catch (e) {
-  console.error("Firebase critical initialization failed. Initializing placeholder services.", e);
-  app = {}; auth = { currentUser: null }; db = {}; storage = {};
+  console.error("Firebase critical initialization failed.", e);
+  app = {}; auth = { currentUser: null }; db = {};
 }
 
 const googleProvider = new GoogleAuthProvider();
@@ -88,10 +86,10 @@ const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
 const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
-// 30-Day Expiration Timer
+// EXACTLY 1 WEEK (7 DAYS) EXPIRATION TIMER
 const getDeletionTimeLeft = (createdAt) => {
   if (!createdAt) return 'Unknown';
-  const expiryTime = createdAt + (30 * 24 * 60 * 60 * 1000); // 30 Days
+  const expiryTime = createdAt + (7 * 24 * 60 * 60 * 1000); 
   const diff = expiryTime - Date.now();
   if (diff <= 0) return 'Deleting soon...';
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -151,9 +149,7 @@ const resolvePlayableVideo = (url) => {
 
 const renderAvatar = (photoURL, className = "w-full h-full object-cover", onClick = null) => {
   if (!photoURL || typeof photoURL !== 'string') {
-    return (
-      <div onClick={onClick} className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans cursor-pointer">?</div>
-    );
+    return <div onClick={onClick} className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans cursor-pointer">?</div>;
   }
   if (photoURL.startsWith('<svg') || photoURL.includes('<circle') || photoURL.includes('<path')) {
     return <div onClick={onClick} className={`${className} cursor-pointer`} dangerouslySetInnerHTML={{ __html: photoURL }} />;
@@ -316,27 +312,20 @@ export default function App() {
 
   const showToast = useCallback((message, type = 'info') => {
     setCustomToast({ message, type });
-    // Floating bar appears for just 1 second
-    setTimeout(() => setCustomToast(null), 1000);
+    setTimeout(() => setCustomToast(null), 1000); 
   }, []);
 
   const ensureProfileDocRef = useRef(() => {});
 
-  // FIX: Properly handling Auth State to persist user logins
   useEffect(() => {
-    if (!auth || !auth.app) {
-      setAuthLoading(false);
-      return;
-    }
+    if (!auth || !auth.app) { setAuthLoading(false); return; }
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (user && !user.isAnonymous) {
         try { await ensureProfileDocRef.current(user); } catch (e) {}
       }
       setAuthLoading(false);
-    }, () => {
-      setAuthLoading(false);
-    });
+    }, () => { setAuthLoading(false); });
     return () => unsub();
   }, []);
 
@@ -403,17 +392,17 @@ export default function App() {
     }
   }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
 
-  // --- BACKGROUND TIME-BASED AUTO-SWEEPER (30 Days) ---
+  // --- BACKGROUND TIME-BASED AUTO-SWEEPER (1 Week / 7 Days) ---
   useEffect(() => {
     if (!isAuthReady || !userProfile || !db || !db.app) return;
     const runSweep = async () => {
-      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-      chats.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
-      posts.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
+      chats.forEach(async (item) => { if (item.createdAt && item.createdAt < oneWeekAgo) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
+      posts.forEach(async (item) => { if (item.createdAt && item.createdAt < oneWeekAgo) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
       notifications.forEach(async (item) => { if (item.timestamp && item.timestamp < oneDayAgo) { try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {} } });
-      videos.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
-      scripts.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
+      videos.forEach(async (item) => { if (item.createdAt && item.createdAt < oneWeekAgo) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
+      scripts.forEach(async (item) => { if (item.createdAt && item.createdAt < oneWeekAgo) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
     };
     const delayTimer = setTimeout(() => { runSweep(); }, 8000);
     return () => clearTimeout(delayTimer);
@@ -502,7 +491,7 @@ export default function App() {
         showToast('Successfully authenticated!', 'success');
         setShowSignInModal(false);
       }
-    } catch (err) { showToast('Sign-in failed — check configuration.', 'warning'); }
+    } catch (err) { showToast('Sign-in failed.', 'warning'); }
   };
 
   const handleSignOut = async () => {
@@ -752,7 +741,7 @@ export default function App() {
         {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
         {currentPage === 'categories-view' && <div className="px-4 sm:px-0"><CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} onInspectUser={setInspectUser} /></div>}
         
-    {currentPage === 'vault' && (
+        {currentPage === 'vault' && (
           <VideoVault 
             videos={videos} 
             userProfile={userProfile} 
@@ -1232,28 +1221,16 @@ function CustomVideoPlayer({ hlsUrl }) {
   const [hoverTimeText, setHoverTimeText] = useState('');
   const [hoverX, setHoverX] = useState(0);
   const [showHoverPreview, setShowHoverPreview] = useState(false);
-  
   const [isDragging, setIsDragging] = useState(false);
 
   const handleLoadedMetadata = (e) => {
-    const video = e.target;
-    if (video.videoWidth && video.videoHeight) {
-      setAspectRatio(`${video.videoWidth}/${video.videoHeight}`);
-    }
-    setDuration(video.duration || 0);
-  };
-
-  const handleTimeUpdate = (e) => {
-    setCurrentTime(e.target.currentTime);
+    if (e.target.videoWidth && e.target.videoHeight) setAspectRatio(`${e.target.videoWidth}/${e.target.videoHeight}`);
+    setDuration(e.target.duration || 0);
   };
 
   const togglePlay = () => {
     if (!videoRef.current) return;
-    if (isPlaying) {
-      videoRef.current.pause();
-    } else {
-      videoRef.current.play().catch(() => {});
-    }
+    if (isPlaying) videoRef.current.pause(); else videoRef.current.play();
     setIsPlaying(!isPlaying);
   };
 
@@ -1293,40 +1270,29 @@ function CustomVideoPlayer({ hlsUrl }) {
     videoRef.current.currentTime = percent * duration;
   };
 
-  const handlePointerDown = (e) => {
-    setIsDragging(true);
-    scrubProgress(e);
-  };
-
+  const handlePointerDown = (e) => { setIsDragging(true); scrubProgress(e); e.target.setPointerCapture(e.pointerId); };
   const handlePointerMove = (e) => {
     if (isDragging) scrubProgress(e);
-    
     if (!progressBarRef.current || !duration || !secondaryVideoRef.current) return;
     const rect = progressBarRef.current.getBoundingClientRect();
     const percent = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
     const targetTime = percent * duration;
-
     setHoverX(e.clientX - rect.left);
-    
     const mins = Math.floor(targetTime / 60);
     const secs = Math.floor(targetTime % 60);
     setHoverTimeText(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
     setShowHoverPreview(true);
-
-    secondaryVideoRef.current.currentTime = targetTime;
+    if (Math.abs(secondaryVideoRef.current.currentTime - targetTime) > 1) {
+       secondaryVideoRef.current.currentTime = targetTime;
+    }
   };
-
-  const handlePointerUp = () => {
-    setIsDragging(false);
-    setShowHoverPreview(false);
-  };
+  const handlePointerUp = (e) => { setIsDragging(false); setShowHoverPreview(false); e.target.releasePointerCapture(e.pointerId); };
 
   const onSecondaryVideoSeeked = () => {
     if (!secondaryVideoRef.current) return;
     try {
       const canvas = document.createElement('canvas');
-      canvas.width = 160;
-      canvas.height = 90;
+      canvas.width = 160; canvas.height = 90;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(secondaryVideoRef.current, 0, 0, canvas.width, canvas.height);
       setHoverFrameSrc(canvas.toDataURL('image/jpeg', 0.5));
@@ -1334,41 +1300,18 @@ function CustomVideoPlayer({ hlsUrl }) {
   };
 
   useEffect(() => {
-    const onFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    window.addEventListener('pointerup', handlePointerUp);
-    return () => {
-      document.removeEventListener('fullscreenchange', onFullscreenChange);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
   return (
     <div className="relative bg-black w-full h-[60vh] sm:h-full overflow-hidden flex items-center justify-center border-b border-slate-900 shadow-inner group/player">
-      <video
-        ref={videoRef}
-        src={hlsUrl}
-        className="w-full h-full object-contain cursor-pointer"
-        style={{ aspectRatio }}
-        onLoadedMetadata={handleLoadedMetadata}
-        onTimeUpdate={handleTimeUpdate}
-        onClick={togglePlay}
-        playsInline
-      />
-
-      <video
-        ref={secondaryVideoRef}
-        src={hlsUrl}
-        className="hidden"
-        muted
-        preload="auto"
-        onSeeked={onSecondaryVideoSeeked}
-      />
+      <video ref={videoRef} src={hlsUrl} className="w-full h-full object-contain cursor-pointer" style={{ aspectRatio }} onLoadedMetadata={handleLoadedMetadata} onTimeUpdate={e => setCurrentTime(e.target.currentTime)} onClick={togglePlay} playsInline />
+      <video ref={secondaryVideoRef} src={hlsUrl} className="hidden" muted preload="auto" onSeeked={onSecondaryVideoSeeked} />
 
       {!isPlaying && (
-        <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none transition">
+        <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none transition" onClick={togglePlay}>
           <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl animate-pulse">
             <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-[#C5A03A] border-b-[8px] border-b-transparent ml-1" />
           </div>
@@ -1376,76 +1319,38 @@ function CustomVideoPlayer({ hlsUrl }) {
       )}
 
       {showHoverPreview && (
-        <div 
-          className="absolute bottom-14 bg-black border border-white/20 p-1.5 rounded-lg shadow-2xl z-50 pointer-events-none transition"
-          style={{ left: `${hoverX}px`, transform: 'translateX(-50%)' }}
-        >
-          {hoverFrameSrc ? (
-            <img src={hoverFrameSrc} alt="Preview" className="w-32 h-18 object-cover rounded mb-1 bg-slate-950" />
-          ) : (
-            <div className="w-32 h-18 bg-slate-900 animate-pulse-slow flex items-center justify-center text-[8px] text-slate-500 rounded">Caching...</div>
-          )}
+        <div className="absolute bottom-14 bg-black border border-white/20 p-1.5 rounded-lg shadow-2xl z-50 pointer-events-none transition" style={{ left: `${hoverX}px`, transform: 'translateX(-50%)' }}>
+          {hoverFrameSrc ? <img src={hoverFrameSrc} alt="Preview" className="w-32 h-18 object-cover rounded mb-1 bg-slate-950" /> : <div className="w-32 h-18 bg-slate-900 animate-pulse-slow flex items-center justify-center text-[8px] text-slate-500 rounded">Caching...</div>}
           <span className="text-[10px] text-white font-mono font-bold block text-center leading-none">{hoverTimeText}</span>
         </div>
       )}
 
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-3 flex flex-col gap-2.5 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300 z-50">
-        <div 
-          ref={progressBarRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerLeave={() => setShowHoverPreview(false)}
-          className="h-1.5 bg-white/20 hover:h-2.5 rounded-full cursor-pointer relative transition-all"
-        >
-          <div 
-            className="h-full bg-[#C5A03A] rounded-full relative" 
-            style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
-          >
+        <div ref={progressBarRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerLeave={() => setShowHoverPreview(false)} className="h-1.5 bg-white/20 hover:h-2.5 rounded-full cursor-pointer relative transition-all">
+          <div className="h-full bg-[#C5A03A] rounded-full relative" style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}>
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#C5A03A] border-2 border-white scale-0 group-hover/player:scale-100 transition-transform shadow" />
           </div>
         </div>
 
         <div className="flex items-center justify-between text-white text-xs font-bold select-none font-sans">
           <div className="flex items-center gap-3">
-            <button onClick={togglePlay} className="text-sm p-1 hover:text-[#C5A03A] transition">
-              {isPlaying ? '⏸️' : '▶️'}
-            </button>
+            <button onClick={togglePlay} className="text-sm p-1 hover:text-[#C5A03A] transition">{isPlaying ? '⏸️' : '▶️'}</button>
             <button onClick={() => skip10(-10)} className="hover:text-[#C5A03A] text-[10px]">⏪ 10s</button>
             <button onClick={() => skip10(10)} className="hover:text-[#C5A03A] text-[10px]">⏩ 10s</button>
-            <span className="font-mono text-[10px] ml-1">
-              {Math.floor(currentTime/60)}:{(Math.floor(currentTime%60)<10?'0':'')}{Math.floor(currentTime%60)} / {Math.floor(duration/60)}:{(Math.floor(duration%60)<10?'0':'')}{Math.floor(duration%60)}
-            </span>
+            <span className="font-mono text-[10px] ml-1">{Math.floor(currentTime/60)}:{(Math.floor(currentTime%60)<10?'0':'')}{Math.floor(currentTime%60)} / {Math.floor(duration/60)}:{(Math.floor(duration%60)<10?'0':'')}{Math.floor(duration%60)}</span>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="flex items-center bg-white/10 rounded-lg px-2 py-0.5 gap-1 border border-white/10 text-[9px]">
               <span className="text-slate-400">SPEED:</span>
-              {[0.5, 1, 1.5, 2].map(speed => (
-                <button 
-                  key={speed} 
-                  onClick={() => changeSpeed(speed)} 
-                  className={`px-1.5 py-0.5 rounded transition ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'hover:bg-white/20'}`}
-                >
-                  {speed}x
-                </button>
-              ))}
+              {[0.5, 1, 1.5, 2].map(speed => <button key={speed} onClick={() => changeSpeed(speed)} className={`px-1.5 py-0.5 rounded transition ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'hover:bg-white/20'}`}>{speed}x</button>)}
             </div>
 
             <div className="flex items-center gap-1.5">
               <span>🔊</span>
-              <input 
-                type="range" 
-                min="0" 
-                max="1" 
-                step="0.05" 
-                value={volume} 
-                onChange={handleVolumeChange} 
-                className="w-16 h-1 bg-white/30 accent-[#C5A03A] rounded-full cursor-pointer" 
-              />
+              <input type="range" min="0" max="1" step="0.05" value={volume} onChange={handleVolumeChange} className="w-16 h-1 bg-white/30 accent-[#C5A03A] rounded-full cursor-pointer" />
             </div>
-            <button onClick={toggleFullscreen} className="text-sm hover:scale-110 transition p-1">
-              {isFullscreen ? '🗗' : '🖵'}
-            </button>
+            <button onClick={toggleFullscreen} className="text-sm hover:scale-110 transition p-1">{isFullscreen ? '🗗' : '🖵'}</button>
           </div>
         </div>
       </div>
@@ -1457,88 +1362,27 @@ function CustomVideoPlayer({ hlsUrl }) {
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification, activeVideo, setActiveVideo, onInspectUser }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
-  const [uploadMode, setUploadMode] = useState('link');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  
-  const [uploadingState, setUploadingState] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0); 
-  const [selectedVideoFile, setSelectedVideoFile] = useState(null);
-
-  const handleGalleryFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setSelectedVideoFile(file);
-  };
 
   const startUpload = async (e) => {
     e.preventDefault();
-    if (!videoTitle.trim()) return;
-    if (!db || !db.app) return;
+    if (!videoTitle.trim() || !videoUrlInput.trim() || !db || !db.app) return;
     
-    let targetSrcLocation = '';
-    let metricSize = '';
-    
-    setUploadingState(true);
-    setUploadProgress(0);
-    
-    try {
-      if (uploadMode === 'link') {
-        if (!videoUrlInput.trim()) { setUploadingState(false); return; }
-        targetSrcLocation = videoUrlInput.trim();
-        metricSize = "External URL Link";
-        
-        await completeFirebaseDocUpload(targetSrcLocation, metricSize);
-        
-      } else {
-        if (!selectedVideoFile) { showToast('Please select a video file first.', 'warning'); setUploadingState(false); return; }
-        
-        const fileRef = storageRef(storage, `videos/${Date.now()}_${selectedVideoFile.name}`);
-        const uploadTask = uploadBytesResumable(fileRef, selectedVideoFile);
-        
-        uploadTask.on('state_changed', 
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(Math.round(progress));
-          },
-          (error) => { 
-            showToast('Storage transfer interrupted.', 'warning'); 
-            setUploadingState(false);
-          },
-          async () => {
-            targetSrcLocation = await getDownloadURL(uploadTask.snapshot.ref);
-            metricSize = `${(selectedVideoFile.size / 1024 / 1024).toFixed(2)} MB`;
-            await completeFirebaseDocUpload(targetSrcLocation, metricSize);
-          }
-        );
-      }
-    } catch (err) { 
-      showToast('Upload authorization failure.', 'warning'); 
-      setUploadingState(false);
-    }
-  };
-
-  const completeFirebaseDocUpload = async (url, metric) => {
     try {
       await addDoc(collection(db, 'videos'), {
         title: videoTitle.trim(),
-        hlsUrl: url,
+        hlsUrl: videoUrlInput.trim(),
         uploaderUid: userProfile.id,
         uploaderName: userProfile.name,
         uploaderAvatar: userProfile.photoURL || '',
-        size: metric,
+        size: "External URL Link",
         comments: [],
         createdAt: Date.now(),
       });
-      
       pushNotification(`Added video: "${videoTitle}"`, userProfile.name);
-      setVideoTitle(''); setVideoUrlInput(''); setSelectedVideoFile(null); setShowUploadModal(false);
-      showToast('Video registered successfully!', 'success');
-    } catch (e) {
-      showToast('Database registration failed.', 'warning');
-    } finally {
-      setUploadingState(false);
-      setUploadProgress(0);
-    }
+      setVideoTitle(''); setVideoUrlInput(''); setShowUploadModal(false);
+      showToast('Video link registered successfully!', 'success');
+    } catch (err) { showToast('Upload authorization failure.', 'warning'); }
   };
 
   const removeVideo = async (id) => {
@@ -1553,19 +1397,11 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     if (!db || !db.app) return;
     const commentText = e.target.commentInput.value.trim();
     if (!commentText) return;
-    const newComment = { 
-      id: 'c_' + Date.now(), 
-      authorUid: userProfile.id,
-      authorName: userProfile.name, 
-      text: commentText, 
-      timestamp: Date.now() 
-    };
+    const newComment = { id: 'c_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
     e.target.commentInput.value = '';
-    
     const freshDoc = await getDoc(doc(db, 'videos', videoId));
     if (freshDoc.exists()) setActiveVideo({ id: freshDoc.id, ...freshDoc.data() });
-    
     showToast('Feedback published!', 'success');
   };
 
@@ -1573,10 +1409,8 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     if (!db || !db.app) return;
     const updatedComments = currentComments.filter(c => c.id !== commentId);
     await updateDoc(doc(db, 'videos', videoId), { comments: updatedComments });
-    
     const freshDoc = await getDoc(doc(db, 'videos', videoId));
     if (freshDoc.exists()) setActiveVideo({ id: freshDoc.id, ...freshDoc.data() });
-
     showToast('Comment deleted.', 'info');
   };
 
@@ -1587,24 +1421,17 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     return (
       <section className="bg-white min-h-[85vh] sm:rounded-2xl border-t border-[#EADFC9] sm:border shadow-sm flex flex-col font-sans animate-fadeIn relative z-30">
         <div className="p-3 border-b border-[#EADFC9]/50 flex items-center gap-3">
-          <button onClick={() => setActiveVideo(null)} className="p-2 hover:bg-slate-100 rounded-full transition">
-            <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          </button>
+          <button onClick={() => setActiveVideo(null)} className="p-2 hover:bg-slate-100 rounded-full transition"><svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
         <div className="w-full bg-black shadow-md relative">
           {embed.type === 'youtube' || embed.type === 'drive' ? (
-             <div className="w-full aspect-video">
-               <iframe src={embed.src} className="w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
-             </div>
+             <div className="w-full aspect-video"><iframe src={embed.src} className="w-full h-full border-none" allowFullScreen /></div>
           ) : embed.type === 'direct' ? (
              <CustomVideoPlayer hlsUrl={embed.src} />
           ) : (
-             <div className="w-full h-48 p-4 flex flex-col items-center justify-center text-center text-xs font-mono text-white space-y-2">
-                <p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p>
-                <a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[10px]">{embed.src}</a>
-             </div>
+             <div className="w-full h-48 p-4 flex flex-col items-center justify-center text-center text-xs font-mono text-white space-y-2"><p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p><a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[10px]">{embed.src}</a></div>
           )}
         </div>
 
@@ -1612,36 +1439,25 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <h1 className="text-lg font-bold text-slate-900 leading-tight mb-2">{activeVideo.title}</h1>
           <div className="flex justify-between items-center text-xs text-slate-500">
             <span>{new Date(activeVideo.createdAt).toLocaleDateString()}</span>
-            <span className="bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded border border-rose-100 flex items-center gap-1">
-              ⏳ {timeLeft}
-            </span>
+            <span className="bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded border border-rose-100 flex items-center gap-1">⏳ {timeLeft}</span>
           </div>
           
           <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-100">
-            <div className="w-10 h-10 rounded-full overflow-hidden border p-0.5 bg-slate-50 shrink-0">
-              {renderAvatar(activeVideo.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", () => onInspectUser(activeVideo.uploaderUid))}
-            </div>
+            <div className="w-10 h-10 rounded-full overflow-hidden border p-0.5 bg-slate-50 shrink-0">{renderAvatar(activeVideo.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", () => onInspectUser(activeVideo.uploaderUid))}</div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-slate-800 text-sm hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(activeVideo.uploaderUid)}>
-                {activeVideo.uploaderName}
-              </h4>
+              <h4 className="font-bold text-slate-800 text-sm hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(activeVideo.uploaderUid)}>{activeVideo.uploaderName}</h4>
               <p className="text-[10px] text-slate-400">{activeVideo.size}</p>
             </div>
             {(isAdmin || activeVideo.uploaderUid === userProfile?.id) && (
-              <button onClick={() => removeVideo(activeVideo.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-rose-100 transition">
-                🗑️ Delete Record
-              </button>
+              <button onClick={() => removeVideo(activeVideo.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-rose-100 transition">🗑️ Delete Record</button>
             )}
           </div>
         </div>
 
         <div className="p-4 flex-1 bg-slate-50/50">
           <h3 className="font-bold text-sm text-slate-800 mb-4">Feedback Notes ({activeVideo.comments?.length || 0})</h3>
-          
           <form onSubmit={(e) => handlePostVideoComment(e, activeVideo.id)} className="flex gap-2 mb-6">
-            <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 bg-white shrink-0 hidden sm:block">
-              {renderAvatar(userProfile?.photoURL)}
-            </div>
+            <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 bg-white shrink-0 hidden sm:block">{renderAvatar(userProfile?.photoURL)}</div>
             <input type="text" name="commentInput" placeholder="Add a feedback note..." className="flex-1 px-3 py-2 bg-white border border-[#EADFC9] rounded-xl text-xs focus:outline-none" required />
             <button type="submit" className="bg-[#C5A03A] hover:bg-[#b08d32] text-white text-xs px-4 rounded-xl font-bold transition">Post</button>
           </form>
@@ -1651,9 +1467,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
               <div key={comment.id} className="text-xs flex items-start gap-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-slate-800 hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(comment.authorUid)}>
-                      {comment.authorName}
-                    </span>
+                    <span className="font-bold text-slate-800 hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(comment.authorUid)}>{comment.authorName}</span>
                     <span className="text-[9px] text-slate-400">{new Date(comment.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                   </div>
                   <span className="text-slate-600 break-words leading-relaxed">{comment.text}</span>
@@ -1681,82 +1495,41 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
         {videos.map((vid) => {
           const embed = resolvePlayableVideo(vid.hlsUrl);
           const timeLeft = getDeletionTimeLeft(vid.createdAt);
-          
           return (
             <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
               <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
-                {embed.thumbnail ? (
-                  <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                ) : (
-                  <div className="absolute inset-0 bg-gradient-to-tr from-slate-800 to-slate-900 group-hover:scale-105 transition-transform duration-500" />
-                )}
-                
-                <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg">
-                  <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div>
-                </div>
-
-                <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">
-                  ⏳ {timeLeft}
-                </div>
+                {embed.thumbnail ? <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" /> : <div className="absolute inset-0 bg-gradient-to-tr from-slate-800 to-slate-900 group-hover:scale-105 transition-transform duration-500" />}
+                <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
+                <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
               </div>
-
               <div className="p-3 flex gap-3 bg-white flex-1">
-                <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-0.5">
-                  {renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(vid.uploaderUid); })}
-                </div>
+                <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-0.5">{renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(vid.uploaderUid); })}</div>
                 <div className="flex flex-col flex-1 min-w-0">
                   <h3 className="font-sans font-bold text-slate-900 text-sm leading-tight line-clamp-2 group-hover:text-[#C5A03A] transition-colors">{vid.title}</h3>
-                  <div className="text-slate-500 text-[10px] mt-1 font-sans truncate">
-                    {vid.uploaderName} • {vid.comments?.length || 0} Notes
-                  </div>
+                  <div className="text-slate-500 text-[10px] mt-1 font-sans truncate">{vid.uploaderName} • {vid.comments?.length || 0} Notes</div>
                 </div>
               </div>
             </div>
           );
         })}
       </div>
-      
       {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs border-2 border-dashed border-[#EADFC9] rounded-2xl bg-white/50">The Video Vault showcase is currently empty.</div>}
 
       {showUploadModal && (
         <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg">
-            <h4 className="font-serif font-bold text-slate-800 text-sm">Ingest Video Content</h4>
-            
-            <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
-              <button type="button" onClick={() => setUploadMode('link')} className={`flex-1 text-center py-1 rounded-lg text-[11px] font-bold transition ${uploadMode === 'link' ? 'bg-white shadow text-[#C5A03A]' : 'text-slate-500'}`}>🔗 Paste Link</button>
-              <button type="button" onClick={() => setUploadMode('gallery')} className={`flex-1 text-center py-1 rounded-lg text-[11px] font-bold transition ${uploadMode === 'gallery' ? 'bg-white shadow text-[#C5A03A]' : 'text-slate-500'}`}>📁 Gallery Ingestion</button>
-            </div>
-
+            <h4 className="font-serif font-bold text-slate-800 text-sm">Link External Video Content</h4>
             <div>
               <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Showcase Label</label>
-              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1" placeholder="e.g. Director Cut Segment V2" required />
+              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1" required />
             </div>
-
-            {uploadMode === 'link' ? (
-              <div>
-                <label className="block text-[9px] font-bold text-slate-500 uppercase">External Asset URL (YT, Drive share, direct link)</label>
-                <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1" placeholder="https://..." />
-              </div>
-            ) : (
-              <div>
-                <label className="block text-[9px] font-bold text-slate-500 uppercase">Select Gallery Video Payload</label>
-                <input type="file" accept="video/*" onChange={handleGalleryFileSelect} className="w-full text-xs text-slate-500 mt-1" />
-                
-                {uploadingState && (
-                  <div className="mt-3">
-                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#C5A03A] transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
-                    </div>
-                    <p className="text-[9px] font-bold text-[#C5A03A] mt-1 text-right">Uploading... {uploadProgress}%</p>
-                  </div>
-                )}
-              </div>
-            )}
-
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">External Asset URL (Drive, Photos, YT)</label>
+              <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border rounded-lg text-xs mt-1" placeholder="https://..." required />
+            </div>
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowUploadModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" disabled={uploadingState} className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 disabled:opacity-40">Track Asset</button>
+              <button type="submit" className="px-4 py-1.5 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800">Track Asset</button>
             </div>
           </form>
         </div>
@@ -1826,9 +1599,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
             {projects.map((p) => (
               <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl cursor-pointer shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all relative">
                 <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
-                {isAdmin && (
-                  <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>
-                )}
+                {isAdmin && <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>}
                 <h4 className="font-serif font-bold text-slate-800 pt-2 text-center line-clamp-2 text-xs">{p.title}</h4>
                 <div className="text-[9px] text-slate-400 text-center mt-2 font-mono">⏳ {getDeletionTimeLeft(p.createdAt)}</div>
               </div>
@@ -1839,11 +1610,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
         <div className="space-y-4 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn font-sans">
           <div className="flex justify-between items-center border-b pb-2">
             <button onClick={() => setSelectedProject(null)} className="text-[11px] font-bold text-[#C5A03A] hover:underline transition">◀ Back to Cork Board</button>
-            {isAdmin && (
-              <button onClick={(e) => removeProject(selectedProject.id, e)} className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg font-bold hover:bg-rose-100 transition">
-                🗑 Delete Entire Whiteboard
-              </button>
-            )}
+            {isAdmin && <button onClick={(e) => removeProject(selectedProject.id, e)} className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg font-bold hover:bg-rose-100 transition">🗑 Delete Entire Whiteboard</button>}
           </div>
           <h3 className="font-serif text-lg font-bold text-slate-800">{selectedProject.title}</h3>
           <p className="text-[9px] text-rose-500 font-bold">⏳ {getDeletionTimeLeft(selectedProject.createdAt)}</p>
@@ -1853,12 +1620,8 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
               <div key={t.id} className="py-2.5 flex justify-between items-center group">
                 <span className="font-semibold text-slate-700">{t.title}</span>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => toggleTaskStatus(t)} className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>
-                    {t.status}
-                  </button>
-                  {isAdmin && (
-                    <button onClick={() => removeTask(t.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold px-1.5 border rounded" title="Delete Task card">✕</button>
-                  )}
+                  <button onClick={() => toggleTaskStatus(t)} className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</button>
+                  {isAdmin && <button onClick={() => removeTask(t.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold px-1.5 border rounded" title="Delete Task card">✕</button>}
                 </div>
               </div>
             ))}
@@ -1931,9 +1694,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                 <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
                 <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName} • ⏳ {getDeletionTimeLeft(s.createdAt)}</span>
               </div>
-              {(isAdmin || s.authorUid === userProfile?.id) && (
-                <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>
-              )}
+              {(isAdmin || s.authorUid === userProfile?.id) && <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>}
             </div>
           ))}
         </div>
@@ -1952,12 +1713,8 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {canEditSelected && !isEditingBody && (
-                    <button onClick={() => setIsEditingBody(true)} className="text-[9px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-2.5 py-1.5">✎ Edit Script</button>
-                  )}
-                  {isAdmin && (
-                    <button onClick={(e) => removeTopic(selectedScript.id, e)} className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-100">🗑 Delete</button>
-                  )}
+                  {canEditSelected && !isEditingBody && <button onClick={() => setIsEditingBody(true)} className="text-[9px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-2.5 py-1.5">✎ Edit Script</button>}
+                  {isAdmin && <button onClick={(e) => removeTopic(selectedScript.id, e)} className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-100">🗑 Delete</button>}
                 </div>
               </div>
               
@@ -2053,36 +1810,21 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       setEditingMessageText('');
       setActiveMessageMenu(null);
       showToast("Commentary updated!", "success");
-    } catch (e) {
-      showToast("Access restricted.", "warning");
-    }
+    } catch (e) { showToast("Access restricted.", "warning"); }
   };
 
   const copyMessageText = (txt) => {
     try {
       const container = document.createElement('textarea');
-      container.value = txt;
-      container.style.position = 'fixed';
-      document.body.appendChild(container);
-      container.select();
-      document.execCommand('copy');
-      document.body.removeChild(container);
+      container.value = txt; container.style.position = 'fixed'; document.body.appendChild(container);
+      container.select(); document.execCommand('copy'); document.body.removeChild(container);
       showToast("Text copied to clipboard!", "success");
-    } catch (e) {
-      showToast("Unable to access clipboard.", "warning");
-    }
+    } catch (e) { showToast("Unable to access clipboard.", "warning"); }
     setActiveMessageMenu(null);
   };
 
-  const handleTouchStart = (msg) => {
-    longPressTimerRef.current = setTimeout(() => {
-      setActiveMessageMenu(msg);
-    }, 500); 
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-  };
+  const handleTouchStart = (msg) => { longPressTimerRef.current = setTimeout(() => { setActiveMessageMenu(msg); }, 500); };
+  const handleTouchEnd = () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
 
   return (
     <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-2xl h-[70vh] sm:h-[450px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
@@ -2091,9 +1833,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
           {channels.map(ch => (
             <div key={ch.id} className="relative group inline-block sm:block w-auto sm:w-full">
               <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-3 sm:px-2.5 py-2 rounded-xl text-[11px] font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
-              {isAdmin && ch.id !== 'general' && (
-                <button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1 py-0.5 border shadow-sm text-[8px]">✕</button>
-              )}
+              {isAdmin && ch.id !== 'general' && <button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1 py-0.5 border shadow-sm text-[8px]">✕</button>}
             </div>
           ))}
         </div>
@@ -2108,22 +1848,9 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       <div className="sm:col-span-3 flex flex-col h-full bg-slate-50/20 font-sans min-h-0 flex-1 relative">
         <div className="p-3.5 overflow-y-auto space-y-2.5 custom-scrollbar flex-1 font-sans min-h-0 select-none">
           {chats.filter(c => c.projectId === chatChannel).slice().reverse().map((m) => (
-            <div 
-              key={m.id} 
-              onMouseDown={() => handleTouchStart(m)}
-              onMouseUp={handleTouchEnd}
-              onTouchStart={() => handleTouchStart(m)}
-              onTouchEnd={handleTouchEnd}
-              onContextMenu={(e) => { e.preventDefault(); setActiveMessageMenu(m); }}
-              className={`text-xs p-3 border border-[#EADFC9]/40 rounded-2xl max-w-[85%] sm:max-w-[75%] animate-fadeIn shadow-xs font-sans relative cursor-pointer select-none transition-transform active:scale-[0.98] ${m.senderUid === userProfile?.id ? 'bg-[#C5A03A]/5 ml-auto border-[#C5A03A]/20' : 'bg-white'}`}
-            >
+            <div key={m.id} onMouseDown={() => handleTouchStart(m)} onMouseUp={handleTouchEnd} onTouchStart={() => handleTouchStart(m)} onTouchEnd={handleTouchEnd} onContextMenu={(e) => { e.preventDefault(); setActiveMessageMenu(m); }} className={`text-xs p-3 border border-[#EADFC9]/40 rounded-2xl max-w-[85%] sm:max-w-[75%] animate-fadeIn shadow-xs font-sans relative cursor-pointer select-none transition-transform active:scale-[0.98] ${m.senderUid === userProfile?.id ? 'bg-[#C5A03A]/5 ml-auto border-[#C5A03A]/20' : 'bg-white'}`}>
               <div className="flex justify-between items-start mb-1">
-                <span 
-                  className="text-[9px] text-[#C5A03A] font-bold block hover:underline cursor-pointer" 
-                  onClick={(e) => { e.stopPropagation(); onInspectUser(m.senderUid); }}
-                >
-                  {m.senderName}
-                </span>
+                <span className="text-[9px] text-[#C5A03A] font-bold block hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); onInspectUser(m.senderUid); }}>{m.senderName}</span>
                 <span className="text-[8px] text-slate-300 font-mono">⏳ {getDeletionTimeLeft(m.createdAt)}</span>
               </div>
               <p className="text-slate-700 font-medium leading-relaxed font-sans break-words">{m.text}</p>
@@ -2140,12 +1867,10 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
           <div className="absolute inset-0 z-50 bg-black/35 flex items-center justify-center p-4 animate-fadeIn" onClick={() => { setActiveMessageMenu(null); setEditingMessageId(null); }}>
             <div className="w-full max-w-xs bg-white border-2 border-[#EADFC9] rounded-[1.5rem] p-4 shadow-skeuo-lg text-slate-800 space-y-2 text-center" onClick={(e) => e.stopPropagation()}>
               <h5 className="font-serif font-bold text-xs text-slate-400 pb-1.5 border-b uppercase">Message Options</h5>
-              
               {editingMessageId !== activeMessageMenu.id ? (
                 <div className="flex flex-col gap-1.5">
                   <button onClick={() => copyMessageText(activeMessageMenu.text)} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs">📋 Copy Commentary</button>
                   <button onClick={(e) => { e.stopPropagation(); onInspectUser(activeMessageMenu.senderUid); setActiveMessageMenu(null); }} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs">👤 Inspect Sender Profile</button>
-                  
                   {(isAdmin || activeMessageMenu.senderUid === userProfile?.id) && (
                     <>
                       <button onClick={() => { setEditingMessageId(activeMessageMenu.id); setEditingMessageText(activeMessageMenu.text); }} className="w-full py-2 hover:bg-amber-50 text-amber-600 font-bold rounded-xl text-xs">✎ Edit Message</button>
@@ -2155,12 +1880,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
                 </div>
               ) : (
                 <div className="space-y-2 pt-2">
-                  <textarea 
-                    value={editingMessageText} 
-                    onChange={e => setEditingMessageText(e.target.value)} 
-                    className="w-full p-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" 
-                    rows={3} 
-                  />
+                  <textarea value={editingMessageText} onChange={e => setEditingMessageText(e.target.value)} className="w-full p-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" rows={3} />
                   <div className="flex gap-2 justify-end">
                     <button onClick={() => { setEditingMessageId(null); setActiveMessageMenu(null); }} className="px-2.5 py-1 bg-slate-100 rounded-lg text-[10px]">Cancel</button>
                     <button onClick={saveEditedMessage} className="px-3 py-1 bg-[#C5A03A] text-white rounded-lg text-[10px] font-bold">Save</button>
@@ -2208,9 +1928,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     const hasLiked = post.likedBy?.includes(userProfile.id);
     const newLikedBy = hasLiked ? post.likedBy.filter(u => u !== userProfile.id) : [...(post.likedBy || []), userProfile.id];
     await updateDoc(doc(db, 'posts', post.id), { likedBy: newLikedBy, likes: newLikedBy.length });
-    if (expandedPost?.id === post.id) {
-      setExpandedPost({ ...expandedPost, likedBy: newLikedBy, likes: newLikedBy.length });
-    }
+    if (expandedPost?.id === post.id) { setExpandedPost({ ...expandedPost, likedBy: newLikedBy, likes: newLikedBy.length }); }
   };
 
   const handleAddPostComment = async (e, postId) => {
@@ -2221,10 +1939,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     const newComment = { id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal };
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion(newComment) });
     e.target.commentInputText.value = ''; showToast('Comment published!', 'success');
-    
-    if (expandedPost?.id === postId) {
-      setExpandedPost({ ...expandedPost, comments: [...(expandedPost.comments || []), newComment] });
-    }
+    if (expandedPost?.id === postId) { setExpandedPost({ ...expandedPost, comments: [...(expandedPost.comments || []), newComment] }); }
   };
 
   const removePost = async (postId) => { 
@@ -2238,9 +1953,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     if (!db || !db.app) return;
     const updatedComments = postComments.filter(x => x.id !== commentId);
     await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
-    if (expandedPost?.id === postId) {
-      setExpandedPost({ ...expandedPost, comments: updatedComments });
-    }
+    if (expandedPost?.id === postId) { setExpandedPost({ ...expandedPost, comments: updatedComments }); }
     showToast("Comment removed.", "info");
   };
 
@@ -2248,9 +1961,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     return (
       <section className="bg-white min-h-[85vh] sm:rounded-2xl border-t border-[#EADFC9] sm:border shadow-sm flex flex-col font-sans animate-fadeIn relative z-30">
         <div className="p-3 border-b border-[#EADFC9]/50 flex items-center gap-3 shrink-0">
-          <button onClick={() => setExpandedPost(null)} className="p-2 hover:bg-slate-100 rounded-full transition">
-            <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          </button>
+          <button onClick={() => setExpandedPost(null)} className="p-2 hover:bg-slate-100 rounded-full transition"><svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
           <span className="font-serif font-bold text-slate-800">Return to Feed</span>
         </div>
 
@@ -2268,9 +1979,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                   <p className="text-[10px] text-slate-400">{new Date(expandedPost.createdAt).toLocaleString()}</p>
                 </div>
               </div>
-              {isAdmin && (
-                <button onClick={() => { removePost(expandedPost.id); setExpandedPost(null); }} className="text-rose-500 hover:bg-rose-50 px-2 py-1 rounded text-xs font-bold transition border border-rose-100">Delete</button>
-              )}
+              {isAdmin && <button onClick={() => { removePost(expandedPost.id); setExpandedPost(null); }} className="text-rose-500 hover:bg-rose-50 px-2 py-1 rounded text-xs font-bold transition border border-rose-100">Delete</button>}
             </div>
             
             <div className="p-4 overflow-y-auto custom-scrollbar flex-1 border-b border-slate-100">
@@ -2285,9 +1994,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                       <span className="font-bold text-slate-800 cursor-pointer hover:underline text-xs" onClick={() => { setExpandedPost(null); onInspectUser(c.authorUid); }}>{c.authorName}</span>
                       <span className="text-slate-600 leading-relaxed text-xs">{c.text}</span>
                     </div>
-                    {(isAdmin || c.authorName === userProfile.name) && (
-                      <button onClick={() => removePostComment(expandedPost.id, expandedPost.comments, c.id)} className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded font-bold text-[10px]">✕</button>
-                    )}
+                    {(isAdmin || c.authorName === userProfile.name) && <button onClick={() => removePostComment(expandedPost.id, expandedPost.comments, c.id)} className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded font-bold text-[10px]">✕</button>}
                   </div>
                 ))}
                 {(!expandedPost.comments || expandedPost.comments.length === 0) && <p className="text-xs text-slate-400 text-center py-4">No comments yet.</p>}
@@ -2296,9 +2003,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
             <div className="p-4 bg-slate-50 shrink-0">
               <div className="flex items-center gap-3 mb-3">
-                <button onClick={() => toggleLikePost(expandedPost)} className="text-2xl transition-transform active:scale-125">
-                  {expandedPost.likedBy?.includes(userProfile?.id) ? '❤️' : '🤍'}
-                </button>
+                <button onClick={() => toggleLikePost(expandedPost)} className="text-2xl transition-transform active:scale-125">{expandedPost.likedBy?.includes(userProfile?.id) ? '❤️' : '🤍'}</button>
                 <span className="font-bold text-sm text-slate-800">{expandedPost.likes || 0} likes</span>
               </div>
               <form onSubmit={(e) => handleAddPostComment(e, expandedPost.id)} className="flex gap-2">
@@ -2327,29 +2032,18 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
             <div key={post.id} className="break-inside-avoid bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn mb-6">
               <div className="p-3.5 flex items-center justify-between border-b border-slate-50">
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">
-                    {renderAvatar(post.authorAvatar, "w-full h-full object-cover", () => onInspectUser(post.authorUid))}
-                  </div>
+                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(post.authorAvatar, "w-full h-full object-cover", () => onInspectUser(post.authorUid))}</div>
                   <div className="min-w-0">
-                    <h4 className="text-xs font-black text-slate-800 truncate hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(post.authorUid)}>
-                      {post.authorName}
-                    </h4>
+                    <h4 className="text-xs font-black text-slate-800 truncate hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(post.authorUid)}>{post.authorName}</h4>
                     <span className="text-[8px] text-slate-400 font-mono block">{new Date(post.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-                {isAdmin && (
-                  <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete</button>
-                )}
+                {isAdmin && <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete</button>}
               </div>
               
-              <div 
-                className="w-full bg-slate-100 relative cursor-pointer group"
-                onClick={() => setExpandedPost(post)}
-              >
+              <div className="w-full bg-slate-100 relative cursor-pointer group" onClick={() => setExpandedPost(post)}>
                 <img src={post.image} alt={post.title} className="w-full h-auto object-contain animate-fadeIn" />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                  <span className="bg-white/90 text-slate-900 font-bold px-4 py-2 rounded-full text-xs shadow-lg">View Full Thread</span>
-                </div>
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm"><span className="bg-white/90 text-slate-900 font-bold px-4 py-2 rounded-full text-xs shadow-lg">View Full Thread</span></div>
               </div>
               
               <div className="p-3.5 space-y-2.5 border-t border-slate-50 font-sans">
@@ -2370,17 +2064,10 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                 <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1">
                   {(post.comments || []).slice(0, 2).map((c, i) => (
                     <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
-                      <div className="min-w-0 pr-2 truncate">
-                        <span className="font-bold text-slate-800 mr-1.5 hover:underline cursor-pointer" onClick={() => onInspectUser(c.authorUid)}>
-                          {c.authorName}
-                        </span>
-                        <span className="text-slate-600">{c.text}</span>
-                      </div>
+                      <div className="min-w-0 pr-2 truncate"><span className="font-bold text-slate-800 mr-1.5 hover:underline cursor-pointer" onClick={() => onInspectUser(c.authorUid)}>{c.authorName}</span><span className="text-slate-600">{c.text}</span></div>
                     </div>
                   ))}
-                  {post.comments && post.comments.length > 2 && (
-                    <p className="text-[10px] text-slate-400 cursor-pointer hover:underline" onClick={() => setExpandedPost(post)}>View all {post.comments.length} comments...</p>
-                  )}
+                  {post.comments && post.comments.length > 2 && <p className="text-[10px] text-slate-400 cursor-pointer hover:underline" onClick={() => setExpandedPost(post)}>View all {post.comments.length} comments...</p>}
                 </div>
               </div>
             </div>
@@ -2397,9 +2084,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
             <input type="file" ref={fileInputRef} accept="image/*" className="w-full text-xs text-slate-500 font-sans" required />
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowCreatePostModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" disabled={publishing} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] disabled:opacity-50">
-                {publishing ? 'Publishing…' : 'Share Post'}
-              </button>
+              <button type="submit" disabled={publishing} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] disabled:opacity-50">{publishing ? 'Publishing…' : 'Share Post'}</button>
             </div>
           </form>
         </div>
@@ -2419,10 +2104,8 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
   useEffect(() => {
     if (userProfile) {
-      setFullName(userProfile.name || ''); 
-      setSelectedCat(userProfile.workCategory || categories[0] || 'Editing'); 
-      setUploadedPhotoUrl(userProfile.photoURL || '');
-      setBioInput(userProfile.bio || '');
+      setFullName(userProfile.name || ''); setSelectedCat(userProfile.workCategory || categories[0] || 'Editing'); 
+      setUploadedPhotoUrl(userProfile.photoURL || ''); setBioInput(userProfile.bio || '');
     }
   }, [userProfile, categories]);
 
@@ -2432,25 +2115,13 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
     setSaving(true);
     try {
       await updateDoc(doc(db, 'profiles', userProfile.id), { 
-        name: fullName.trim(), 
-        workCategory: selectedCat, 
-        photoURL: uploadedPhotoUrl,
-        bio: bioInput.trim(),
-        isProfileComplete: true 
+        name: fullName.trim(), workCategory: selectedCat, 
+        photoURL: uploadedPhotoUrl, bio: bioInput.trim(), isProfileComplete: true 
       });
       showToast('Profile credentials mapped successfully!', 'success');
       
-      if (userProfile.status === 'pending') {
-        onNavigate('pending-status');
-      } else {
-        onNavigate('home');
-      }
-      
-    } catch (err) { 
-      showToast('Save failed.', 'warning'); 
-    } finally { 
-      setSaving(false); 
-    }
+      if (userProfile.status === 'pending') { onNavigate('pending-status'); } else { onNavigate('home'); }
+    } catch (err) { showToast('Save failed.', 'warning'); } finally { setSaving(false); }
   };
 
   const handleRegisterCategory = async (e) => {
@@ -2466,12 +2137,8 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
     <section className="max-w-xl mx-auto bg-white border border-[#EADFC9] rounded-[2rem] p-6 shadow-lg relative animate-fadeIn font-sans">
       <WatercolorOverlay />
       <div className="text-center mb-4">
-        <h2 className="font-serif text-2xl font-bold text-slate-800">
-          {isOnboarding ? "Complete Onboarding Setup 🚀" : "Profile Details"}
-        </h2>
-        {isOnboarding && (
-          <p className="text-xs text-rose-500 font-bold mt-1">Provide your name, specialized skills, and an intro bio to access the main board.</p>
-        )}
+        <h2 className="font-serif text-2xl font-bold text-slate-800">{isOnboarding ? "Complete Onboarding Setup 🚀" : "Profile Details"}</h2>
+        {isOnboarding && <p className="text-xs text-rose-500 font-bold mt-1">Provide your name, specialized skills, and an intro bio to access the main board.</p>}
       </div>
       <div className="flex flex-col items-center mb-5 font-sans">
         <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 bg-white overflow-hidden shadow-md flex items-center justify-center mb-1 font-sans">
@@ -2507,14 +2174,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
         <div>
           <label className="block text-[9px] font-bold text-slate-500 uppercase">Creator Bio (Intro / Specialization Notes)</label>
-          <textarea 
-            value={bioInput} 
-            onChange={e => setBioInput(e.target.value)} 
-            placeholder="Tell other crew members about your editing specializations, creativity styles, etc..."
-            className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none font-sans leading-relaxed" 
-            rows={3}
-            maxLength={250}
-          />
+          <textarea value={bioInput} onChange={e => setBioInput(e.target.value)} placeholder="Tell other crew members about your editing specializations, creativity styles, etc..." className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none font-sans leading-relaxed" rows={3} maxLength={250} />
           <p className="text-[9px] text-right text-slate-400 mt-0.5">{bioInput.length}/250 characters</p>
         </div>
 
@@ -2534,9 +2194,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
       )}
 
       <div className="border-t border-[#EADFC9]/50 mt-5 pt-5 text-center">
-        <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 hover:text-rose-700 transition bg-rose-50 hover:bg-rose-100 px-5 py-2 rounded-full border border-rose-200">
-          🚪 Sign Out
-        </button>
+        <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 hover:text-rose-700 transition bg-rose-50 hover:bg-rose-100 px-5 py-2 rounded-full border border-rose-200">🚪 Sign Out</button>
       </div>
     </section>
   );
@@ -2568,11 +2226,8 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
     try {
       const compressedBase64 = await compressAndConvertImage(editedFile, 150);
       await updateDoc(doc(db, 'profiles', userId), { photoURL: compressedBase64 });
-      setEditingUserId(null); setEditedFile(null); 
-      showToast("PFP modified successfully!", 'success');
-    } catch (err) {
-      showToast("Photo compression override failed.", "warning");
-    }
+      setEditingUserId(null); setEditedFile(null); showToast("PFP modified successfully!", 'success');
+    } catch (err) { showToast("Photo compression override failed.", "warning"); }
   };
 
   const triggerSiteLogoUpload = async (e) => {
@@ -2582,19 +2237,12 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
       const compressedBase64 = await compressAndConvertImage(file, 200);
       await setDoc(doc(db, 'meta/settings'), { logoUrl: compressedBase64 }, { merge: true }); 
       showToast('Branding updated successfully!', 'success');
-    } catch (err) {
-      showToast('Logo processing failed.', 'warning');
-    }
+    } catch (err) { showToast('Logo processing failed.', 'warning'); }
   };
 
   const saveLogoText = async () => {
     if (!db || !db.app) return;
-    try { 
-      await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); 
-      showToast('Logo text saved!', 'success'); 
-    } catch (err) { 
-      showToast('Error saving logo text.', 'warning'); 
-    }
+    try { await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); showToast('Logo text saved!', 'success'); } catch (err) { showToast('Error saving logo text.', 'warning'); }
   };
 
   const approve = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { status: 'approved' }); };
@@ -2658,17 +2306,8 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                         <div className="flex items-center justify-end gap-1 flex-wrap">
                           <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 border rounded hover:bg-blue-100 text-[9px]">Edit PFP</button>
                           {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 border rounded hover:bg-emerald-100 text-[9px]">Approve</button>}
-                          
-                          {p.role !== 'admin' && p.role !== 'owner' ? (
-                            <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 border rounded hover:bg-amber-100 text-[9px]">Promote</button>
-                          ) : (
-                            p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-purple-50 text-purple-700 px-2 py-0.5 border rounded hover:bg-purple-100 text-[9px]">Demote</button>
-                          )}
-
-                          {p.role !== 'roasting waiter' && p.role !== 'owner' && (
-                            <button onClick={() => makeWaiter(p.id)} className="bg-indigo-50 text-indigo-700 px-2 py-0.5 border rounded hover:bg-indigo-100 text-[9px]">Make Waiter</button>
-                          )}
-                          
+                          {p.role !== 'admin' && p.role !== 'owner' ? <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 border rounded hover:bg-amber-100 text-[9px]">Promote</button> : p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-purple-50 text-purple-700 px-2 py-0.5 border rounded hover:bg-purple-100 text-[9px]">Demote</button>}
+                          {p.role !== 'roasting waiter' && p.role !== 'owner' && <button onClick={() => makeWaiter(p.id)} className="bg-indigo-50 text-indigo-700 px-2 py-0.5 border rounded hover:bg-indigo-100 text-[9px]">Make Waiter</button>}
                           <button onClick={() => remove(p.id)} className="bg-rose-50 text-rose-600 px-2 py-0.5 border rounded hover:bg-rose-100 text-[9px]">Remove</button>
                         </div>
                       ) : <span className="text-slate-400 italic text-[10px]">Owner</span>}
