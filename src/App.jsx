@@ -334,15 +334,28 @@ export default function App() {
     return !userProfile.name || userProfile.name.trim() === '' || !userProfile.workCategory || userProfile.isProfileComplete === false;
   }, [authUser, userProfile]);
 
-  // --- AUTOMATIC PROFILE SPRINT REDIRECTS ---
+  // --- AUTOMATIC PROFILE SPRINT & STATUS REDIRECTS ---
   useEffect(() => {
+    if (!authUser || !userProfile) return;
+
     if (isProfileIncomplete && currentPage !== 'profile') {
       setCurrentPage('profile');
       showToast("Let's personalize your credentials before accessing the main board!", "info");
-    } else if (isRoastingWaiter && currentPage !== 'profile') {
-      setCurrentPage('profile');
+      return;
     }
-  }, [isProfileIncomplete, isRoastingWaiter, currentPage, showToast]);
+
+    if (!isProfileIncomplete) {
+      if (userProfile.status === 'pending' && !['pending-status', 'profile'].includes(currentPage)) {
+        setCurrentPage('pending-status');
+      } else if (userProfile.status === 'rejected' && !['rejected-status', 'profile'].includes(currentPage)) {
+        setCurrentPage('rejected-status');
+      } else if (userProfile.status === 'approved' && isRoastingWaiter && currentPage !== 'profile') {
+        setCurrentPage('profile');
+      } else if (userProfile.status === 'approved' && !isRoastingWaiter && ['pending-status', 'rejected-status'].includes(currentPage)) {
+        setCurrentPage('home');
+      }
+    }
+  }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
 
   // --- 1-DAY NOTIFICATION SWEEP & 7-DAY SWEEP ---
   useEffect(() => {
@@ -385,29 +398,7 @@ export default function App() {
   }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts]);
 
   useEffect(() => {
-    if (notifsError && isAuthReady && !isRoastingWaiter) {
-      showToast(`Notifications blocked: ${notifsError}.`, 'warning');
-    }
-  }, [notifsError, isAuthReady, isRoastingWaiter]);
-
-  const unreadMap = useMemo(() => {
-    if (isRoastingWaiter) return { vault: false, projects: false, scripts: false, posts: false };
-    const lastSeen = userProfile?.lastSeenNotifAt || 0;
-    const unread = notifications.filter(n => n.timestamp > lastSeen && n.actor !== 'System');
-    
-    return {
-      vault: unread.some(n => n.message.toLowerCase().includes('video asset') || n.message.toLowerCase().includes('commented on video')),
-      projects: unread.some(n => n.message.toLowerCase().includes('concept whiteboard')),
-      scripts: unread.some(n => n.message.toLowerCase().includes('script topic')),
-      posts: unread.some(n => n.message.toLowerCase().includes('showroom draft')),
-    };
-  }, [notifications, userProfile, isRoastingWaiter]);
-
-  const seenNotifIdsRef = useRef(new Set());
-  const firstNotifLoadRef = useRef(true);
-  
-  useEffect(() => {
-    if (!userProfile || isRoastingWaiter) return;
+    if (!userProfile || isRoastingWaiter || userProfile.status !== 'approved') return;
     if (firstNotifLoadRef.current) {
       notifications.forEach(n => seenNotifIdsRef.current.add(n.id));
       firstNotifLoadRef.current = false;
@@ -433,9 +424,9 @@ export default function App() {
   }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, isRoastingWaiter]);
 
   const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
-    if (isRoastingWaiter) return; // Waiter cannot create notifications
+    if (isRoastingWaiter || userProfile?.status !== 'approved') return; // Waiters and Pending cannot create notifications
     try { await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience }); } catch (err) {}
-  }, [isRoastingWaiter]);
+  }, [isRoastingWaiter, userProfile]);
 
   const ensureProfileDoc = useCallback(async (user) => {
     const ref = doc(db, 'profiles', user.uid);
@@ -479,11 +470,30 @@ export default function App() {
 
   const handleNavigationChange = (targetPage) => {
     setIsSidebarOpen(false);
+
+    if (!authUser || !userProfile) {
+      if (targetPage === 'home') {
+        setCurrentPage('home');
+        return;
+      }
+      setShowSignInModal(true); 
+      return;
+    }
+
     if (isProfileIncomplete) {
       showToast("Please save your onboarding profile options first!", "warning");
       setCurrentPage('profile');
       return;
     }
+
+    if (userProfile.status === 'pending' || userProfile.status === 'rejected') {
+      if (targetPage !== 'profile') {
+        showToast("Your account is pending approval.", "warning");
+        setCurrentPage(userProfile.status === 'pending' ? 'pending-status' : 'rejected-status');
+        return;
+      }
+    }
+
     if (isRoastingWaiter) {
       if (targetPage !== 'profile') {
         showToast("Waiters are restricted to Profile access only.", "warning");
@@ -491,17 +501,9 @@ export default function App() {
         return;
       }
     }
-    if (targetPage === 'home') { setCurrentPage(targetPage); return; }
-    if (!authUser) { setShowSignInModal(true); return; }
+
     setCurrentPage(targetPage);
   };
-
-  useEffect(() => {
-    if (!authUser || !userProfile) return;
-    if (userProfile.status === 'pending' && currentPage !== 'pending-status') setCurrentPage('pending-status');
-    else if (userProfile.status === 'rejected' && currentPage !== 'rejected-status') setCurrentPage('rejected-status');
-    else if (userProfile.status === 'approved' && (currentPage === 'pending-status' || currentPage === 'rejected-status')) setCurrentPage('home');
-  }, [userProfile, authUser, currentPage]);
 
   const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
     const activeChannelId = targetChannelId || ytConfig.channelId || DEFAULT_YT_CONFIG.channelId;
@@ -628,8 +630,8 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
-          {/* Waiters shouldn't see or receive notifications */}
-          {userProfile && !isRoastingWaiter && (
+          {/* Waiters and Pending users shouldn't see or receive notifications */}
+          {userProfile && userProfile.status === 'approved' && !isRoastingWaiter && (
             <NotificationBell 
               notifications={notifications} 
               userProfile={userProfile} 
@@ -664,8 +666,8 @@ export default function App() {
               <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">✕</button>
             </div>
             <nav className="space-y-1 relative">
-              {/* Waiters are restricted to My Profile ONLY */}
-              {!isRoastingWaiter && !isProfileIncomplete && (
+              {/* Waiters and Pending users are restricted to My Profile ONLY */}
+              {(!userProfile || (userProfile.status === 'approved' && !isRoastingWaiter && !isProfileIncomplete)) && (
                 <>
                   <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
                   <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
@@ -710,7 +712,7 @@ export default function App() {
       {/* --- MAIN PAGE CONTENT --- */}
       <main className="relative z-20 max-w-7xl mx-auto px-0 sm:px-4 py-6 studio-page-wrap animate-fadeIn">
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} onNavigate={setCurrentPage} onInspectUser={setInspectUser} />}
-        {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} />}
+        {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} handleNavigationChange={handleNavigationChange} />}
         {currentPage === 'rejected-status' && <RejectedScreen userProfile={userProfile} />}
         {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
         {currentPage === 'categories-view' && <div className="px-4 sm:px-0"><CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} onInspectUser={setInspectUser} /></div>}
@@ -2496,12 +2498,13 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   );
 }
 
-function PendingScreen({ userProfile }) {
+function PendingScreen({ userProfile, handleNavigationChange }) {
   return (
     <div className="min-h-[60vh] flex items-center justify-center text-center p-4">
-      <div className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl max-w-sm shadow-skeuo-md animate-fadeIn font-sans">
+      <div className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl max-w-sm shadow-skeuo-md animate-fadeIn font-sans flex flex-col items-center">
         <h3 className="font-serif font-bold text-base mb-1 text-slate-800">Roster Waiting Room</h3>
         <p className="text-xs text-slate-500 mb-4 font-sans">Hello {userProfile?.name}! Your request has been routed to the pending list for review. The studio owner will see it on the Admin panel.</p>
+        <button onClick={() => handleNavigationChange('profile')} className="text-[10px] font-bold text-[#C5A03A] underline mt-1 py-1 px-3 hover:bg-amber-50 rounded-lg transition-colors">Edit My Profile Details</button>
       </div>
     </div>
   );
