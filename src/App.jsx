@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, 
-  onAuthStateChanged, signInAnonymously, signInWithCustomToken,
+  onAuthStateChanged, signInWithCustomToken,
   signInWithEmailAndPassword, createUserWithEmailAndPassword 
 } from 'firebase/auth';
 import { 
@@ -88,7 +88,7 @@ const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
 const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
-// FIX: 30-Day Expiration Timer
+// 30-Day Expiration Timer
 const getDeletionTimeLeft = (createdAt) => {
   if (!createdAt) return 'Unknown';
   const expiryTime = createdAt + (30 * 24 * 60 * 60 * 1000); // 30 Days
@@ -173,7 +173,6 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
   const containerRef = useRef(null);
 
   const visible = useMemo(() => (notifications || []).filter(n => {
-    // Prevent self-notifications
     if (!n || n.actor === 'System' || n.actor === userProfile?.name) return false; 
     const audience = n.audience || 'all';
     return audience === 'all' || (audience === 'admin' && isAdmin);
@@ -317,37 +316,27 @@ export default function App() {
 
   const showToast = useCallback((message, type = 'info') => {
     setCustomToast({ message, type });
-    // FIX: Floating bar now appears for just 1 second as requested
+    // Floating bar appears for just 1 second
     setTimeout(() => setCustomToast(null), 1000);
   }, []);
 
   const ensureProfileDocRef = useRef(() => {});
 
+  // FIX: Properly handling Auth State to persist user logins
   useEffect(() => {
-    const initAuth = async () => {
-      if (!auth || !auth.app) { setAuthLoading(false); return; }
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (e) { setAuthLoading(false); }
-    };
-    initAuth();
-
-    let unsub = () => {};
-    if (auth && auth.app) {
-      unsub = onAuthStateChanged(auth, async (user) => {
-        setAuthUser(user);
-        if (user && !user.isAnonymous) {
-          try { await ensureProfileDocRef.current(user); } catch (e) {}
-        }
-        setAuthLoading(false);
-      }, () => { setAuthLoading(false); });
-    } else {
+    if (!auth || !auth.app) {
       setAuthLoading(false);
+      return;
     }
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setAuthUser(user);
+      if (user && !user.isAnonymous) {
+        try { await ensureProfileDocRef.current(user); } catch (e) {}
+      }
+      setAuthLoading(false);
+    }, () => {
+      setAuthLoading(false);
+    });
     return () => unsub();
   }, []);
 
@@ -763,7 +752,7 @@ export default function App() {
         {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
         {currentPage === 'categories-view' && <div className="px-4 sm:px-0"><CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} onInspectUser={setInspectUser} /></div>}
         
-        {currentPage === 'vault' && (
+    {currentPage === 'vault' && (
           <VideoVault 
             videos={videos} 
             userProfile={userProfile} 
@@ -906,7 +895,7 @@ function ThreeArtBackground() {
     reelGroup.add(disk);
     const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 100);
     const brassMat = new THREE.MeshStandardMaterial({ color: 0xC5A03A, metalness: 0.9, roughness: 0.1 });
-    const brassRing = new Mesh(ringGeo, brassMat);
+    const brassRing = new THREE.Mesh(ringGeo, brassMat);
     brassRing.position.set(0, 0, 0.06);
     reelGroup.add(brassRing);
     reelGroup.position.set(4, -1, -2);
@@ -1053,7 +1042,6 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
 // --- HOMEPAGE HUB ---
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications, onNavigate, onInspectUser, userProfile }) {
   const studioUpdates = useMemo(() => {
-    // FIX: Filter out own notifications
     return (notifications || []).filter(n => n && n.message && !String(n.message).startsWith('"') && n.actor !== 'System' && n.actor !== userProfile?.name);
   }, [notifications, userProfile]);
 
@@ -1236,7 +1224,6 @@ function CustomVideoPlayer({ hlsUrl }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  // FIX: Object scaling keeps the native size of the video without warping
   const [aspectRatio, setAspectRatio] = useState('auto'); 
   const [volume, setVolume] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -1245,6 +1232,8 @@ function CustomVideoPlayer({ hlsUrl }) {
   const [hoverTimeText, setHoverTimeText] = useState('');
   const [hoverX, setHoverX] = useState(0);
   const [showHoverPreview, setShowHoverPreview] = useState(false);
+  
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleLoadedMetadata = (e) => {
     const video = e.target;
@@ -1297,7 +1286,6 @@ function CustomVideoPlayer({ hlsUrl }) {
     }
   };
 
-  // FIX: Restored Clean Scrubber behavior
   const scrubProgress = (e) => {
     if (!videoRef.current || !progressBarRef.current) return;
     const rect = progressBarRef.current.getBoundingClientRect();
@@ -1305,7 +1293,14 @@ function CustomVideoPlayer({ hlsUrl }) {
     videoRef.current.currentTime = percent * duration;
   };
 
-  const handleScrubberMouseMove = (e) => {
+  const handlePointerDown = (e) => {
+    setIsDragging(true);
+    scrubProgress(e);
+  };
+
+  const handlePointerMove = (e) => {
+    if (isDragging) scrubProgress(e);
+    
     if (!progressBarRef.current || !duration || !secondaryVideoRef.current) return;
     const rect = progressBarRef.current.getBoundingClientRect();
     const percent = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
@@ -1318,12 +1313,11 @@ function CustomVideoPlayer({ hlsUrl }) {
     setHoverTimeText(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
     setShowHoverPreview(true);
 
-    if (Math.abs(secondaryVideoRef.current.currentTime - targetTime) > 1) {
-       secondaryVideoRef.current.currentTime = targetTime;
-    }
+    secondaryVideoRef.current.currentTime = targetTime;
   };
 
-  const handleScrubberMouseLeave = () => {
+  const handlePointerUp = () => {
+    setIsDragging(false);
     setShowHoverPreview(false);
   };
 
@@ -1344,7 +1338,11 @@ function CustomVideoPlayer({ hlsUrl }) {
       setIsFullscreen(!!document.fullscreenElement);
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
   }, []);
 
   return (
@@ -1394,9 +1392,9 @@ function CustomVideoPlayer({ hlsUrl }) {
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-3 flex flex-col gap-2.5 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300 z-50">
         <div 
           ref={progressBarRef}
-          onClick={scrubProgress}
-          onMouseMove={handleScrubberMouseMove}
-          onMouseLeave={handleScrubberMouseLeave}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerLeave={() => setShowHoverPreview(false)}
           className="h-1.5 bg-white/20 hover:h-2.5 rounded-full cursor-pointer relative transition-all"
         >
           <div 
@@ -1463,7 +1461,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
   const [showUploadModal, setShowUploadModal] = useState(false);
   
   const [uploadingState, setUploadingState] = useState(false);
-  // FIX: Added Progress Percentage Tracker
   const [uploadProgress, setUploadProgress] = useState(0); 
   const [selectedVideoFile, setSelectedVideoFile] = useState(null);
 
@@ -1495,7 +1492,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
       } else {
         if (!selectedVideoFile) { showToast('Please select a video file first.', 'warning'); setUploadingState(false); return; }
         
-        // FIX: Live Upload Resumable logic for UI feedback
         const fileRef = storageRef(storage, `videos/${Date.now()}_${selectedVideoFile.name}`);
         const uploadTask = uploadBytesResumable(fileRef, selectedVideoFile);
         
@@ -1747,7 +1743,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
                 <label className="block text-[9px] font-bold text-slate-500 uppercase">Select Gallery Video Payload</label>
                 <input type="file" accept="video/*" onChange={handleGalleryFileSelect} className="w-full text-xs text-slate-500 mt-1" />
                 
-                {/* FIX: Live UI Upload Progress percentage */}
                 {uploadingState && (
                   <div className="mt-3">
                     <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
@@ -2189,7 +2184,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   const [publishing, setPublishing] = useState(false);
   const fileInputRef = useRef(null);
   
-  // FIX: Added expanded view modal state
   const [expandedPost, setExpandedPost] = useState(null);
 
   const publishPost = async (e) => {
@@ -2250,7 +2244,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     showToast("Comment removed.", "info");
   };
 
-  // FIX: Full Page Openable Post View (Replaces the Feed Grid just like VideoVault)
   if (expandedPost) {
     return (
       <section className="bg-white min-h-[85vh] sm:rounded-2xl border-t border-[#EADFC9] sm:border shadow-sm flex flex-col font-sans animate-fadeIn relative z-30">
@@ -2320,7 +2313,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     );
   }
 
-  // FIX: Restored Adaptive Masonry / Flex Layout for Insta Feed
   return (
     <section className="py-2 animate-fadeIn space-y-6 font-sans">
       <div className="flex justify-between items-center bg-white border border-[#EADFC9]/50 p-4 rounded-xl shadow-sm gap-4">
@@ -2354,7 +2346,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                 className="w-full bg-slate-100 relative cursor-pointer group"
                 onClick={() => setExpandedPost(post)}
               >
-                {/* FIX: h-auto allows the image to adopt its natural vertical size */}
                 <img src={post.image} alt={post.title} className="w-full h-auto object-contain animate-fadeIn" />
                 <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
                   <span className="bg-white/90 text-slate-900 font-bold px-4 py-2 rounded-full text-xs shadow-lg">View Full Thread</span>
@@ -2418,7 +2409,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 }
 
 // --- MY PROFILE ---
-// FIX: Passed onNavigate from App.js to handle direct routing
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut, isOnboarding, onNavigate }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
@@ -2450,7 +2440,6 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
       });
       showToast('Profile credentials mapped successfully!', 'success');
       
-      // FIX: Instantly teleports pending users straight to the Waiting Page
       if (userProfile.status === 'pending') {
         onNavigate('pending-status');
       } else {
