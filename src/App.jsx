@@ -78,7 +78,7 @@ const resolvePlayableVideo = (url) => {
   const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
   const ytMatch = cleaned.match(ytRegex);
   if (ytMatch) {
-    return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1` };
+    return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0&controls=1&rel=0&modestbranding=1` };
   }
 
   const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
@@ -270,42 +270,36 @@ export default function App() {
   }, [userProfile]);
 
   // --- FEATURE: CLIENT-SIDE EVALUATED 7-DAY AUTO-CLEANUP SWEEP ---
-  // Runs client-side on the loaded data states, avoiding extra Firebase query/filter dependencies!
   useEffect(() => {
     if (!isAuthReady || !userProfile) return;
     
     const runSevenDaySweep = async () => {
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       
-      // Sweep Chats
       chats.forEach(async (item) => {
         if (item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {}
         }
       });
       
-      // Sweep Posts
       posts.forEach(async (item) => {
         if (item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {}
         }
       });
 
-      // Sweep Notifications
       notifications.forEach(async (item) => {
         if (item.timestamp && item.timestamp < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {}
         }
       });
 
-      // Sweep Video Vault drafts
       videos.forEach(async (item) => {
         if (item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {}
         }
       });
 
-      // Sweep Scripts
       scripts.forEach(async (item) => {
         if (item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {}
@@ -938,7 +932,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   );
 }
 
-// --- FEATURE: VIDEO VAULT PREMIUM INSTAGRAM-STYLE INTERACTIVE DUAL FEED & ENGINE ---
+// --- VIDEO VAULT WITH NATIVE CONTROLS PLAYER (YOUTUBE INTERFACE STYLE) ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
@@ -965,7 +959,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
     reader.onload = () => {
       setGalleryBase64(reader.result);
       setUploadingState(false);
-      showToast('Gallery video compressed & ready to inject!', 'success');
+      showToast('Gallery video ready for stream workflow!', 'success');
     };
     reader.onerror = () => {
       setUploadingState(false);
@@ -1003,7 +997,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
       });
       pushNotification(`Added tracked video workspace: "${videoTitle}"`, userProfile.name);
       setVideoTitle(''); setVideoUrlInput(''); setGalleryBase64(''); setShowUploadModal(false);
-      showToast('Video registered to feed successfully!', 'success');
+      showToast('Video uploaded successfully!', 'success');
     } catch (err) { showToast('Upload engine authorization failure.', 'warning'); }
   };
 
@@ -1042,6 +1036,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
           return (
             <div key={vid.id} className="bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn flex flex-col">
               
+              {/* Card Header Tag */}
               <div className="p-3 flex items-center justify-between border-b border-slate-50 bg-slate-50/40">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shrink-0">
@@ -1059,19 +1054,32 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
                 )}
               </div>
 
-              <div className="w-full bg-black relative aspect-video flex items-center justify-center">
+              {/* YouTube Native Controls Interface Workspace */}
+              <div className="w-full bg-black relative aspect-video flex items-center justify-center overflow-hidden">
                 {embed.type === 'youtube' || embed.type === 'drive' ? (
-                  <iframe src={embed.src} className="w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
+                  <iframe 
+                    src={embed.src} 
+                    className="w-full h-full border-none absolute inset-0 z-10" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    allowFullScreen 
+                  />
                 ) : embed.type === 'direct' ? (
-                  <video src={embed.src} className="w-full h-full object-contain" controls />
+                  <video 
+                    src={embed.src} 
+                    className="w-full h-full object-contain absolute inset-0 z-10" 
+                    controls 
+                    playsInline
+                    preload="metadata"
+                  />
                 ) : (
-                  <div className="p-6 text-center text-xs font-mono text-white space-y-2">
+                  <div className="p-6 text-center text-xs font-mono text-white space-y-2 z-10">
                     <p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p>
                     <a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[11px]">{embed.src}</a>
                   </div>
                 )}
               </div>
 
+              {/* Action Information Layer */}
               <div className="p-4 border-t border-slate-50 space-y-2">
                 <div className="flex justify-between items-center text-xs">
                   <h5 className="font-serif font-bold text-slate-800 text-sm">{vid.title}</h5>
@@ -1108,7 +1116,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
             </div>
           );
         })}
-        {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs">The Instagram Video Vault showcase is currently empty.</div>}
+        {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs">The Video Vault showcase is currently empty.</div>}
       </div>
 
       {showUploadModal && (
