@@ -21,15 +21,9 @@ let firebaseConfig = {
   appId: "1:1234567890:web:abcdef123456"
 };
 
-let hasLiveFirebase = false;
-
 try {
   if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-    const parsedConfig = JSON.parse(__firebase_config);
-    if (parsedConfig && parsedConfig.apiKey && parsedConfig.apiKey !== "mock-api-key-for-local-testing") {
-      firebaseConfig = parsedConfig;
-      hasLiveFirebase = true;
-    }
+    firebaseConfig = JSON.parse(__firebase_config);
   }
 } catch (e) {
   console.warn("Failed to parse Firebase configuration. Utilizing simulated credentials.", e);
@@ -45,12 +39,10 @@ try {
   app = {};
   auth = { currentUser: null };
   db = {};
-  hasLiveFirebase = false;
 }
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// Guard paths for sandbox execution or direct path enforcement
 const collection = (dbRef, path, ...segments) => {
   if (dbRef && dbRef === db && typeof path === 'string' && !path.startsWith('artifacts')) {
     return fbCollection(dbRef, 'artifacts', appId, 'public', 'data', path, ...segments);
@@ -189,120 +181,6 @@ const WatercolorOverlay = () => (
   />
 );
 
-// --- SECURE FIRESTORE HOOKS (WITH SANDBOX MODE PRESETS) ---
-function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
-  const [items, setItems] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!enabled) { setItems([]); setLoaded(false); return; }
-
-    const isMockActive = !hasLiveFirebase;
-
-    // Setup active client-side simulation when offline or testing
-    if (isMockActive) {
-      if (!window.simulatedDb) {
-        window.simulatedDb = {
-          profiles: [
-            { id: "mock-admin", name: "Naitik Artist", email: ADMIN_EMAIL, role: "owner", status: "approved", workCategory: "Creativity", photoURL: PRESET_AVATARS[2].svg, createdAt: Date.now() - 86400000, bio: "Lead creator and artist of the channel.", isProfileComplete: true },
-            { id: "mock-editor", name: "Alex Editor", email: "alex@editing.com", role: "member", status: "approved", workCategory: "Editing", photoURL: PRESET_AVATARS[1].svg, createdAt: Date.now() - 43200000, bio: "Expert video timeline designer.", isProfileComplete: true }
-          ],
-          projects: [
-            { id: "proj-1", title: "Cinematic Intro Masterclass", creatorName: "Naitik Artist", createdAt: Date.now() },
-            { id: "proj-2", title: "AI Art Generation Pipeline", creatorName: "Alex Editor", createdAt: Date.now() - 3600000 }
-          ],
-          tasks: [
-            { id: "task-1", projectId: "proj-1", title: "Render initial 3D background", status: "To Do" },
-            { id: "task-2", projectId: "proj-1", title: "Add dynamic music beats", status: "Completed" }
-          ],
-          videos: [
-            { id: "vid-1", title: "My Channel Trailer V2", hlsUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", uploaderUid: "mock-admin", uploaderName: "Naitik Artist", uploaderAvatar: PRESET_AVATARS[2].svg, size: "External URL Link", comments: [], createdAt: Date.now() }
-          ],
-          scripts: [
-            { id: "script-1", title: "Cinematic Lighting Secrets", content: "Hook: Light the key light at a 45-degree angle to create professional drama...\n\nBody:\nExplain the three-point lighting setup.", authorUid: "mock-admin", authorName: "Naitik Artist", createdAt: Date.now(), updatedAt: Date.now() }
-          ],
-          chats: [
-            { id: "chat-1", projectId: "general", text: "Welcome to Youtubers Studio room! Try testing custom categories.", senderName: "Naitik Artist", senderUid: "mock-admin", createdAt: Date.now() }
-          ],
-          posts: [
-            { id: "post-1", title: "Studio Lighting Vibe Check", description: "Color setup looks gorgeous today!", image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=500&nd=1&auto=format&fit=crop&q=80", authorName: "Naitik Artist", authorAvatar: PRESET_AVATARS[2].svg, authorUid: "mock-admin", likes: 2, likedBy: ["mock-editor"], comments: [], createdAt: Date.now() }
-          ],
-          notifications: [
-            { id: "notif-1", message: "Welcome to Youtubers Studio Workspace preview!", actor: "System", timestamp: Date.now() }
-          ]
-        };
-      }
-
-      const syncLocal = () => {
-        setItems(window.simulatedDb[name] || []);
-        setLoaded(true);
-      };
-
-      syncLocal();
-      const interval = setInterval(syncLocal, 1000);
-      return () => clearInterval(interval);
-    }
-
-    try {
-      let q = collection(db, name);
-      if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
-      const unsub = onSnapshot(q, (snap) => {
-        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setLoaded(true); setError(null);
-      }, (err) => { setLoaded(true); setError(err.message); });
-      return () => unsub();
-    } catch (e) {
-      setError(e.message);
-      setLoaded(true);
-    }
-  }, [name, orderField, limitN, enabled]);
-
-  return [items, loaded, error];
-}
-
-function useFirestoreDoc(path, fallback, enabled = false) {
-  const [data, setData] = useState(fallback);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!enabled) { setData(fallback); setLoaded(false); return; }
-
-    const isMockActive = !hasLiveFirebase;
-
-    if (isMockActive) {
-      if (!window.simulatedDbDocs) {
-        window.simulatedDbDocs = {
-          'meta/categories': { list: DEFAULT_CATEGORIES },
-          'meta/ytConfig': DEFAULT_YT_CONFIG,
-          'meta/settings': { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] }
-        };
-      }
-      const syncLocalDoc = () => {
-        setData(window.simulatedDbDocs[path] || fallback);
-        setLoaded(true);
-      };
-      syncLocalDoc();
-      const interval = setInterval(syncLocalDoc, 1000);
-      return () => clearInterval(interval);
-    }
-
-    try {
-      const ref = doc(db, path);
-      const unsub = onSnapshot(ref, (snap) => {
-        if (snap.exists()) setData({ ...fallback, ...snap.data() });
-        else setData(fallback);
-        setLoaded(true);
-      }, () => setLoaded(true));
-      return () => unsub();
-    } catch (e) {
-      setLoaded(true);
-    }
-  }, [path, enabled]);
-
-  return [data, loaded];
-}
-
 // --- NOTIFICATION BELL WITH SCREEN-TAP DISMISSAL & NAVIGATION ROUTING ---
 function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onSetActiveVideo, videos }) {
   const [open, setOpen] = useState(false);
@@ -320,7 +198,7 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
   const openPanel = async (e) => {
     e.stopPropagation();
     setOpen(o => !o);
-    if (!open && hasLiveFirebase && db && userProfile) {
+    if (!open && db && userProfile) {
       try { await updateDoc(doc(db, 'profiles', userProfile.id), { lastSeenNotifAt: Date.now() }); } catch (e) {}
     }
   };
@@ -391,8 +269,777 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
   );
 }
 
+// --- SECURE FIRESTORE HOOKS ---
+function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
+  const [items, setItems] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!enabled || !db) { setItems([]); setLoaded(false); return; }
+    try {
+      let q = collection(db, name);
+      if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
+      const unsub = onSnapshot(q, (snap) => {
+        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoaded(true); setError(null);
+      }, (err) => { setLoaded(true); setError(err.message); });
+      return () => unsub();
+    } catch (e) {
+      setError(e.message);
+      setLoaded(true);
+    }
+  }, [name, orderField, limitN, enabled]);
+
+  return [items, loaded, error];
+}
+
+function useFirestoreDoc(path, fallback, enabled = false) {
+  const [data, setData] = useState(fallback);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || !db) { setData(fallback); setLoaded(false); return; }
+    try {
+      const ref = doc(db, path);
+      const unsub = onSnapshot(ref, (snap) => {
+        if (snap.exists()) setData({ ...fallback, ...snap.data() });
+        else setData(fallback);
+        setLoaded(true);
+      }, () => setLoaded(true));
+      return () => unsub();
+    } catch (e) {
+      setLoaded(true);
+    }
+  }, [path, enabled]);
+
+  return [data, loaded];
+}
+
+export default function App() {
+  const [loadingLibraries, setLoadingLibraries] = useState(true);
+  const [threeReady, setThreeReady] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState('home');
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showSignInModal, setShowSignInModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [customToast, setCustomToast] = useState(null);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [chatChannel, setChatChannel] = useState('general');
+  const [activeVideo, setActiveVideo] = useState(null);
+  const [inspectUser, setInspectUser] = useState(null);
+
+  const showToast = useCallback((message, type = 'info') => {
+    setCustomToast({ message, type });
+    setTimeout(() => setCustomToast(null), 4000);
+  }, []);
+
+  const ensureProfileDocRef = useRef(() => {});
+
+  useEffect(() => {
+    const initAuth = async () => {
+      if (!auth || !auth.app) {
+        setAuthLoading(false);
+        return;
+      }
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (e) {
+        console.warn("Authentication services running in sandbox mode:", e);
+        setAuthLoading(false);
+      }
+    };
+    initAuth();
+
+    let unsub = () => {};
+    if (auth && auth.app) {
+      unsub = onAuthStateChanged(auth, async (user) => {
+        setAuthUser(user);
+        if (user && !user.isAnonymous) {
+          try { await ensureProfileDocRef.current(user); } catch (e) {}
+        }
+        setAuthLoading(false);
+      }, () => {
+        setAuthLoading(false);
+      });
+    } else {
+      setAuthLoading(false);
+    }
+    return () => unsub();
+  }, []);
+
+  const isAuthReady = !!authUser;
+  const [profiles] = useFirestoreCollection('profiles', null, null, isAuthReady);
+  const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES }, isAuthReady);
+  const categories = categoriesDoc.list || DEFAULT_CATEGORIES;
+  const [posts] = useFirestoreCollection('posts', 'createdAt', null, isAuthReady);
+  const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50, isAuthReady);
+  const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG, isAuthReady);
+  const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] }, isAuthReady);
+  const [projects] = useFirestoreCollection('projects', 'createdAt', null, isAuthReady);
+  const [tasks] = useFirestoreCollection('tasks', null, null, isAuthReady);
+  const [chats] = useFirestoreCollection('chats', 'createdAt', 200, isAuthReady);
+  const [videos] = useFirestoreCollection('videos', 'createdAt', null, isAuthReady);
+  const [scripts] = useFirestoreCollection('scripts', 'createdAt', null, isAuthReady);
+
+  const userProfile = useMemo(() => {
+    if (!authUser) return null;
+    return profiles.find(p => p.id === authUser.uid) || null;
+  }, [profiles, authUser]);
+
+  const isAdmin = useMemo(() => {
+    if (!userProfile) return false;
+    return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
+  }, [userProfile]);
+
+  const isRoastingWaiter = useMemo(() => {
+    if (!userProfile) return false;
+    const roleLower = (userProfile.role || '').toLowerCase();
+    return roleLower === 'roasting waiter' || roleLower === 'waiter';
+  }, [userProfile]);
+
+  const isProfileIncomplete = useMemo(() => {
+    if (!authUser || !userProfile) return false;
+    return !userProfile.name || userProfile.name.trim() === '' || !userProfile.workCategory || userProfile.isProfileComplete === false;
+  }, [authUser, userProfile]);
+
+  useEffect(() => {
+    if (!authLoading && !authUser && currentPage !== 'home') {
+      setCurrentPage('home');
+    }
+  }, [authUser, authLoading, currentPage]);
+
+  useEffect(() => {
+    if (!authUser || !userProfile) return;
+
+    if (isProfileIncomplete && currentPage !== 'profile') {
+      setCurrentPage('profile');
+      showToast("Let's personalize your credentials before accessing the main board!", "info");
+      return;
+    }
+
+    if (!isProfileIncomplete) {
+      if (userProfile.status === 'pending' && !['pending-status', 'profile'].includes(currentPage)) {
+        setCurrentPage('pending-status');
+      } else if (userProfile.status === 'rejected' && !['rejected-status', 'profile'].includes(currentPage)) {
+        setCurrentPage('rejected-status');
+      } else if (userProfile.status === 'approved' && isRoastingWaiter && currentPage !== 'profile') {
+        setCurrentPage('profile');
+      } else if (userProfile.status === 'approved' && !isRoastingWaiter && ['pending-status', 'rejected-status'].includes(currentPage)) {
+        setCurrentPage('home');
+      }
+    }
+  }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
+
+  // --- BACKGROUND TIME-BASED AUTO-SWEEPER ---
+  useEffect(() => {
+    if (!isAuthReady || !userProfile || !db || !db.app) return;
+    
+    const runSweep = async () => {
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      
+      chats.forEach(async (item) => {
+        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {}
+        }
+      });
+      posts.forEach(async (item) => {
+        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {}
+        }
+      });
+      notifications.forEach(async (item) => {
+        if (item.timestamp && item.timestamp < oneDayAgo) {
+          try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {}
+        }
+      });
+      videos.forEach(async (item) => {
+        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {}
+        }
+      });
+      scripts.forEach(async (item) => {
+        if (item.createdAt && item.createdAt < sevenDaysAgo) {
+          try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {}
+        }
+      });
+    };
+
+    const delayTimer = setTimeout(() => { runSweep(); }, 8000);
+    return () => clearTimeout(delayTimer);
+  }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts]);
+
+  useEffect(() => {
+    if (notifsError && isAuthReady && !isRoastingWaiter) {
+      showToast(`Notifications temporarily on standby.`, 'info');
+    }
+  }, [notifsError, isAuthReady, isRoastingWaiter]);
+
+  const unreadMap = useMemo(() => {
+    if (isRoastingWaiter) return { vault: false, projects: false, scripts: false, posts: false };
+    const lastSeen = userProfile?.lastSeenNotifAt || 0;
+    const unread = (notifications || []).filter(n => n && n.message && n.timestamp > lastSeen && n.actor !== 'System');
+    
+    return {
+      vault: unread.some(n => {
+        const msg = String(n.message).toLowerCase();
+        return msg.includes('video asset') || msg.includes('commented on video');
+      }),
+      projects: unread.some(n => String(n.message).toLowerCase().includes('concept whiteboard')),
+      scripts: unread.some(n => String(n.message).toLowerCase().includes('script topic')),
+      posts: unread.some(n => String(n.message).toLowerCase().includes('showroom draft')),
+    };
+  }, [notifications, userProfile, isRoastingWaiter]);
+
+  const seenNotifIdsRef = useRef(new Set());
+  const firstNotifLoadRef = useRef(true);
+  
+  useEffect(() => {
+    if (!userProfile || isRoastingWaiter || userProfile.status !== 'approved') return;
+    if (firstNotifLoadRef.current) {
+      (notifications || []).forEach(n => n && seenNotifIdsRef.current.add(n.id));
+      firstNotifLoadRef.current = false;
+      return;
+    }
+    (notifications || []).forEach(n => {
+      if (!n || !n.message || seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
+      seenNotifIdsRef.current.add(n.id);
+      if (n.actor === userProfile.name) return;
+      
+      const msg = String(n.message).toLowerCase();
+      if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
+      if (currentPage === 'projects' && msg.includes('concept whiteboard')) return;
+      if (currentPage === 'scripts' && msg.includes('script topic')) return;
+      if (currentPage === 'posts' && msg.includes('showroom draft')) return;
+      if (currentPage === 'chat' && !msg.startsWith('"')) return;
+
+      const audience = n.audience || 'all';
+      const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
+      if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try { new Notification('Youtubers Studio', { body: n.message, icon: siteSettings.logoUrl || undefined }); } catch (e) {}
+      }
+    });
+  }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, isRoastingWaiter]);
+
+  const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
+    if (isRoastingWaiter || !db || !db.app || userProfile?.status !== 'approved') return;
+    try { await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience }); } catch (err) {}
+  }, [isRoastingWaiter, userProfile]);
+
+  const ensureProfileDoc = useCallback(async (user) => {
+    if (!db || !db.app) return null;
+    const ref = doc(db, 'profiles', user.uid);
+    const snap = await getDoc(ref);
+    const emailLower = (user.email || '').toLowerCase();
+    const isOwner = emailLower === ADMIN_EMAIL;
+    if (!snap.exists()) {
+      const newProfile = {
+        id: user.uid,
+        name: user.displayName || user.email.split('@')[0], email: user.email, role: isOwner ? 'owner' : 'member',
+        status: isOwner ? 'approved' : 'pending', workCategory: categories[0] || 'Editing',
+        photoURL: user.photoURL || PRESET_AVATARS[0].svg, createdAt: Date.now(),
+        bio: '',
+        isProfileComplete: false
+      };
+      await setDoc(ref, newProfile);
+      return newProfile;
+    } else if (isOwner && snap.data().role !== 'owner') {
+      await updateDoc(ref, { role: 'owner', status: 'approved' });
+    }
+    return snap.data();
+  }, [categories]);
+  ensureProfileDocRef.current = ensureProfileDoc;
+
+  const handleGoogleSignIn = async () => {
+    if (!auth || !auth.app) {
+      showToast('Authentication unavailable in sandbox mode.', 'warning');
+      return;
+    }
+    try { 
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        showToast('Successfully authenticated!', 'success');
+        setShowSignInModal(false);
+      }
+    } catch (err) { showToast('Sign-in failed — check configuration.', 'warning'); }
+  };
+
+  const handleSignOut = async () => {
+    if (!auth || !auth.app) return;
+    try {
+      await fbSignOut(auth);
+      setCurrentPage('home');
+      setActiveVideo(null);
+      showToast('Signed out successfully.', 'info');
+    } catch (err) {
+      showToast('Sign out failed.', 'warning');
+    }
+  };
+
+  const handleNavigationChange = (targetPage) => {
+    setIsSidebarOpen(false);
+
+    if (!authUser || !userProfile) {
+      if (targetPage === 'home') {
+        setCurrentPage('home');
+        return;
+      }
+      setShowSignInModal(true); 
+      return;
+    }
+
+    if (isProfileIncomplete) {
+      showToast("Please save your onboarding profile options first!", "warning");
+      setCurrentPage('profile');
+      return;
+    }
+
+    if (userProfile.status === 'pending' || userProfile.status === 'rejected') {
+      if (targetPage !== 'profile') {
+        showToast("Your account is pending approval.", "warning");
+        setCurrentPage(userProfile.status === 'pending' ? 'pending-status' : 'rejected-status');
+        return;
+      }
+    }
+
+    if (isRoastingWaiter) {
+      if (targetPage !== 'profile') {
+        showToast("Waiters are restricted to Profile access only.", "warning");
+        setCurrentPage('profile');
+        return;
+      }
+    }
+
+    setCurrentPage(targetPage);
+  };
+
+  const syncYouTubeStats = async (targetChannelId, targetApiKey, silent = false) => {
+    const activeChannelId = targetChannelId || ytConfig.channelId || DEFAULT_YT_CONFIG.channelId;
+    const activeApiKey = targetApiKey || ytConfig.apiKey || DEFAULT_YT_CONFIG.apiKey;
+
+    let url = '';
+    const trimmed = activeChannelId.trim();
+    if (trimmed.startsWith('UC') && !trimmed.includes('/') && !trimmed.includes('@')) {
+      url = `https://www.googleapis.com/official/youtube/v3/channels?part=statistics,snippet&id=${trimmed}&key=${activeApiKey}`;
+    } else {
+      let handle = trimmed;
+      const match = trimmed.match(/@([^/?#\s]+)/);
+      if (match) handle = match[1];
+      else if (trimmed.includes('youtube.com/')) {
+        const parts = trimmed.split('/');
+        handle = parts[parts.length - 1].replace('@', '').split('?')[0];
+      } else { handle = trimmed.replace('@', ''); }
+      url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&forHandle=${encodeURIComponent(handle)}&key=${activeApiKey}`;
+    }
+
+    try {
+      const channelRes = await fetch(url);
+      const channelData = await channelRes.json();
+      if (!channelRes.ok) throw new Error(channelData?.error?.message || `YouTube API error ${channelRes.status}`);
+      const item = channelData.items?.[0];
+      if (!item) throw new Error('Channel not found — check the handle/ID.');
+
+      const subsCount = item.statistics.subscriberCount;
+      const channelIdActual = item.id;
+      const channelTitle = item.snippet.title;
+
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=id,snippet&channelId=${channelIdActual}&maxResults=5&order=date&type=video&key=${activeApiKey}`;
+      const searchRes = await fetch(searchUrl);
+      const searchData = await searchRes.json();
+      let views = ytConfig.latestVideoViews;
+      let videoTitle = ytConfig.latestVideoTitle;
+
+      if (searchRes.ok && searchData.items?.length) {
+        const videoItem = searchData.items[0];
+        const videoId = videoItem.id.videoId;
+        videoTitle = videoItem.snippet.title;
+        const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoId}&key=${activeApiKey}`);
+        const videoData = await videoRes.json();
+        if (videoRes.ok) views = videoData.items?.[0]?.statistics?.viewCount ?? views;
+      }
+
+      if (db && db.app) {
+        await setDoc(doc(db, 'meta/ytConfig'), {
+          channelId: activeChannelId, apiKey: activeApiKey,
+          subscribers: parseInt(subsCount, 10).toLocaleString(),
+          latestVideoViews: typeof views === 'string' && views.includes(',') ? views : parseInt(views, 10).toLocaleString(),
+          latestVideoTitle: videoTitle, lastError: null, lastSyncedAt: Date.now(),
+        }, { merge: true });
+      }
+
+      if (!silent) showToast(`Synced with ${channelTitle}.`, 'success');
+    } catch (err) {
+      if (db && db.app) {
+        await setDoc(doc(db, 'meta/ytConfig'), { lastError: err.message, lastSyncedAt: Date.now() }, { merge: true }).catch(() => {});
+      }
+      if (!silent) showToast(`Sync failed: ${err.message}`, 'warning');
+    }
+  };
+
+  const ytConfigRef = useRef(ytConfig);
+  useEffect(() => { ytConfigRef.current = ytConfig; }, [ytConfig]);
+
+  useEffect(() => {
+    if (loadingLibraries || !isAdmin) return;
+    syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true);
+    const timer = setInterval(() => { syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true); }, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [loadingLibraries, isAdmin]);
+
+  useEffect(() => {
+    injectArtStyleStyles();
+    const loadScript = (src) => new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = src; script.onload = () => resolve(true); script.onerror = () => resolve(false); document.head.appendChild(script);
+    });
+    (async () => {
+      try {
+        const loadedThree = await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+        if (loadedThree) setThreeReady(true);
+      } catch (e) { 
+        console.warn('Studio visual engine fallback.'); 
+      } finally { 
+        setLoadingLibraries(false); 
+      }
+    })();
+  }, []);
+
+  if (loadingLibraries || authLoading) {
+    return (
+      <div className="min-h-screen bg-[#FCFAF2] flex flex-col items-center justify-center font-serif text-[#C5A03A]">
+        <div className="w-16 h-16 border-4 border-dashed border-[#C5A03A] rounded-full animate-spin mb-4" />
+        <h2 className="text-2xl font-bold tracking-widest animate-pulse font-serif uppercase">SYNCING TIMELINES</h2>
+      </div>
+    );
+  }
+
+  const targetInspectProfile = profiles.find(p => p.id === inspectUser);
+
+  return (
+    <div className="min-h-screen relative overflow-x-hidden bg-[#FCFBF8] text-slate-800 font-sans selection:bg-[#C5A03A]/20">
+      <WatercolorOverlay />
+      {threeReady && <ThreeArtBackground />}
+
+      {customToast && (
+        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[99999] px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white transition-all animate-bounce ${customToast.type === 'success' ? 'bg-[#2ba640]' : 'bg-[#C5A03A]'}`}>
+          {customToast.message}
+        </div>
+      )}
+
+      {/* --- HEADER --- */}
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-4 sm:px-6 py-3 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
+        <div className="flex items-center space-x-3 min-w-0">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50 shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+          <div className="flex items-center space-x-2 cursor-pointer min-w-0" onClick={() => handleNavigationChange('home')}>
+            {siteSettings.logoUrl ? (
+              <img src={siteSettings.logoUrl} alt="Logo" className="w-8 h-8 object-cover rounded-lg shadow-[0_4px_15px_rgba(135,112,58,0.25)] border border-white shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-sm shadow-[0_4px_15px_rgba(197,160,58,0.3)] border border-white shrink-0">Y</div>
+            )}
+            <span className="font-serif text-sm sm:text-base tracking-wide text-[#C5A03A] font-extrabold truncate max-w-[130px] sm:max-w-xs leading-none">
+              {siteSettings.logoText || 'YOUTUBERS STUDIO'}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
+          {userProfile && userProfile.status === 'approved' && !isRoastingWaiter && (
+            <NotificationBell 
+              notifications={notifications} 
+              userProfile={userProfile} 
+              isAdmin={isAdmin} 
+              onNavigate={setCurrentPage} 
+              onSetActiveVideo={setActiveVideo}
+              videos={videos}
+            />
+          )}
+          {userProfile ? (
+            <div className="flex items-center space-x-2">
+              <div className="hidden sm:flex flex-col text-right">
+                <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name}</p>
+                <span className="text-[8px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{userProfile?.role}</span>
+              </div>
+              <div className="w-8 h-8 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
+                {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowSignInModal(true)} className="text-[10px] sm:text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-3 py-2 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95 whitespace-nowrap">🔑 Crew Sign In</button>
+          )}
+        </div>
+      </header>
+
+      {/* --- SIDEBAR DRAWER --- */}
+      <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
+        <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
+          <div className="space-y-6 pb-20">
+            <div className="flex items-center justify-between pb-4 border-b border-[#EADFC9]/50">
+              <span className="font-serif font-black text-base text-[#C5A03A] tracking-wider uppercase">Navigation</span>
+              <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">✕</button>
+            </div>
+            <nav className="space-y-1 relative">
+              {(!userProfile || (userProfile.status === 'approved' && !isRoastingWaiter && !isProfileIncomplete)) && (
+                <>
+                  <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
+                  <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
+                  <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
+                  <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                    <span>🎞️</span><span>Video Vault</span>
+                    {unreadMap.vault && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
+                  </button>
+                  <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                    <span>📌</span><span>Project Board</span>
+                    {unreadMap.projects && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
+                  </button>
+                  <button onClick={() => handleNavigationChange('scripts')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'scripts' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                    <span>📝</span><span>Scripts</span>
+                    {unreadMap.scripts && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
+                  </button>
+                  <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
+                  <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                    <span>📸</span><span>Insta Feed</span>
+                    {unreadMap.posts && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
+                  </button>
+                </>
+              )}
+              
+              {userProfile && (
+                <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  <span>👤</span><span>My Profile {isProfileIncomplete && '⚠️'}</span>
+                </button>
+              )}
+              
+              {isAdmin && !isRoastingWaiter && !isProfileIncomplete && (
+                <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1 font-sans">Admin Controls</span>
+                  <button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'admin' ? 'bg-rose-50 text-rose-600' : 'text-slate-500 hover:bg-rose-50/40'}`}><span>👥</span><span>Manage Roster</span></button>
+                </div>
+              )}
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      {/* --- MAIN PAGE CONTENT --- */}
+      <main className="relative z-20 max-w-7xl mx-auto px-0 sm:px-4 py-6 studio-page-wrap animate-fadeIn">
+        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} onNavigate={setCurrentPage} onInspectUser={setInspectUser} />}
+        {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} handleNavigationChange={handleNavigationChange} handleSignOut={handleSignOut} />}
+        {currentPage === 'rejected-status' && <RejectedScreen handleSignOut={handleSignOut} />}
+        {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
+        {currentPage === 'categories-view' && <div className="px-4 sm:px-0"><CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} onInspectUser={setInspectUser} /></div>}
+        
+        {currentPage === 'vault' && (
+          <VideoVault 
+            videos={videos} 
+            userProfile={userProfile} 
+            showToast={showToast} 
+            isAdmin={isAdmin} 
+            pushNotification={pushNotification} 
+            activeVideo={activeVideo}
+            setActiveVideo={setActiveVideo}
+            onInspectUser={setInspectUser}
+          />
+        )}
+        
+        {currentPage === 'projects' && <div className="px-4 sm:px-0"><ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} /></div>}
+        {currentPage === 'scripts' && <div className="px-4 sm:px-0"><ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} /></div>}
+        
+        {currentPage === 'chat' && (
+          <div className="px-4 sm:px-0">
+            <WhiteboardChat 
+              chats={chats} 
+              userProfile={userProfile} 
+              chatChannel={chatChannel} 
+              setChatChannel={setChatChannel} 
+              pushNotification={pushNotification} 
+              siteSettings={siteSettings} 
+              isAdmin={isAdmin} 
+              showToast={showToast} 
+              onInspectUser={setInspectUser}
+            />
+          </div>
+        )}
+        
+        {currentPage === 'posts' && <div className="px-4 sm:px-0"><PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
+        
+        {currentPage === 'profile' && (
+          !userProfile ? (
+            <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md">
+              <p className="text-slate-600 font-medium">Preparing sandbox profile card...</p>
+            </div>
+          ) : (
+            <div className="px-4 sm:px-0">
+              <MyProfileWorkspace 
+                userProfile={userProfile} 
+                categories={categories} 
+                showToast={showToast} 
+                handleSignOut={handleSignOut} 
+                isOnboarding={isProfileIncomplete} 
+              />
+            </div>
+          )
+        )}
+        {currentPage === 'admin' && isAdmin && <div className="px-4 sm:px-0"><AdminPanel profiles={profiles} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} /></div>}
+      </main>
+
+      {/* --- GLOBAL USER INSPECTOR MODAL --- */}
+      {targetInspectProfile && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setInspectUser(null)}>
+          <div className="w-full max-w-sm bg-white border-2 border-[#EADFC9] rounded-[2rem] p-6 shadow-skeuo-lg relative text-center" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setInspectUser(null)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600 transition">✕</button>
+            <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">
+              {renderAvatar(targetInspectProfile.photoURL)}
+            </div>
+            <h3 className="font-serif text-xl font-bold text-slate-800">{targetInspectProfile.name}</h3>
+            <span className="bg-[#C5A03A]/10 text-[#C5A03A] border border-[#C5A03A]/20 text-[9px] px-3 py-1 rounded-full font-bold mt-1.5 inline-block uppercase tracking-wider font-mono">
+              {targetInspectProfile.workCategory} • {targetInspectProfile.role}
+            </span>
+            <div className="my-4 text-slate-500 font-serif italic text-xs px-2 leading-relaxed bg-amber-50/40 py-3 rounded-xl border border-[#EADFC9]/30">
+              {targetInspectProfile.bio || "No custom bio configured yet."}
+            </div>
+            <p className="text-[10px] text-slate-400">Production Crew Member • Verified {new Date(targetInspectProfile.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+      )}
+
+      {showSignInModal && <SignInModal handleGoogleSignIn={handleGoogleSignIn} setShowSignInModal={setShowSignInModal} showToast={showToast} />}
+    </div>
+  );
+}
+
+// --- THREEJS BACKGROUND GRAPHICS ---
+function ThreeArtBackground() {
+  const mountRef = useRef(null);
+  useEffect(() => {
+    if (!window.THREE) return;
+    const THREE = window.THREE;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.z = 11;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    mountRef.current.appendChild(renderer.domElement);
+    scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
+    const specularSpot = new THREE.SpotLight(0xffedd5, 12, 40, Math.PI / 4, 0.5, 1);
+    specularSpot.position.set(0, 0, 8);
+    scene.add(specularSpot);
+    const cobaltPoint = new THREE.PointLight(0x1d4ed8, 2.5, 18);
+    cobaltPoint.position.set(-5, -3, 2);
+    scene.add(cobaltPoint);
+    const rosePoint = new THREE.PointLight(0xf43f5e, 2.5, 18);
+    rosePoint.position.set(5, 3, 2);
+    scene.add(rosePoint);
+
+    const cameraRigGroup = new THREE.Group();
+    const outerRingGeo = new THREE.TorusGeometry(1.9, 0.12, 16, 100);
+    const darkTitaniumMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, metalness: 0.95, roughness: 0.15 });
+    const outerRing = new THREE.Mesh(outerRingGeo, darkTitaniumMat);
+    cameraRigGroup.add(outerRing);
+    const innerRingGeo = new THREE.TorusGeometry(1.5, 0.08, 16, 100);
+    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 1.0, roughness: 0.05 });
+    const innerRing = new THREE.Mesh(innerRingGeo, chromeMat);
+    innerRing.rotation.x = Math.PI / 2;
+    cameraRigGroup.add(innerRing);
+    const lensBarrelGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 32, 1, true);
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xD4AF37, metalness: 0.9, roughness: 0.1 });
+    const lensBarrel = new THREE.Mesh(lensBarrelGeo, goldMat);
+    lensBarrel.rotation.x = Math.PI / 2;
+    cameraRigGroup.add(lensBarrel);
+    const glassGeo = new THREE.SphereGeometry(0.75, 32, 32);
+    const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.05, transparent: true, opacity: 0.65, transmission: 0.9, ior: 1.5, thickness: 1.0 });
+    const glassLens = new THREE.Mesh(glassGeo, glassMat);
+    cameraRigGroup.add(glassLens);
+    const bladeGeo = new THREE.BoxGeometry(0.04, 0.55, 0.02);
+    const blackAnodizedMat = new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 0.4 });
+    for (let i = 0; i < 8; i++) {
+      const blade = new THREE.Mesh(bladeGeo, blackAnodizedMat);
+      const angle = (i / 8) * Math.PI * 2;
+      blade.position.set(Math.cos(angle) * 1.0, Math.sin(angle) * 1.0, 0);
+      blade.rotation.z = angle + Math.PI / 4;
+      cameraRigGroup.add(blade);
+    }
+    cameraRigGroup.position.set(-3.5, 1.5, -2);
+    scene.add(cameraRigGroup);
+
+    const reelGroup = new THREE.Group();
+    const diskGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.1, 32);
+    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
+    const disk = new THREE.Mesh(diskGeo, darkMetal);
+    disk.rotation.x = Math.PI / 2;
+    reelGroup.add(disk);
+    const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 100);
+    const brassMat = new THREE.MeshStandardMaterial({ color: 0xC5A03A, metalness: 0.9, roughness: 0.1 });
+    const brassRing = new THREE.Mesh(ringGeo, brassMat);
+    brassRing.position.set(0, 0, 0.06);
+    reelGroup.add(brassRing);
+    reelGroup.position.set(4, -1, -2);
+    scene.add(reelGroup);
+
+    const pCount = 100;
+    const pPositions = new Float32Array(pCount * 3);
+    const pGeometry = new THREE.BufferGeometry();
+    for (let i = 0; i < pCount; i++) {
+      pPositions[i * 3] = (Math.random() - 0.5) * 18;
+      pPositions[i * 3 + 1] = (Math.random() - 0.5) * 10;
+      pPositions[i * 3 + 2] = (Math.random() - 0.5) * 4 - 3;
+    }
+    pGeometry.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+    const pMaterial = new THREE.PointsMaterial({ color: 0xC5A03A, size: 0.14, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending });
+    scene.add(new THREE.Points(pGeometry, pMaterial));
+
+    let mouseX = 0, mouseY = 0;
+    const targetMouse = { x: 0, y: 0 };
+    const handleWindowMouseMove = (e) => {
+      targetMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      targetMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    };
+    window.addEventListener('mousemove', handleWindowMouseMove);
+
+    const clock = new THREE.Clock();
+    let frameId;
+    const animate = () => {
+      frameId = requestAnimationFrame(animate);
+      const elapsed = clock.getElapsedTime();
+      outerRing.rotation.y = elapsed * 0.14; outerRing.rotation.x = elapsed * 0.07;
+      innerRing.rotation.x = elapsed * 0.22; innerRing.rotation.z = elapsed * 0.16;
+      lensBarrel.rotation.y = elapsed * 0.28; cameraRigGroup.position.y = 1.5 + Math.sin(elapsed * 0.45) * 0.2;
+      reelGroup.rotation.z = elapsed * 0.35; reelGroup.rotation.y = elapsed * 0.15; reelGroup.position.y = -1 + Math.cos(elapsed * 0.5) * 0.15;
+      mouseX += (targetMouse.x - mouseX) * 0.05; mouseY += (targetMouse.y - mouseY) * 0.05;
+      specularSpot.position.x = 5 + mouseX * 4; specularSpot.position.y = 5 + mouseY * 4;
+      camera.position.x = mouseX * 0.8; camera.position.y = mouseY * 0.8;
+      camera.lookAt(scene.position); renderer.render(scene, camera);
+    };
+    animate();
+
+    const resize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', resize);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      if (mountRef.current) mountRef.current.innerHTML = '';
+    };
+  }, []);
+  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40 animate-fadeIn" />;
+}
+
 // --- SIGN IN MODAL WITH MULTIPLE CREDENTIAL METHODS ---
-function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast, isMockActive, setAuthUser }) {
+function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
   const [emailMode, setEmailMode] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -404,46 +1051,9 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast, isMock
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
     if (!cleanEmail || !cleanPassword) return;
-
-    if (isMockActive) {
-      setLoading(true);
-      setTimeout(() => {
-        const mockEmailUser = {
-          uid: isSignUp ? "mock-user-" + Date.now() : "mock-registered-user",
-          email: cleanEmail,
-          displayName: cleanEmail.split('@')[0],
-          isAnonymous: false
-        };
-        
-        let existingProfile = window.simulatedDb.profiles.find(p => p.email.toLowerCase() === cleanEmail.toLowerCase());
-        if (!existingProfile) {
-          window.simulatedDb.profiles.push({
-            id: mockEmailUser.uid,
-            name: mockEmailUser.displayName,
-            email: mockEmailUser.email,
-            role: cleanEmail.toLowerCase() === ADMIN_EMAIL ? 'owner' : 'member',
-            status: cleanEmail.toLowerCase() === ADMIN_EMAIL ? 'approved' : 'pending',
-            workCategory: DEFAULT_CATEGORIES[0],
-            photoURL: PRESET_AVATARS[0].svg,
-            createdAt: Date.now(),
-            bio: 'Preview crew bio',
-            isProfileComplete: false
-          });
-        } else {
-          mockEmailUser.uid = existingProfile.id;
-          mockEmailUser.displayName = existingProfile.name;
-        }
-
-        setAuthUser(mockEmailUser);
-        showToast(isSignUp ? 'Created credentials (Sandbox mode)!' : 'Logged in (Sandbox mode)!', 'success');
-        setShowSignInModal(false);
-        setLoading(false);
-      }, 600);
-      return;
-    }
-
     if (!auth || !auth.app) {
-      showToast('Authentication unavailable offline.', 'warning');
+      showToast('Authentication mock active in offline state.', 'info');
+      setShowSignInModal(false);
       return;
     }
     setLoading(true);
@@ -640,16 +1250,6 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
     e.preventDefault();
     const clean = newCatInput.trim();
     if (!clean) return;
-    const isMockActive = !hasLiveFirebase;
-
-    if (isMockActive) {
-      if (!window.simulatedDbDocs['meta/categories'].list.includes(clean)) {
-        window.simulatedDbDocs['meta/categories'].list.push(clean);
-      }
-      setActiveCategory(clean); setNewCustomCategory(''); showToast(`Category added!`, 'success');
-      return;
-    }
-
     if (!db || !db.app) return;
     if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) { showToast('Category exists.', 'warning'); return; }
     await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(clean) }, { merge: true });
@@ -699,7 +1299,7 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
   );
 }
 
-// --- ADVANCED NATIVE ADAPTABLE PLAYER ---
+// --- ADVANCED NATIVE ADAPTABLE PLAYER (YOUTUBE COMPOSITION + VISUAL SCRUBBER FRAME HOVER) ---
 function CustomVideoPlayer({ hlsUrl }) {
   const videoRef = useRef(null);
   const secondaryVideoRef = useRef(null); 
@@ -923,7 +1523,7 @@ function CustomVideoPlayer({ hlsUrl }) {
 }
 
 // --- VIDEO VAULT FEED & INTEGRATION ---
-function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification, activeVideo, setActiveVideo, onInspectUser, isMockActive }) {
+function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification, activeVideo, setActiveVideo, onInspectUser }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [uploadMode, setUploadMode] = useState('link');
@@ -955,6 +1555,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
   const startUpload = async (e) => {
     e.preventDefault();
     if (!videoTitle.trim()) return;
+    if (!db || !db.app) return;
     
     let targetSrcLocation = '';
     let metricSize = '';
@@ -968,26 +1569,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
       targetSrcLocation = galleryBase64;
       metricSize = `Direct Gallery Payload (${(galleryBase64.length / 1024 / 1024).toFixed(2)} MB)`;
     }
-
-    if (isMockActive) {
-      window.simulatedDb.videos.unshift({
-        id: 'vid_' + Date.now(),
-        title: videoTitle.trim(),
-        hlsUrl: targetSrcLocation,
-        uploaderUid: userProfile.id,
-        uploaderName: userProfile.name,
-        uploaderAvatar: userProfile.photoURL || '',
-        size: metricSize,
-        comments: [],
-        createdAt: Date.now()
-      });
-      pushNotification(`Added video: "${videoTitle}"`, userProfile.name);
-      setVideoTitle(''); setVideoUrlInput(''); setGalleryBase64(''); setShowUploadModal(false);
-      showToast('Video registered successfully!', 'success');
-      return;
-    }
-
-    if (!db || !db.app) return;
 
     try {
       await addDoc(collection(db, 'videos'), {
@@ -1007,13 +1588,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
   };
 
   const removeVideo = async (id) => {
-    if (isMockActive) {
-      window.simulatedDb.videos = window.simulatedDb.videos.filter(v => v.id !== id);
-      setActiveVideo(null);
-      showToast('Video removed from Vault.', 'info');
-      return;
-    }
-
     if (!db || !db.app) return;
     await deleteDoc(doc(db, 'videos', id));
     setActiveVideo(null);
@@ -1022,9 +1596,9 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
   const handlePostVideoComment = async (e, videoId) => {
     e.preventDefault();
+    if (!db || !db.app) return;
     const commentText = e.target.commentInput.value.trim();
     if (!commentText) return;
-
     const newComment = { 
       id: 'c_' + Date.now(), 
       authorUid: userProfile.id,
@@ -1032,20 +1606,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
       text: commentText, 
       timestamp: Date.now() 
     };
-
-    if (isMockActive) {
-      const vid = window.simulatedDb.videos.find(v => v.id === videoId);
-      if (vid) {
-        if (!vid.comments) vid.comments = [];
-        vid.comments.push(newComment);
-        setActiveVideo({ ...vid });
-      }
-      e.target.commentInput.value = '';
-      showToast('Feedback published!', 'success');
-      return;
-    }
-
-    if (!db || !db.app) return;
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
     e.target.commentInput.value = '';
     
@@ -1056,16 +1616,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
   };
 
   const deleteVideoComment = async (videoId, currentComments, commentId) => {
-    if (isMockActive) {
-      const vid = window.simulatedDb.videos.find(v => v.id === videoId);
-      if (vid) {
-        vid.comments = (vid.comments || []).filter(c => c.id !== commentId);
-        setActiveVideo({ ...vid });
-      }
-      showToast('Comment deleted.', 'info');
-      return;
-    }
-
     if (!db || !db.app) return;
     const updatedComments = currentComments.filter(c => c.id !== commentId);
     await updateDoc(doc(db, 'videos', videoId), { comments: updatedComments });
@@ -1254,23 +1804,13 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 }
 
 // --- PROJECT BOARD ---
-function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin, isMockActive }) {
+function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin }) {
   const [newConcept, setNewConcept] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
 
   const createConcept = async (e) => {
     e.preventDefault();
     if (!newConcept.trim()) return;
-
-    if (isMockActive) {
-      window.simulatedDb.projects.unshift({
-        id: 'proj_' + Date.now(), title: newConcept, creatorName: userProfile.name, createdAt: Date.now()
-      });
-      pushNotification(`Created whiteboard: "${newConcept}"`, userProfile.name);
-      setNewConcept(''); showToast('Artboard concept mapped!', 'success');
-      return;
-    }
-
     if (!db || !db.app) return;
     try {
       await addDoc(collection(db, 'projects'), { title: newConcept, creatorName: userProfile.name, createdAt: Date.now() });
@@ -1283,17 +1823,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 
   const addTask = async (e) => {
     e.preventDefault();
-    if (!taskTitle.trim()) return;
-
-    if (isMockActive) {
-      window.simulatedDb.tasks.push({
-        id: 'task_' + Date.now(), projectId: selectedProject.id, title: taskTitle, status: 'To Do'
-      });
-      setTaskTitle('');
-      return;
-    }
-
-    if (!db || !db.app) return;
+    if (!taskTitle.trim() || !db || !db.app) return;
     try {
       await addDoc(collection(db, 'tasks'), { projectId: selectedProject.id, title: taskTitle, status: 'To Do' });
       setTaskTitle('');
@@ -1302,14 +1832,6 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 
   const removeProject = async (pId, e) => {
     if (e) e.stopPropagation(); 
-
-    if (isMockActive) {
-      window.simulatedDb.projects = window.simulatedDb.projects.filter(p => p.id !== pId);
-      if (selectedProject?.id === pId) setSelectedProject(null);
-      showToast('Project deleted', 'info');
-      return;
-    }
-
     if (!db || !db.app) return;
     await deleteDoc(doc(db, 'projects', pId));
     if (selectedProject?.id === pId) setSelectedProject(null); 
@@ -1317,27 +1839,12 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
   };
 
   const removeTask = async (tId) => { 
-    if (isMockActive) {
-      window.simulatedDb.tasks = window.simulatedDb.tasks.filter(t => t.id !== tId);
-      showToast('Task card removed.', 'info');
-      return;
-    }
-
     if (!db || !db.app) return;
     await deleteDoc(doc(db, 'tasks', tId)); 
     showToast('Task card removed.', 'info');
   };
 
   const toggleTaskStatus = async (task) => {
-    if (isMockActive) {
-      const match = window.simulatedDb.tasks.find(t => t.id === task.id);
-      if (match) {
-        match.status = match.status === 'To Do' ? 'Completed' : 'To Do';
-      }
-      showToast(`Task status updated!`, 'success');
-      return;
-    }
-
     if (!db || !db.app) return;
     const nextStatus = task.status === 'To Do' ? 'Completed' : 'To Do';
     await updateDoc(doc(db, 'tasks', task.id), { status: nextStatus });
@@ -1406,7 +1913,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 }
 
 // --- SCRIPTS WORKSPACE ---
-function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotification, isMockActive }) {
+function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotification }) {
   const [selectedScriptId, setSelectedScriptId] = useState(null);
   const [showNewTopicModal, setShowNewTopicModal] = useState(false);
   const [newTopicTitle, setNewTopicTitle] = useState('');
@@ -1422,19 +1929,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   const createTopic = async (e) => {
     e.preventDefault();
     const clean = newTopicTitle.trim();
-    if (!clean) return;
-
-    if (isMockActive) {
-      const newId = 'script_' + Date.now();
-      window.simulatedDb.scripts.unshift({
-        id: newId, title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now()
-      });
-      pushNotification(`Started script: "${clean}"`, userProfile.name);
-      setNewTopicTitle(''); setShowNewTopicModal(false); setSelectedScriptId(newId); showToast('Topic created!', 'success');
-      return;
-    }
-
-    if (!db || !db.app) return;
+    if (!clean || !db || !db.app) return;
     try {
       const ref = await addDoc(collection(db, 'scripts'), { title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now() });
       pushNotification(`Started script: "${clean}"`, userProfile.name);
@@ -1443,22 +1938,8 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   };
 
   const saveScriptBody = async () => {
-    if (!selectedScript || !canEditSelected) return;
+    if (!selectedScript || !canEditSelected || !db || !db.app) return;
     setSaving(true);
-
-    if (isMockActive) {
-      const target = window.simulatedDb.scripts.find(s => s.id === selectedScript.id);
-      if (target) {
-        target.content = draftText;
-        target.updatedAt = Date.now();
-        target.lastEditedBy = userProfile.name;
-      }
-      setIsEditingBody(false); showToast('Script saved!', 'success');
-      setSaving(false);
-      return;
-    }
-
-    if (!db || !db.app) return;
     try {
       await updateDoc(doc(db, 'scripts', selectedScript.id), { content: draftText, updatedAt: Date.now(), lastEditedBy: userProfile.name });
       setIsEditingBody(false); showToast('Script saved!', 'success');
@@ -1467,14 +1948,6 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 
   const removeTopic = async (id, e) => {
     if (e) e.stopPropagation();
-
-    if (isMockActive) {
-      window.simulatedDb.scripts = window.simulatedDb.scripts.filter(s => s.id !== id);
-      if (selectedScriptId === id) setSelectedScriptId(null);
-      showToast('Script topic deleted.', 'info');
-      return;
-    }
-
     if (!db || !db.app) return;
     await deleteDoc(doc(db, 'scripts', id));
     if (selectedScriptId === id) setSelectedScriptId(null);
@@ -1561,7 +2034,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 }
 
 // --- CHATROOM ---
-function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast, onInspectUser, isMockActive }) {
+function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast, onInspectUser }) {
   const [inputText, setInputText] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
   const [activeMessageMenu, setActiveMessageMenu] = useState(null); 
@@ -1573,19 +2046,8 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   const commit = async (e) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !db || !db.app) return;
     const text = inputText;
-
-    if (isMockActive) {
-      window.simulatedDb.chats.unshift({
-        id: 'chat_' + Date.now(), projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now()
-      });
-      pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'all');
-      setInputText('');
-      return;
-    }
-
-    if (!db || !db.app) return;
     try {
       await addDoc(collection(db, 'chats'), {
         projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
@@ -1597,18 +2059,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   const handleAddChannel = async (e) => {
     e.preventDefault();
-    if(!newChannelName.trim()) return;
-
-    if (isMockActive) {
-      window.simulatedDbDocs['meta/settings'] = {
-        ...window.simulatedDbDocs['meta/settings'],
-        chatChannels: [...channels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}]
-      };
-      setNewChannelName(''); showToast("Whiteboard channel added!", "success");
-      return;
-    }
-
-    if (!db || !db.app) return;
+    if(!newChannelName.trim() || !db || !db.app) return;
     try {
       await setDoc(doc(db, 'meta/settings'), { chatChannels: [...channels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}] }, {merge: true});
       setNewChannelName(''); showToast("Whiteboard channel added!", "success");
@@ -1617,14 +2068,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   const removeChannel = async (id, e) => {
     e.stopPropagation();
-
-    if (isMockActive) {
-      window.simulatedDbDocs['meta/settings'].chatChannels = channels.filter(c => c.id !== id);
-      if(chatChannel === id) setChatChannel('general');
-      showToast("Channel removed!", "info");
-      return;
-    }
-
     if (!db || !db.app) return;
     try {
       await setDoc(doc(db, 'meta/settings'), { chatChannels: channels.filter(c => c.id !== id) }, {merge: true});
@@ -1634,13 +2077,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   };
 
   const deleteMessage = async (msgId) => { 
-    if (isMockActive) {
-      window.simulatedDb.chats = window.simulatedDb.chats.filter(c => c.id !== msgId);
-      setActiveMessageMenu(null);
-      showToast("Message deleted.", "info");
-      return;
-    }
-
     if (!db || !db.app) return;
     await deleteDoc(doc(db, 'chats', msgId)); 
     setActiveMessageMenu(null);
@@ -1648,21 +2084,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   };
 
   const saveEditedMessage = async () => {
-    if (!editingMessageText.trim() || !editingMessageId) return;
-
-    if (isMockActive) {
-      const target = window.simulatedDb.chats.find(c => c.id === editingMessageId);
-      if (target) {
-        target.text = editingMessageText.trim();
-      }
-      setEditingMessageId(null);
-      setEditingMessageText('');
-      setActiveMessageMenu(null);
-      showToast("Commentary updated!", "success");
-      return;
-    }
-
-    if (!db || !db.app) return;
+    if (!editingMessageText.trim() || !editingMessageId || !db || !db.app) return;
     try {
       await updateDoc(doc(db, 'chats', editingMessageId), { text: editingMessageText.trim() });
       setEditingMessageId(null);
@@ -1793,7 +2215,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 }
 
 // --- INSTA FEED ---
-function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser, isMockActive }) {
+function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
   const [postTitle, setPostTitle] = useState('');
   const [postText, setPostText] = useState('');
   const [showCreateModal, setShowCreatePostModal] = useState(false);
@@ -1803,26 +2225,10 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   const publishPost = async (e) => {
     e.preventDefault();
     const file = fileInputRef.current?.files[0];
-    if (!postTitle.trim() || !file) return;
+    if (!postTitle.trim() || !file || !db || !db.app) return;
     setPublishing(true);
-
     try {
       const compressedString = await compressAndConvertImage(file, 500);
-
-      if (isMockActive) {
-        window.simulatedDb.posts.unshift({
-          id: 'post_' + Date.now(),
-          title: postTitle.trim(), description: postText.trim(), image: compressedString,
-          authorName: userProfile.name, authorAvatar: userProfile.photoURL, authorUid: userProfile.id,
-          likes: 0, likedBy: [], comments: [], createdAt: Date.now()
-        });
-        pushNotification(`Shared showroom post: "${postTitle}"`, userProfile.name);
-        setPostTitle(''); setPostText(''); setShowCreatePostModal(false); showToast('Showcase uploaded to feed!', 'success');
-        setPublishing(false);
-        return;
-      }
-
-      if (!db || !db.app) return;
       await addDoc(collection(db, 'posts'), {
         title: postTitle.trim(), description: postText.trim(), image: compressedString,
         authorName: userProfile.name, authorAvatar: userProfile.photoURL, authorUid: userProfile.id,
@@ -1834,16 +2240,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
   };
 
   const toggleLikePost = async (post) => {
-    if (isMockActive) {
-      const match = window.simulatedDb.posts.find(p => p.id === post.id);
-      if (match) {
-        const hasLiked = match.likedBy?.includes(userProfile.id);
-        match.likedBy = hasLiked ? match.likedBy.filter(u => u !== userProfile.id) : [...(match.likedBy || []), userProfile.id];
-        match.likes = match.likedBy.length;
-      }
-      return;
-    }
-
     if (!db || !db.app) return;
     const hasLiked = post.likedBy?.includes(userProfile.id);
     const newLikedBy = hasLiked ? post.likedBy.filter(u => u !== userProfile.id) : [...(post.likedBy || []), userProfile.id];
@@ -1852,44 +2248,20 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
   const handleAddPostComment = async (e, postId) => {
     e.preventDefault();
+    if (!db || !db.app) return;
     const commentVal = e.target.commentInputText.value.trim();
     if (!commentVal) return;
-
-    if (isMockActive) {
-      const match = window.simulatedDb.posts.find(p => p.id === postId);
-      if (match) {
-        if (!match.comments) match.comments = [];
-        match.comments.push({ id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal });
-      }
-      e.target.commentInputText.value = ''; showToast('Comment published!', 'success');
-      return;
-    }
-
-    if (!db || !db.app) return;
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion({ id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal }) });
     e.target.commentInputText.value = ''; showToast('Comment published!', 'success');
   };
 
   const removePost = async (postId) => { 
-    if (isMockActive) {
-      window.simulatedDb.posts = window.simulatedDb.posts.filter(p => p.id !== postId);
-      showToast("Post removed from feed.", "info"); 
-      return;
-    }
     if (!db || !db.app) return;
     await deleteDoc(doc(db, 'posts', postId)); 
     showToast("Post removed from feed.", "info"); 
   };
 
   const removePostComment = async (postId, postComments, commentId) => {
-    if (isMockActive) {
-      const post = window.simulatedDb.posts.find(p => p.id === postId);
-      if (post) {
-        post.comments = post.comments.filter(x => x.id !== commentId);
-      }
-      showToast("Comment removed.", "info");
-      return;
-    }
     if (!db || !db.app) return;
     const updatedComments = postComments.filter(x => x.id !== commentId);
     await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
@@ -1988,7 +2360,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 }
 
 // --- MY PROFILE ---
-function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut, isOnboarding, isMockActive }) {
+function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut, isOnboarding }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(userProfile?.photoURL || '');
@@ -2007,24 +2379,8 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
   const saveProfileSettings = async (e) => {
     e.preventDefault(); 
-    if (!fullName.trim()) return; 
+    if (!fullName.trim() || !db || !db.app) return; 
     setSaving(true);
-
-    if (isMockActive) {
-      const match = window.simulatedDb.profiles.find(p => p.id === userProfile.id);
-      if (match) {
-        match.name = fullName.trim();
-        match.workCategory = selectedCat;
-        match.photoURL = uploadedPhotoUrl;
-        match.bio = bioInput.trim();
-        match.isProfileComplete = true;
-      }
-      setSaving(false);
-      showToast('Profile credentials mapped successfully (Sandbox)!', 'success');
-      return;
-    }
-
-    if (!db || !db.app) return; 
     try {
       await updateDoc(doc(db, 'profiles', userProfile.id), { 
         name: fullName.trim(), 
@@ -2044,17 +2400,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
   const handleRegisterCategory = async (e) => {
     e.preventDefault(); 
     const refined = newCatInp.trim(); 
-    if (!refined) return;
-
-    if (isMockActive) {
-      if (!window.simulatedDbDocs['meta/categories'].list.includes(refined)) {
-        window.simulatedDbDocs['meta/categories'].list.push(refined);
-      }
-      setSelectedCat(refined); setNewCatInp(''); showToast('Category registered!', 'success');
-      return;
-    }
-
-    if (!db || !db.app) return;
+    if (!refined || !db || !db.app) return;
     if (categories.some(c => c.toLowerCase() === refined.toLowerCase())) { showToast('Category tag already exists.', 'warning'); return; }
     await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(refined) }, { merge: true });
     setSelectedCat(refined); setNewCatInp(''); showToast('Category registered!', 'success');
@@ -2072,14 +2418,14 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
         )}
       </div>
       <div className="flex flex-col items-center mb-5 font-sans">
-        <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">
+        <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 bg-white overflow-hidden shadow-md flex items-center justify-center mb-1 font-sans">
           {renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-full")}
         </div>
       </div>
       <form onSubmit={saveProfileSettings} className="space-y-4 font-sans animate-fadeIn">
         <div>
           <label className="block text-[9px] font-bold text-slate-500 uppercase">Display Name</label>
-          <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs mt-1 focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
+          <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2141,7 +2487,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 }
 
 // --- ADMIN PANEL ---
-function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast, isMockActive }) {
+function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userProfile, showToast }) {
   const [logoTxt, setLogoTxt] = useState(siteSettings.logoText || '');
   const [channelIdInput, setChannelIdInput] = useState(ytConfig.channelId || '');
   const [apiKeyInput, setApiKeyInput] = useState(ytConfig.apiKey || '');
@@ -2155,17 +2501,6 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
 
   const handleYtSave = async (e) => {
     e.preventDefault();
-    if (isMockActive) {
-      window.simulatedDbDocs['meta/ytConfig'] = {
-        ...window.simulatedDbDocs['meta/ytConfig'],
-        channelId: channelIdInput,
-        apiKey: apiKeyInput
-      };
-      showToast('YouTube configurations saved!', 'success');
-      syncYouTubeStats(channelIdInput, apiKeyInput);
-      return;
-    }
-
     if (!db || !db.app) return;
     await setDoc(doc(db, 'meta/ytConfig'), { channelId: channelIdInput, apiKey: apiKeyInput }, { merge: true });
     showToast('YouTube configurations saved!', 'success');
@@ -2173,20 +2508,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   };
 
   const saveMemberPhotoOverride = async (userId) => {
-    if (!editedFile) return;
-
-    if (isMockActive) {
-      try {
-        const compressedBase64 = await compressAndConvertImage(editedFile, 150);
-        const match = window.simulatedDb.profiles.find(p => p.id === userId);
-        if (match) match.photoURL = compressedBase64;
-        setEditingUserId(null); setEditedFile(null); 
-        showToast("PFP modified successfully!", 'success');
-      } catch (err) {}
-      return;
-    }
-
-    if (!db || !db.app) return;
+    if (!editedFile || !db || !db.app) return;
     try {
       const compressedBase64 = await compressAndConvertImage(editedFile, 150);
       await updateDoc(doc(db, 'profiles', userId), { photoURL: compressedBase64 });
@@ -2199,18 +2521,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
 
   const triggerSiteLogoUpload = async (e) => {
     const file = e.target.files[0]; 
-    if (!file) return;
-
-    if (isMockActive) {
-      try {
-        const compressedBase64 = await compressAndConvertImage(file, 200);
-        window.simulatedDbDocs['meta/settings'].logoUrl = compressedBase64;
-        showToast('Branding updated successfully!', 'success');
-      } catch (err) {}
-      return;
-    }
-
-    if (!db || !db.app) return;
+    if (!file || !db || !db.app) return;
     try {
       const compressedBase64 = await compressAndConvertImage(file, 200);
       await setDoc(doc(db, 'meta/settings'), { logoUrl: compressedBase64 }, { merge: true }); 
@@ -2221,12 +2532,6 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   };
 
   const saveLogoText = async () => {
-    if (isMockActive) {
-      window.simulatedDbDocs['meta/settings'].logoText = logoTxt;
-      showToast('Logo text saved!', 'success'); 
-      return;
-    }
-
     if (!db || !db.app) return;
     try { 
       await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); 
@@ -2236,45 +2541,11 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
     }
   };
 
-  const approve = (uid) => {
-    if (isMockActive) {
-      const target = window.simulatedDb.profiles.find(p => p.id === uid);
-      if (target) target.status = 'approved';
-      return;
-    }
-    if (db && db.app) updateDoc(doc(db, 'profiles', uid), { status: 'approved' }); 
-  };
-  const promote = (uid) => { 
-    if (isMockActive) {
-      const target = window.simulatedDb.profiles.find(p => p.id === uid);
-      if (target) target.role = 'admin';
-      return;
-    }
-    if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'admin' }); 
-  };
-  const makeWaiter = (uid) => { 
-    if (isMockActive) {
-      const target = window.simulatedDb.profiles.find(p => p.id === uid);
-      if (target) target.role = 'roasting waiter';
-      return;
-    }
-    if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'roasting waiter' }); 
-  };
-  const demote = (uid) => { 
-    if (isMockActive) {
-      const target = window.simulatedDb.profiles.find(p => p.id === uid);
-      if (target) target.role = 'member';
-      return;
-    }
-    if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'member' }); 
-  };
-  const remove = (uid) => { 
-    if (isMockActive) {
-      window.simulatedDb.profiles = window.simulatedDb.profiles.filter(p => p.id !== uid);
-      return;
-    }
-    if (db && db.app) deleteDoc(doc(db, 'profiles', uid)); 
-  };
+  const approve = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { status: 'approved' }); };
+  const promote = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'admin' }); };
+  const makeWaiter = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'roasting waiter' }); };
+  const demote = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'member' }); };
+  const remove = (uid) => { if (db && db.app) deleteDoc(doc(db, 'profiles', uid)); };
 
   return (
     <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn font-sans">
@@ -2378,699 +2649,6 @@ function RejectedScreen({ handleSignOut }) {
     <div className="text-center py-20 font-sans flex flex-col items-center justify-center gap-4">
       <p className="font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</p>
       <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 bg-rose-50 px-4 py-2 rounded-full border border-rose-200 hover:bg-rose-100 transition-colors">Sign Out</button>
-    </div>
-  );
-}
-
-// --- THREEJS BACKGROUND GRAPHICS ---
-function ThreeArtBackground() {
-  const mountRef = useRef(null);
-  useEffect(() => {
-    if (!window.THREE) return;
-    const THREE = window.THREE;
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.z = 11;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    mountRef.current.appendChild(renderer.domElement);
-    scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
-    const specularSpot = new THREE.SpotLight(0xffedd5, 12, 40, Math.PI / 4, 0.5, 1);
-    specularSpot.position.set(0, 0, 8);
-    scene.add(specularSpot);
-    const cobaltPoint = new THREE.PointLight(0x1d4ed8, 2.5, 18);
-    cobaltPoint.position.set(-5, -3, 2);
-    scene.add(cobaltPoint);
-    const rosePoint = new THREE.PointLight(0xf43f5e, 2.5, 18);
-    rosePoint.position.set(5, 3, 2);
-    scene.add(rosePoint);
-
-    const cameraRigGroup = new THREE.Group();
-    const outerRingGeo = new THREE.TorusGeometry(1.9, 0.12, 16, 100);
-    const darkTitaniumMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, metalness: 0.95, roughness: 0.15 });
-    const outerRing = new THREE.Mesh(outerRingGeo, darkTitaniumMat);
-    cameraRigGroup.add(outerRing);
-    const innerRingGeo = new THREE.TorusGeometry(1.5, 0.08, 16, 100);
-    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 1.0, roughness: 0.05 });
-    const innerRing = new THREE.Mesh(innerRingGeo, chromeMat);
-    innerRing.rotation.x = Math.PI / 2;
-    cameraRigGroup.add(innerRing);
-    const lensBarrelGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 32, 1, true);
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xD4AF37, metalness: 0.9, roughness: 0.1 });
-    const lensBarrel = new THREE.Mesh(lensBarrelGeo, goldMat);
-    lensBarrel.rotation.x = Math.PI / 2;
-    cameraRigGroup.add(lensBarrel);
-    const glassGeo = new THREE.SphereGeometry(0.75, 32, 32);
-    const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.05, transparent: true, opacity: 0.65, transmission: 0.9, ior: 1.5, thickness: 1.0 });
-    const glassLens = new THREE.Mesh(glassGeo, glassMat);
-    cameraRigGroup.add(glassLens);
-    const bladeGeo = new THREE.BoxGeometry(0.04, 0.55, 0.02);
-    const blackAnodizedMat = new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 0.4 });
-    for (let i = 0; i < 8; i++) {
-      const blade = new THREE.Mesh(bladeGeo, blackAnodizedMat);
-      const angle = (i / 8) * Math.PI * 2;
-      blade.position.set(Math.cos(angle) * 1.0, Math.sin(angle) * 1.0, 0);
-      blade.rotation.z = angle + Math.PI / 4;
-      cameraRigGroup.add(blade);
-    }
-    cameraRigGroup.position.set(-3.5, 1.5, -2);
-    scene.add(cameraRigGroup);
-
-    const reelGroup = new THREE.Group();
-    const diskGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.1, 32);
-    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
-    const disk = new THREE.Mesh(diskGeo, darkMetal);
-    disk.rotation.x = Math.PI / 2;
-    reelGroup.add(disk);
-    const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 100);
-    const brassMat = new THREE.MeshStandardMaterial({ color: 0xC5A03A, metalness: 0.9, roughness: 0.1 });
-    const brassRing = new THREE.Mesh(ringGeo, brassMat);
-    brassRing.position.set(0, 0, 0.06);
-    reelGroup.add(brassRing);
-    reelGroup.position.set(4, -1, -2);
-    scene.add(reelGroup);
-
-    const pCount = 100;
-    const pPositions = new Float32Array(pCount * 3);
-    const pGeometry = new THREE.BufferGeometry();
-    for (let i = 0; i < pCount; i++) {
-      pPositions[i * 3] = (Math.random() - 0.5) * 18;
-      pPositions[i * 3 + 1] = (Math.random() - 0.5) * 10;
-      pPositions[i * 3 + 2] = (Math.random() - 0.5) * 4 - 3;
-    }
-    pGeometry.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
-    const pMaterial = new THREE.PointsMaterial({ color: 0xC5A03A, size: 0.14, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending });
-    scene.add(new THREE.Points(pGeometry, pMaterial));
-
-    let mouseX = 0, mouseY = 0;
-    const targetMouse = { x: 0, y: 0 };
-    const handleWindowMouseMove = (e) => {
-      targetMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-      targetMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    };
-    window.addEventListener('mousemove', handleWindowMouseMove);
-
-    const clock = new THREE.Clock();
-    let frameId;
-    const animate = () => {
-      frameId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
-      outerRing.rotation.y = elapsed * 0.14; outerRing.rotation.x = elapsed * 0.07;
-      innerRing.rotation.x = elapsed * 0.22; innerRing.rotation.z = elapsed * 0.16;
-      lensBarrel.rotation.y = elapsed * 0.28; cameraRigGroup.position.y = 1.5 + Math.sin(elapsed * 0.45) * 0.2;
-      reelGroup.rotation.z = elapsed * 0.35; reelGroup.rotation.y = elapsed * 0.15; reelGroup.position.y = -1 + Math.cos(elapsed * 0.5) * 0.15;
-      mouseX += (targetMouse.x - mouseX) * 0.05; mouseY += (targetMouse.y - mouseY) * 0.05;
-      specularSpot.position.x = 5 + mouseX * 4; specularSpot.position.y = 5 + mouseY * 4;
-      camera.position.x = mouseX * 0.8; camera.position.y = mouseY * 0.8;
-      camera.lookAt(scene.position); renderer.render(scene, camera);
-    };
-    animate();
-
-    const resize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
-    window.addEventListener('resize', resize);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('mousemove', handleWindowMouseMove);
-      if (mountRef.current) mountRef.current.innerHTML = '';
-    };
-  }, []);
-  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40 animate-fadeIn" />;
-}
-
-// --- MAIN WORKSPACE APP ---
-export default function App() {
-  const [loadingLibraries, setLoadingLibraries] = useState(true);
-  const [threeReady, setThreeReady] = useState(false);
-
-  const [currentPage, setCurrentPage] = useState('home');
-  const [authUser, setAuthUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [showSignInModal, setShowSignInModal] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [customToast, setCustomToast] = useState(null);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [chatChannel, setChatChannel] = useState('general');
-  const [activeVideo, setActiveVideo] = useState(null);
-  const [inspectUser, setInspectUser] = useState(null);
-
-  const showToast = useCallback((message, type = 'info') => {
-    setCustomToast({ message, type });
-    setTimeout(() => setCustomToast(null), 4000);
-  }, []);
-
-  const ensureProfileDocRef = useRef(() => {});
-
-  const isMockActive = useMemo(() => {
-    return !hasLiveFirebase;
-  }, []);
-
-  useEffect(() => {
-    const initAuth = async () => {
-      if (isMockActive) {
-        const mockAnonUser = {
-          uid: "mock-anonymous-creator",
-          isAnonymous: true
-        };
-        setAuthUser(mockAnonUser);
-        setAuthLoading(false);
-        return;
-      }
-
-      if (!auth) {
-        setAuthLoading(false);
-        return;
-      }
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (e) {
-        console.warn("Authentication services running in sandbox mode:", e);
-        setAuthLoading(false);
-      }
-    };
-    initAuth();
-
-    let unsub = () => {};
-    if (hasLiveFirebase && auth) {
-      unsub = onAuthStateChanged(auth, async (user) => {
-        setAuthUser(user);
-        if (user && !user.isAnonymous) {
-          try { await ensureProfileDocRef.current(user); } catch (e) {}
-        }
-        setAuthLoading(false);
-      }, () => {
-        setAuthLoading(false);
-      });
-    } else {
-      setAuthLoading(false);
-    }
-    return () => unsub();
-  }, [isMockActive]);
-
-  const isAuthReady = !!authUser;
-  const [profiles] = useFirestoreCollection('profiles', null, null, isAuthReady);
-  const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES }, isAuthReady);
-  const categories = categoriesDoc.list || DEFAULT_CATEGORIES;
-  const [posts] = useFirestoreCollection('posts', 'createdAt', null, isAuthReady);
-  const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50, isAuthReady);
-  const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG, isAuthReady);
-  const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] }, isAuthReady);
-  const [projects] = useFirestoreCollection('projects', 'createdAt', null, isAuthReady);
-  const [tasks] = useFirestoreCollection('tasks', null, null, isAuthReady);
-  const [chats] = useFirestoreCollection('chats', 'createdAt', 200, isAuthReady);
-  const [videos] = useFirestoreCollection('videos', 'createdAt', null, isAuthReady);
-  const [scripts] = useFirestoreCollection('scripts', 'createdAt', null, isAuthReady);
-
-  const userProfile = useMemo(() => {
-    if (!authUser) return null;
-    return profiles.find(p => p.id === authUser.uid) || null;
-  }, [profiles, authUser]);
-
-  const isAdmin = useMemo(() => {
-    if (!userProfile) return false;
-    return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
-  }, [userProfile]);
-
-  const isRoastingWaiter = useMemo(() => {
-    if (!userProfile) return false;
-    const roleLower = (userProfile.role || '').toLowerCase();
-    return roleLower === 'roasting waiter' || roleLower === 'waiter';
-  }, [userProfile]);
-
-  const isProfileIncomplete = useMemo(() => {
-    if (!authUser || !userProfile) return false;
-    return !userProfile.name || userProfile.name.trim() === '' || !userProfile.workCategory || userProfile.isProfileComplete === false;
-  }, [authUser, userProfile]);
-
-  useEffect(() => {
-    if (!authLoading && !authUser && currentPage !== 'home') {
-      setCurrentPage('home');
-    }
-  }, [authUser, authLoading, currentPage]);
-
-  useEffect(() => {
-    if (!authUser || !userProfile) return;
-
-    if (isProfileIncomplete && currentPage !== 'profile') {
-      setCurrentPage('profile');
-      showToast("Let's personalize your credentials before accessing the main board!", "info");
-      return;
-    }
-
-    if (!isProfileIncomplete) {
-      if (userProfile.status === 'pending' && !['pending-status', 'profile'].includes(currentPage)) {
-        setCurrentPage('pending-status');
-      } else if (userProfile.status === 'rejected' && !['rejected-status', 'profile'].includes(currentPage)) {
-        setCurrentPage('rejected-status');
-      } else if (userProfile.status === 'approved' && isRoastingWaiter && currentPage !== 'profile') {
-        setCurrentPage('profile');
-      } else if (userProfile.status === 'approved' && !isRoastingWaiter && ['pending-status', 'rejected-status'].includes(currentPage)) {
-        setCurrentPage('home');
-      }
-    }
-  }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
-
-  // --- BACKGROUND TIME-BASED AUTO-SWEEPER ---
-  useEffect(() => {
-    if (!isAuthReady || !userProfile || isMockActive) return;
-    if (!db || !db.app) return;
-    
-    const runSweep = async () => {
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-      
-      chats.forEach(async (item) => {
-        if (item.createdAt && item.createdAt < sevenDaysAgo) {
-          try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {}
-        }
-      });
-      posts.forEach(async (item) => {
-        if (item.createdAt && item.createdAt < sevenDaysAgo) {
-          try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {}
-        }
-      });
-      notifications.forEach(async (item) => {
-        if (item.timestamp && item.timestamp < oneDayAgo) {
-          try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {}
-        }
-      });
-      videos.forEach(async (item) => {
-        if (item.createdAt && item.createdAt < sevenDaysAgo) {
-          try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {}
-        }
-      });
-      scripts.forEach(async (item) => {
-        if (item.createdAt && item.createdAt < sevenDaysAgo) {
-          try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {}
-        }
-      });
-    };
-
-    const delayTimer = setTimeout(() => { runSweep(); }, 8000);
-    return () => clearTimeout(delayTimer);
-  }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts, isMockActive]);
-
-  useEffect(() => {
-    if (notifsError && isAuthReady && !isRoastingWaiter && !isMockActive) {
-      showToast(`Notifications temporarily on standby.`, 'info');
-    }
-  }, [notifsError, isAuthReady, isRoastingWaiter, isMockActive]);
-
-  const unreadMap = useMemo(() => {
-    if (isRoastingWaiter) return { vault: false, projects: false, scripts: false, posts: false };
-    const lastSeen = userProfile?.lastSeenNotifAt || 0;
-    const unread = (notifications || []).filter(n => n && n.message && n.timestamp > lastSeen && n.actor !== 'System');
-    
-    return {
-      vault: unread.some(n => {
-        const msg = String(n.message).toLowerCase();
-        return msg.includes('video asset') || msg.includes('commented on video');
-      }),
-      projects: unread.some(n => String(n.message).toLowerCase().includes('concept whiteboard')),
-      scripts: unread.some(n => String(n.message).toLowerCase().includes('script topic')),
-      posts: unread.some(n => String(n.message).toLowerCase().includes('showroom draft')),
-    };
-  }, [notifications, userProfile, isRoastingWaiter]);
-
-  const seenNotifIdsRef = useRef(new Set());
-  const firstNotifLoadRef = useRef(true);
-  
-  useEffect(() => {
-    if (!userProfile || isRoastingWaiter || userProfile.status !== 'approved') return;
-    if (firstNotifLoadRef.current) {
-      (notifications || []).forEach(n => n && seenNotifIdsRef.current.add(n.id));
-      firstNotifLoadRef.current = false;
-      return;
-    }
-    (notifications || []).forEach(n => {
-      if (!n || !n.message || seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
-      seenNotifIdsRef.current.add(n.id);
-      if (n.actor === userProfile.name) return;
-      
-      const msg = String(n.message).toLowerCase();
-      if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
-      if (currentPage === 'projects' && msg.includes('concept whiteboard')) return;
-      if (currentPage === 'scripts' && msg.includes('script topic')) return;
-      if (currentPage === 'posts' && msg.includes('showroom draft')) return;
-      if (currentPage === 'chat' && !msg.startsWith('"')) return;
-
-      const audience = n.audience || 'all';
-      const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
-      if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try { new Notification('Youtubers Studio', { body: n.message, icon: siteSettings.logoUrl || undefined }); } catch (e) {}
-      }
-    });
-  }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, isRoastingWaiter]);
-
-  const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
-    if (isRoastingWaiter || userProfile?.status !== 'approved') return;
-    if (isMockActive) {
-      window.simulatedDb.notifications.unshift({
-        id: 'notif_' + Date.now(),
-        message,
-        actor: actorName,
-        timestamp: Date.now(),
-        audience
-      });
-      return;
-    }
-    if (!db || !db.app) return;
-    try { await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience }); } catch (err) {}
-  }, [isRoastingWaiter, userProfile, isMockActive]);
-
-  const ensureProfileDoc = useCallback(async (user) => {
-    if (isMockActive) return null;
-    if (!db || !db.app) return null;
-    const ref = doc(db, 'profiles', user.uid);
-    const snap = await getDoc(ref);
-    const emailLower = (user.email || '').toLowerCase();
-    const isOwner = emailLower === ADMIN_EMAIL;
-    if (!snap.exists()) {
-      const newProfile = {
-        id: user.uid,
-        name: user.displayName || user.email.split('@')[0], email: user.email, role: isOwner ? 'owner' : 'member',
-        status: isOwner ? 'approved' : 'pending', workCategory: categories[0] || 'Editing',
-        photoURL: user.photoURL || PRESET_AVATARS[0].svg, createdAt: Date.now(),
-        bio: '',
-        isProfileComplete: false
-      };
-      await setDoc(ref, newProfile);
-      return newProfile;
-    } else if (isOwner && snap.data().role !== 'owner') {
-      await updateDoc(ref, { role: 'owner', status: 'approved' });
-    }
-    return snap.data();
-  }, [categories, isMockActive]);
-  ensureProfileDocRef.current = ensureProfileDoc;
-
-  const handleGoogleSignIn = async () => {
-    if (isMockActive) {
-      const mockGoogleUser = {
-        uid: "mock-google-user",
-        email: ADMIN_EMAIL,
-        displayName: "Naitik Artist",
-        isAnonymous: false
-      };
-      setAuthUser(mockGoogleUser);
-      let existing = window.simulatedDb.profiles.find(p => p.id === mockGoogleUser.uid);
-      if (!existing) {
-        window.simulatedDb.profiles.push({
-          id: mockGoogleUser.uid,
-          name: mockGoogleUser.displayName,
-          email: mockGoogleUser.email,
-          role: 'owner',
-          status: 'approved',
-          workCategory: 'Creativity',
-          photoURL: PRESET_AVATARS[2].svg,
-          createdAt: Date.now(),
-          bio: 'Lead Creator of Youtubers Studio',
-          isProfileComplete: true
-        });
-      }
-      showToast('Successfully authenticated (Sandbox Mode)!', 'success');
-      setShowSignInModal(false);
-      return;
-    }
-
-    if (!auth || !auth.app) {
-      showToast('Authentication unavailable in sandbox mode.', 'warning');
-      return;
-    }
-    try { 
-      const result = await signInWithPopup(auth, googleProvider);
-      if (result.user) {
-        showToast('Successfully authenticated!', 'success');
-        setShowSignInModal(false);
-      }
-    } catch (err) { showToast('Sign-in failed — check configuration.', 'warning'); }
-  };
-
-  const handleSignOut = async () => {
-    if (isMockActive) {
-      const mockAnonUser = {
-        uid: "mock-anonymous-creator",
-        isAnonymous: true
-      };
-      setAuthUser(mockAnonUser);
-      setCurrentPage('home');
-      setActiveVideo(null);
-      showToast('Signed out successfully (Sandbox Mode).', 'info');
-      return;
-    }
-
-    if (!auth || !auth.app) return;
-    try {
-      await fbSignOut(auth);
-      setCurrentPage('home');
-      setActiveVideo(null);
-      showToast('Signed out successfully.', 'info');
-    } catch (err) {
-      showToast('Sign out failed.', 'warning');
-    }
-  };
-
-  const handleNavigationChange = (targetPage) => {
-    setIsSidebarOpen(false);
-
-    if (!authUser || !userProfile) {
-      if (targetPage === 'home') {
-        setCurrentPage('home');
-        return;
-      }
-      setShowSignInModal(true); 
-      return;
-    }
-
-    if (isProfileIncomplete) {
-      showToast("Please save your onboarding profile options first!", "warning");
-      setCurrentPage('profile');
-      return;
-    }
-
-    if (userProfile.status === 'pending' || userProfile.status === 'rejected') {
-      if (targetPage !== 'profile') {
-        showToast("Your account is pending approval.", "warning");
-        setCurrentPage(userProfile.status === 'pending' ? 'pending-status' : 'rejected-status');
-        return;
-      }
-    }
-
-    if (isRoastingWaiter) {
-      if (targetPage !== 'profile') {
-        showToast("Waiters are restricted to Profile access only.", "warning");
-        setCurrentPage('profile');
-        return;
-      }
-    }
-
-    setCurrentPage(targetPage);
-  };
-
-  const targetInspectProfile = profiles.find(p => p.id === inspectUser);
-
-  return (
-    <div className="min-h-screen relative overflow-x-hidden bg-[#FCFBF8] text-slate-800 font-sans selection:bg-[#C5A03A]/20">
-      <WatercolorOverlay />
-      {threeReady && <ThreeArtBackground />}
-
-      {customToast && (
-        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[99999] px-6 py-3 rounded-full shadow-skeuo-lg text-xs font-bold text-white transition-all animate-bounce ${customToast.type === 'success' ? 'bg-[#2ba640]' : 'bg-[#C5A03A]'}`}>
-          {customToast.message}
-        </div>
-      )}
-
-      {/* --- HEADER --- */}
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-4 sm:px-6 py-3 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
-        <div className="flex items-center space-x-3 min-w-0">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50 shrink-0">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-          </button>
-          <div className="flex items-center space-x-2 cursor-pointer min-w-0" onClick={() => handleNavigationChange('home')}>
-            {siteSettings.logoUrl ? (
-              <img src={siteSettings.logoUrl} alt="Logo" className="w-8 h-8 object-cover rounded-lg shadow-[0_4px_15px_rgba(135,112,58,0.25)] border border-white shrink-0" />
-            ) : (
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-serif font-bold text-sm shadow-[0_4px_15px_rgba(197,160,58,0.3)] border border-white shrink-0">Y</div>
-            )}
-            <span className="font-serif text-sm sm:text-base tracking-wide text-[#C5A03A] font-extrabold truncate max-w-[130px] sm:max-w-xs leading-none">
-              {siteSettings.logoText || 'YOUTUBERS STUDIO'}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
-          {userProfile && userProfile.status === 'approved' && !isRoastingWaiter && (
-            <NotificationBell 
-              notifications={notifications} 
-              userProfile={userProfile} 
-              isAdmin={isAdmin} 
-              onNavigate={setCurrentPage} 
-              onSetActiveVideo={setActiveVideo}
-              videos={videos}
-            />
-          )}
-          {userProfile ? (
-            <div className="flex items-center space-x-2">
-              <div className="hidden sm:flex flex-col text-right">
-                <p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name}</p>
-                <span className="text-[8px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{userProfile?.role}</span>
-              </div>
-              <div className="w-8 h-8 rounded-full border border-[#C5A03A]/60 bg-white shadow-sm overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>
-                {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-[10px] sm:text-xs font-bold bg-[#C5A03A] hover:bg-[#b59231] text-white px-3 py-2 rounded-full shadow-[0_4px_15px_rgba(197,160,58,0.25)] border border-white transition transform active:scale-95 whitespace-nowrap">🔑 Crew Sign In</button>
-          )}
-        </div>
-      </header>
-
-      {/* --- SIDEBAR DRAWER --- */}
-      <div className={`fixed inset-0 z-50 transition-opacity duration-300 bg-black/40 backdrop-blur-xs ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
-        <div className={`absolute left-0 top-0 bottom-0 w-72 bg-[#FFFDF9]/95 border-r border-[#EADFC9] shadow-2xl p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-6 pb-20">
-            <div className="flex items-center justify-between pb-4 border-b border-[#EADFC9]/50">
-              <span className="font-serif font-black text-base text-[#C5A03A] tracking-wider uppercase">Navigation</span>
-              <button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">✕</button>
-            </div>
-            <nav className="space-y-1 relative">
-              {(!userProfile || (userProfile.status === 'approved' && !isRoastingWaiter && !isProfileIncomplete)) && (
-                <>
-                  <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
-                  <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
-                  <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
-                  <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                    <span>🎞️</span><span>Video Vault</span>
-                    {unreadMap.vault && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
-                  </button>
-                  <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'projects' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                    <span>📌</span><span>Project Board</span>
-                    {unreadMap.projects && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
-                  </button>
-                  <button onClick={() => handleNavigationChange('scripts')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'scripts' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                    <span>📝</span><span>Scripts</span>
-                    {unreadMap.scripts && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
-                  </button>
-                  <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'chat' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>💬</span><span>Whiteboard Chat</span></button>
-                  <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'posts' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                    <span>📸</span><span>Insta Feed</span>
-                    {unreadMap.posts && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}
-                  </button>
-                </>
-              )}
-              
-              {userProfile && (
-                <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}>
-                  <span>👤</span><span>My Profile {isProfileIncomplete && '⚠️'}</span>
-                </button>
-              )}
-              
-              {isAdmin && !isRoastingWaiter && !isProfileIncomplete && (
-                <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1 font-sans">Admin Controls</span>
-                  <button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'admin' ? 'bg-rose-50 text-rose-600' : 'text-slate-500 hover:bg-rose-50/40'}`}><span>👥</span><span>Manage Roster</span></button>
-                </div>
-              )}
-            </nav>
-          </div>
-        </div>
-      </div>
-
-      {/* --- MAIN PAGE CONTENT --- */}
-      <main className="relative z-20 max-w-7xl mx-auto px-0 sm:px-4 py-6 studio-page-wrap animate-fadeIn">
-        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} onNavigate={setCurrentPage} onInspectUser={setInspectUser} />}
-        {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} handleNavigationChange={handleNavigationChange} handleSignOut={handleSignOut} />}
-        {currentPage === 'rejected-status' && <RejectedScreen handleSignOut={handleSignOut} />}
-        {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
-        {currentPage === 'categories-view' && <div className="px-4 sm:px-0"><CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} onInspectUser={setInspectUser} /></div>}
-        
-        {currentPage === 'vault' && (
-          <VideoVault 
-            videos={videos} 
-            userProfile={userProfile} 
-            showToast={showToast} 
-            isAdmin={isAdmin} 
-            pushNotification={pushNotification} 
-            activeVideo={activeVideo}
-            setActiveVideo={setActiveVideo}
-            onInspectUser={setInspectUser}
-            isMockActive={isMockActive}
-          />
-        )}
-        
-        {currentPage === 'projects' && <div className="px-4 sm:px-0"><ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} isMockActive={isMockActive} /></div>}
-        {currentPage === 'scripts' && <div className="px-4 sm:px-0"><ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} isMockActive={isMockActive} /></div>}
-        
-        {currentPage === 'chat' && (
-          <div className="px-4 sm:px-0">
-            <WhiteboardChat 
-              chats={chats} 
-              userProfile={userProfile} 
-              chatChannel={chatChannel} 
-              setChatChannel={setChatChannel} 
-              pushNotification={pushNotification} 
-              siteSettings={siteSettings} 
-              isAdmin={isAdmin} 
-              showToast={showToast} 
-              onInspectUser={setInspectUser}
-              isMockActive={isMockActive}
-            />
-          </div>
-        )}
-        
-        {currentPage === 'posts' && <div className="px-4 sm:px-0"><PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} onInspectUser={setInspectUser} isMockActive={isMockActive} />}
-        
-        {currentPage === 'profile' && (
-          !userProfile ? (
-            <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md">
-              <p className="text-slate-600 font-medium">Preparing sandbox profile card...</p>
-            </div>
-          ) : (
-            <div className="px-4 sm:px-0">
-              <MyProfileWorkspace 
-                userProfile={userProfile} 
-                categories={categories} 
-                showToast={showToast} 
-                handleSignOut={handleSignOut} 
-                isOnboarding={isProfileIncomplete} 
-                isMockActive={isMockActive}
-              />
-            </div>
-          )
-        )}
-        {currentPage === 'admin' && isAdmin && <div className="px-4 sm:px-0"><AdminPanel profiles={profiles} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} isMockActive={isMockActive} /></div>}
-      </main>
-
-      {/* --- GLOBAL USER INSPECTOR MODAL --- */}
-      {targetInspectProfile && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setInspectUser(null)}>
-          <div className="w-full max-w-sm bg-white border-2 border-[#EADFC9] rounded-[2rem] p-6 shadow-skeuo-lg relative text-center" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setInspectUser(null)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600 transition">✕</button>
-            <div className="w-20 h-20 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">
-              {renderAvatar(targetInspectProfile.photoURL)}
-            </div>
-            <h3 className="font-serif text-xl font-bold text-slate-800">{targetInspectProfile.name}</h3>
-            <span className="bg-[#C5A03A]/10 text-[#C5A03A] border border-[#C5A03A]/20 text-[9px] px-3 py-1 rounded-full font-bold mt-1.5 inline-block uppercase tracking-wider font-mono">
-              {targetInspectProfile.workCategory} • {targetInspectProfile.role}
-            </span>
-            <div className="my-4 text-slate-500 font-serif italic text-xs px-2 leading-relaxed bg-amber-50/40 py-3 rounded-xl border border-[#EADFC9]/30">
-              {targetInspectProfile.bio || "No custom bio configured yet."}
-            </div>
-            <p className="text-[10px] text-slate-400">Production Crew Member • Verified {new Date(targetInspectProfile.createdAt).toLocaleDateString()}</p>
-          </div>
-        </div>
-      )}
-
-      {showSignInModal && <SignInModal handleGoogleSignIn={handleGoogleSignIn} setShowSignInModal={setShowSignInModal} showToast={showToast} isMockActive={isMockActive} setAuthUser={setAuthUser} />}
     </div>
   );
 }
