@@ -12,22 +12,17 @@ import {
 } from 'firebase/firestore';
 
 // --- SAFE FIREBASE INITIALIZATION & FALLBACKS ---
-let firebaseConfig = {
-  apiKey: "mock-api-key-for-local-testing",
-  authDomain: "mock-auth-domain.firebaseapp.com",
-  projectId: "mock-project-id",
-  storageBucket: "mock-storage-bucket.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+// Replaced mock configuration with your actual live Firebase credentials
+const firebaseConfig = {
+  apiKey: "AIzaSyBsFo07T-8_CA6EWzaLfeWLJ3ShuGx5KIM",
+  authDomain: "rs-b5cf5.firebaseapp.com",
+  databaseURL: "https://rs-b5cf5-default-rtdb.firebaseio.com",
+  projectId: "rs-b5cf5",
+  storageBucket: "rs-b5cf5.firebasestorage.app",
+  messagingSenderId: "414676912966",
+  appId: "1:414676912966:web:f4b40db19d4326ba3db347",
+  measurementId: "G-8P1NK42WJW"
 };
-
-try {
-  if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-    firebaseConfig = JSON.parse(__firebase_config);
-  }
-} catch (e) {
-  console.warn("Failed to parse Firebase configuration. Utilizing simulated credentials.", e);
-}
 
 let app, auth, db;
 try {
@@ -40,6 +35,9 @@ try {
   auth = { currentUser: null };
   db = {};
 }
+
+// Ensure googleProvider is initialized for authentication
+const googleProvider = new GoogleAuthProvider();
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
