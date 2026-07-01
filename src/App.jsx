@@ -148,7 +148,12 @@ const resolvePlayableVideo = (url) => {
   const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
-    return { type: 'iframe-stream', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: null };
+    const fileId = driveMatch[1];
+    return { 
+      type: 'iframe-stream', 
+      src: `https://drive.google.com/file/d/${fileId}/preview`, 
+      thumbnail: `https://drive.google.com/thumbnail?id=${fileId}&sz=w600` 
+    };
   }
 
   const photosRegex = /photos\.app\.goo\.gl|photos\.google\.com/i;
@@ -395,7 +400,7 @@ export default function App() {
       const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
       const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
       const oneDayAgo = now - 24 * 60 * 60 * 1000;
-      const safetyBaseline = 1735689600000; // Hardened timestamp fallback to prevent premature deletion of items on loading refresh loops
+      const safetyBaseline = 1735689600000; 
 
       const isDataOlderThan = (timestamp, threshold) => {
         if (!timestamp || typeof timestamp !== 'number' || timestamp < safetyBaseline) return false;
@@ -897,7 +902,7 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
           <h4 className="font-serif text-xs font-bold text-slate-800 mb-1.5">Add Custom Category</h4>
           <form onSubmit={handleAddCategory} className="space-y-1.5 font-sans font-semibold">
             <input type="text" value={newCatInput} onChange={(e) => setNewCustomCategory(e.target.value)} placeholder="e.g. 3D Matte Shader" className="w-full px-3 py-1.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
-            <button type="submit" className="w-full py-1 bg-[#C5A03A] text-white text-[9px] font-bold uppercase rounded-lg border-b-[3px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] shadow-sm">Add Role Tag</button>
+            <input type="submit" value="Add Role Tag" className="w-full py-1 bg-[#C5A03A] text-white text-[9px] font-bold uppercase rounded-lg border-b-[3px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] shadow-sm cursor-pointer" />
           </form>
         </div>
         <div className="pt-3 border-t border-slate-100 space-y-1">
@@ -929,8 +934,8 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
   );
 }
 
-// --- ADVANCED ADVANCED YOUTUBE-LIKE ADAPTABLE PLAYER (Aspect Ratio Canvas Adaptability + Multi-Zoom + Frame Scrubbing) ---
-function CustomVideoPlayer({ hlsUrl, videoTitle }) {
+// --- NATIVE ADAPTABLE PLAYER (Aspect Ratio Canvas Adaptability + Multi-Zoom + Frame Scrubbing) ---
+function CustomVideoPlayer({ hlsUrl, videoTitle, forcesPortraitLayout }) {
   const videoRef = useRef(null);
   const progressBarRef = useRef(null);
   const playerWrapperRef = useRef(null);
@@ -938,15 +943,20 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [volume, setVolume] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [zoomScale, setZoomScale] = useState(1); // YouTube Zooming state feature
+  const [zoomScale, setZoomScale] = useState(1); 
   const [hoverTime, setHoverTime] = useState(null);
   const [hoverX, setHoverX] = useState(0);
+  const [isPortraitCanvas, setIsPortraitCanvas] = useState(forcesPortraitLayout || false);
 
   const handleLoadedMetadata = (e) => {
     setDuration(e.target.duration || 0);
+    if (e.target.videoWidth && e.target.videoHeight) {
+      if (e.target.videoHeight > e.target.videoWidth) {
+        setIsPortraitCanvas(true);
+      }
+    }
   };
 
   const togglePlay = () => {
@@ -987,7 +997,6 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
     setHoverTime(null);
   };
 
-  // Double tap layout action implementation (Left/Right skip region map)
   const handlePlayerVideoTap = (e) => {
     if (e.detail === 2) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -1036,10 +1045,10 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   return (
     <div 
       ref={playerWrapperRef} 
-      className={`relative bg-black w-full border border-slate-800 shadow-skeuo-lg overflow-hidden group/player transition-all duration-300 aspect-video h-auto max-h-[82vh] rounded-2xl`}
+      style={{ minHeight: isPortraitCanvas ? '65vh' : 'auto' }}
+      className={`relative bg-black w-full border border-slate-900 shadow-skeuo-lg overflow-hidden group/player transition-all duration-300 ${isPortraitCanvas ? 'aspect-[9/16] max-w-[380px] mx-auto' : 'aspect-video h-auto'} rounded-2xl`}
     >
-      {/* Video Box Canvas with Adaptive Dynamic Scaling Framework */}
-      <div className="w-full h-full flex items-center justify-center overflow-hidden">
+      <div className="w-full h-full flex items-center justify-center overflow-hidden relative">
         <video 
           ref={videoRef} 
           src={hlsUrl} 
@@ -1054,24 +1063,22 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
 
       {!isPlaying && (
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none transition">
-          <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl animate-pulse">
-            <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-[#C5A03A] border-b-[10px] border-b-transparent ml-1.5" />
+          <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl animate-pulse">
+            <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-[#C5A03A] border-b-[8px] border-b-transparent ml-1" />
           </div>
         </div>
       )}
 
-      {/* Controller GUI Overlay Menu */}
-      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-16 pb-4 px-4 flex flex-col gap-3 z-50 opacity-0 group-hover/player:opacity-100 transition-opacity duration-200">
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/90 to-transparent pt-16 pb-4 px-4 flex flex-col gap-2.5 z-50 opacity-0 group-hover/player:opacity-100 transition-opacity duration-200">
         
-        {/* RANGE SCRUBBER TIMELINE CONTROL PANEL + HOVER FRAME TIMELINE PREVIEW */}
         <div className="relative w-full group/scrub">
           {hoverTime !== null && (
             <div 
               style={{ left: `${hoverX}px` }} 
-              className="absolute bottom-6 transform -translate-x-1/2 bg-slate-900/95 border border-amber-500/40 text-white rounded-lg p-2 flex flex-col items-center gap-1 shadow-skeuo-lg font-sans pointer-events-none z-50 w-24 text-center animate-fadeIn"
+              className="absolute bottom-6 transform -translate-x-1/2 bg-slate-950 border border-[#C5A03A]/40 text-white rounded-lg p-2 flex flex-col items-center gap-1 shadow-skeuo-lg font-sans pointer-events-none z-50 w-24 text-center animate-fadeIn"
             >
-              <div className="w-full aspect-video bg-amber-500/10 border border-amber-500/20 rounded flex items-center justify-center text-[8px] font-mono font-bold text-amber-500 select-none uppercase truncate px-1">
-                {videoTitle ? videoTitle.substring(0, 10) : 'Preview Frame'}
+              <div className="w-full aspect-video bg-amber-500/10 border border-[#C5A03A]/20 rounded flex items-center justify-center text-[8px] font-mono font-bold text-amber-500 select-none uppercase truncate px-1">
+                {videoTitle ? videoTitle.substring(0, 10) : 'Scrub Frame'}
               </div>
               <span className="font-mono text-[10px] text-white font-bold tracking-tight">{formatTime(hoverTime)}</span>
             </div>
@@ -1085,38 +1092,104 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
             onMouseMove={handleProgressBarMouseMove}
             onMouseLeave={handleProgressBarMouseLeave}
             ref={progressBarRef}
-            className="w-full h-1.5 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-2.5 transition-all shadow-inner"
+            className="w-full h-1.5 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-2 transition-all shadow-inner"
           />
         </div>
 
-        <div className="flex items-center justify-between text-white text-xs font-bold select-none font-sans overflow-x-auto custom-scrollbar pb-1">
-          <div className="flex items-center gap-4 shrink-0">
-            <button onClick={togglePlay} className="text-lg hover:text-[#C5A03A] transition hover:scale-110">{isPlaying ? '⏸' : '▶'}</button>
-            <button onClick={() => skip10(-10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2.5 py-1 rounded-md transition border border-white/5">⏪ 10s</button>
-            <button onClick={() => skip10(10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2.5 py-1 rounded-md transition border border-white/5">⏩ 10s</button>
-            <span className="font-mono text-[11px] ml-1 text-slate-200">{formatTime(currentTime)} / {formatTime(duration)}</span>
+        <div className="flex items-center justify-between text-white text-[11px] font-bold select-none font-sans overflow-x-auto custom-scrollbar pb-1">
+          <div className="flex items-center gap-3 shrink-0">
+            <button onClick={togglePlay} className="text-sm hover:text-[#C5A03A] transition hover:scale-110">{isPlaying ? '⏸' : '▶'}</button>
+            <button onClick={() => skip10(-10)} className="hover:text-[#C5A03A] text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded transition">⏪ 10s</button>
+            <button onClick={() => skip10(10)} className="hover:text-[#C5A03A] text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded transition">⏩ 10s</button>
+            <span className="font-mono text-[10px] ml-0.5 text-slate-300">{formatTime(currentTime)} / {formatTime(duration)}</span>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 ml-4">
-            {/* Multi-Level Screen Zoom Trigger Overlay Button */}
+          <div className="flex items-center gap-2 shrink-0 ml-4">
+            <button 
+              onClick={() => setIsPortraitCanvas(!isPortraitCanvas)}
+              className="text-[9px] font-bold bg-white/10 border border-white/20 px-2 py-0.5 rounded transition hover:text-amber-400"
+              title="Manual Layout Aspect Ratio Switch"
+            >
+              ↕ Aspect
+            </button>
             <button 
               onClick={handleCycleZoom} 
-              className="text-[10px] font-mono tracking-tight font-bold bg-[#C5A03A]/20 border border-[#C5A03A]/60 px-2.5 py-1 rounded-lg text-amber-400 hover:bg-[#C5A03A]/40 transition"
-              title="YouTube-like Canvas Crop Scale Zoom"
+              className="text-[9px] font-mono tracking-tight font-bold bg-[#C5A03A]/20 border border-[#C5A03A]/50 px-2 py-0.5 rounded text-amber-400 hover:bg-[#C5A03A]/30 transition"
             >
-              🔍 ZOOM: {zoomScale}x
+              🔍 {zoomScale}x
             </button>
             
-            <div className="flex items-center bg-black/50 rounded-lg px-2 py-1 gap-1 border border-white/10 text-[9px] shadow-inner">
-              <span className="text-slate-400 mr-1 tracking-wider hidden sm:inline font-mono">SPEED</span>
+            <div className="flex items-center bg-black/60 rounded px-1.5 py-0.5 gap-1 border border-white/10 text-[8px]">
               {[0.5, 1, 1.5, 2].map(speed => (
-                <button key={speed} onClick={() => changeSpeed(speed)} className={`px-2 py-0.5 rounded transition font-mono ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'hover:bg-white/20'}`}>{speed}x</button>
+                <button key={speed} onClick={() => changeSpeed(speed)} className={`px-1 py-0.5 rounded transition font-mono ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'text-slate-400 hover:bg-white/10'}`}>{speed}x</button>
               ))}
             </div>
-            <button onClick={toggleFullscreen} className="text-lg hover:scale-110 transition hover:text-[#C5A03A]">⛶</button>
+            <button onClick={toggleFullscreen} className="text-sm hover:scale-110 transition hover:text-[#C5A03A]">⛶</button>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- CLIENT SIDE LAZY MP4 SNAPSHOT RUNTIME GENERATOR ---
+function DynamicVideoThumbnail({ videoUrl, fallbackTitle }) {
+  const [capturedSrc, setCapturedSrc] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    if (!videoUrl) return;
+    const isDirectLink = /\.(mp4|webm|mov|m4v)(?:\?|$)/i.test(videoUrl) || videoUrl.startsWith('data:video/');
+    if (!isDirectLink) return;
+
+    const videoNode = document.createElement('video');
+    videoNode.src = videoUrl;
+    videoNode.crossOrigin = "anonymous";
+    videoNode.preload = "metadata";
+    videoNode.muted = true;
+    videoNode.playsInline = true;
+    videoNode.currentTime = 1.0; 
+
+    const handleCapture = () => {
+      try {
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = videoNode.videoWidth || 320;
+        offscreenCanvas.height = videoNode.videoHeight || 180;
+        const context = offscreenCanvas.getContext('2d');
+        context.drawImage(videoNode, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+        const dataUrl = offscreenCanvas.toDataURL('image/jpeg', 0.75);
+        setCapturedSrc(dataUrl);
+      } catch (err) {
+        setLoadError(true);
+      }
+      cleanup();
+    };
+
+    const handleError = () => {
+      setLoadError(true);
+      cleanup();
+    };
+
+    const cleanup = () => {
+      videoNode.removeEventListener('seeked', handleCapture);
+      videoNode.removeEventListener('error', handleError);
+    };
+
+    videoNode.addEventListener('seeked', handleCapture);
+    videoNode.addEventListener('error', handleError);
+
+    return cleanup;
+  }, [videoUrl]);
+
+  if (capturedSrc) {
+    return <img src={capturedSrc} alt="Captured Stream Frame" className="absolute inset-0 w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-transform duration-500" />;
+  }
+
+  return (
+    <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-[#1e293b] to-zinc-900 group-hover:scale-105 transition-transform duration-500 flex flex-col items-center justify-center p-4 text-center select-none">
+      <div className="text-2xl mb-1 transform group-hover:rotate-12 transition-transform duration-300">🎬</div>
+      <span className="text-[10px] font-serif font-black tracking-wider text-amber-400 uppercase line-clamp-2 px-2">{fallbackTitle}</span>
+      <span className="text-[7px] font-mono font-bold text-slate-400 tracking-widest uppercase mt-1">Generating Master Canvas...</span>
     </div>
   );
 }
@@ -1126,6 +1199,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isVerticalViewToggle, setIsVerticalViewToggle] = useState(false);
 
   const startUpload = async (e) => {
     e.preventDefault();
@@ -1138,7 +1212,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
         uploaderUid: userProfile.id,
         uploaderName: userProfile.name,
         uploaderAvatar: userProfile.photoURL || '',
-        size: "External Managed Stream URL Link",
+        size: "External URL Stream Node",
         comments: [],
         createdAt: Date.now(),
       });
@@ -1183,25 +1257,33 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     
     return (
       <section className="bg-white min-h-[85vh] sm:rounded-2xl border-t border-[#EADFC9] sm:border shadow-sm flex flex-col font-sans animate-fadeIn relative z-30">
-        <div className="p-3 border-b border-[#EADFC9]/50 flex items-center gap-3">
-          <button onClick={() => setActiveVideo(null)} className="p-2 hover:bg-slate-100 rounded-full transition"><svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
-          <span className="font-serif font-bold text-slate-800">Return to Vault</span>
+        <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setActiveVideo(null)} className="p-2 hover:bg-slate-100 rounded-full transition"><svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
+            <span className="font-serif font-bold text-slate-800">Return to Vault</span>
+          </div>
+          <button 
+            onClick={() => setIsVerticalViewToggle(!isVerticalViewToggle)}
+            className="text-[10px] bg-[#C5A03A]/10 border border-[#C5A03A]/30 font-bold px-3 py-1.5 rounded-xl text-[#C5A03A] hover:bg-[#C5A03A]/20 transition"
+          >
+            📐 Switch Dimensions: {isVerticalViewToggle ? 'Vertical (9:16)' : 'Widescreen (16:9)'}
+          </button>
         </div>
 
-        {/* Video Canvas Box Node with Aspect-Ratio Adaptability Framework */}
-        <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden flex justify-center p-4">
+        {/* Dynamic Canvas Sizing System supporting inline standard and vertical ratios */}
+        <div className="w-full bg-slate-900 shadow-md relative rounded-t-xl overflow-hidden flex flex-col justify-center p-4 min-h-[50vh]">
           {embed.type === 'youtube' ? (
-             <div className="w-full relative aspect-video max-h-[75vh]">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+             <div className={`w-full relative mx-auto transition-all duration-300 ${isVerticalViewToggle ? 'max-w-[360px] aspect-[9/16]' : 'w-full aspect-video max-h-[75vh]'}`}>
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-2xl bg-black" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
              </div>
           ) : embed.type === 'direct' ? (
-             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
+             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} forcesPortraitLayout={isVerticalViewToggle} />
           ) : embed.type === 'iframe-stream' ? (
-             <div className="w-full relative aspect-video max-h-[75vh]">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="autoplay; encrypted-media" allowFullScreen />
+             <div className={`w-full relative mx-auto transition-all duration-300 ${isVerticalViewToggle ? 'max-w-[360px] aspect-[9/16]' : 'w-full aspect-video max-h-[75vh]'}`}>
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-2xl bg-black" allow="autoplay; encrypted-media" allowFullScreen />
              </div>
           ) : (
-             <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
+             <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} forcesPortraitLayout={isVerticalViewToggle} />
           )}
         </div>
 
@@ -1268,16 +1350,11 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           return (
             <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
               
-              {/* Premium Video Production Grid Card Fallback Template */}
               <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
                 {embed.thumbnail ? (
-                  <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
+                  <img src={embed.thumbnail} alt="Thumbnail View Node" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
                 ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-[#1e293b] to-zinc-900 group-hover:scale-105 transition-transform duration-500 flex flex-col items-center justify-center p-4 text-center select-none">
-                    <div className="text-3xl mb-1.5 transform group-hover:rotate-12 transition-transform duration-300">🎬</div>
-                    <span className="text-[11px] font-serif font-black tracking-wider text-amber-400 uppercase line-clamp-1">{vid.title}</span>
-                    <span className="text-[8px] font-mono font-bold text-slate-400 tracking-widest uppercase mt-1">Production Template Blueprint</span>
-                  </div>
+                  <DynamicVideoThumbnail videoUrl={vid.hlsUrl} fallbackTitle={vid.title} />
                 )}
                 <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
                 <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
@@ -1300,20 +1377,20 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
         <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
             <div className="border-b pb-2 mb-2">
-              <h4 className="font-serif font-black text-slate-800 text-base">Link External Video Asset</h4>
-              <p className="text-[10px] text-slate-500 mt-1">Direct gallery uploads are rerouted. Paste a URL to Google Drive, Google Photos, YouTube, or direct MP4 streams to play live on screen.</p>
+              <h4 className="font-serif font-black text-slate-800 text-base">Link Video Asset Target</h4>
+              <p className="text-[10px] text-slate-500 mt-1">Direct file uploads are re-routed. Paste shared link URLs from Google Drive, Google Photos, YouTube, or direct stream vectors to playback cleanly on internal canvases.</p>
             </div>
             <div>
               <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Showcase Label</label>
               <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" placeholder="e.g. Director Cut Segment V2" required />
             </div>
             <div>
-              <label className="block text-[9px] font-bold text-slate-500 uppercase">External Asset URL</label>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">External Asset URL Link</label>
               <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" placeholder="https://..." required />
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <button type="button" onClick={() => setShowUploadModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold transition hover:bg-slate-200">Cancel</button>
-              <button type="submit" className="px-5 py-2 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 hover:bg-red-500 active:border-b-0 active:translate-y-[4px] transition shadow">Track Asset Link</button>
+              <input type="submit" value="Track Asset Link" className="px-5 py-2 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 hover:bg-red-500 active:border-b-0 active:translate-y-[4px] transition shadow cursor-pointer" />
             </div>
           </form>
         </div>
@@ -1376,7 +1453,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
         <div className="space-y-4 font-sans">
           <form onSubmit={createConcept} className="max-w-md mx-auto flex gap-2 bg-white border border-[#EADFC9] p-3 rounded-xl shadow-skeuo-sm">
             <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="New whiteboard sprint..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:ring-1 focus:ring-[#C5A03A]" required />
-            <button type="submit" className="px-4 bg-[#C5A03A] text-white text-[11px] rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow">Pin Board</button>
+            <input type="submit" value="Pin Board" className="px-4 bg-[#C5A03A] text-white text-[11px] rounded-lg font-bold border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] shadow cursor-pointer" />
           </form>
           
           <div className="p-6 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-[2rem] grid grid-cols-1 md:grid-cols-3 gap-5 animate-fadeIn" style={{ backgroundColor: '#deb887', backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
@@ -1413,7 +1490,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
           
           <form onSubmit={addTask} className="flex gap-2 max-w-sm pt-3">
             <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add specific work item..." className="flex-1 px-3 py-1.5 border border-[#EADFC9] rounded-xl text-xs" required />
-            <button type="submit" className="px-3.5 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Item</button>
+            <input type="submit" value="Add Item" className="px-3.5 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans cursor-pointer" />
           </form>
         </div>
       )}
@@ -1968,7 +2045,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
           <h4 className="font-serif text-xs font-bold text-slate-800 mb-1.5">Register Custom Specialization Tag</h4>
           <form onSubmit={handleRegisterCategory} className="flex gap-2 font-sans">
             <input type="text" value={newCatInp} onChange={(e) => setNewCatInp(e.target.value)} placeholder="e.g. 3D Animator" className="flex-1 px-3 py-1.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:outline-none" required />
-            <button type="submit" className="px-3.5 py-1.5 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Tag</button>
+            <input type="submit" value="Add Tag" className="px-3.5 py-1.5 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans cursor-pointer" />
           </form>
         </div>
       )}
@@ -2047,7 +2124,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
           <form onSubmit={handleYtSave} className="space-y-3 font-sans">
             <div><label className="block text-[9px] font-bold text-slate-400 uppercase">YouTube Channel ID / Handle</label><input type="text" value={channelIdInput} onChange={(e) => setChannelIdInput(e.target.value)} placeholder="@naitik._.artist-16" className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" required /></div>
             <div><label className="block text-[9px] font-bold text-slate-400 uppercase">YouTube API Key</label><input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="w-full px-3 py-1.5 border rounded-lg text-xs mt-1 font-sans" /></div>
-            <button type="submit" className="w-full py-1.5 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] text-white text-xs font-bold rounded-lg font-sans">Sync Channel</button>
+            <input type="submit" value="Sync Channel" className="w-full py-1.5 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] text-white text-xs rounded-lg font-bold font-sans cursor-pointer" />
           </form>
         </div>
       </div>
