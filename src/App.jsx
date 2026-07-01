@@ -70,29 +70,33 @@ const compressAndConvertImage = (file, maxDim = 150) => {
   });
 };
 
-// --- SMART EMBEDDABLE PLAYER RESOLVER ---
+// --- SMART EMBEDDABLE PLAYER RESOLVER (UPGRADED FOR THUMBNAILS & FULLSCREEN) ---
 const resolvePlayableVideo = (url) => {
-  if (!url) return { type: 'none', src: '' };
+  if (!url) return { type: 'none', src: '', thumbnail: null };
   const cleaned = url.trim();
 
   const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
   const ytMatch = cleaned.match(ytRegex);
   if (ytMatch) {
-    return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0&controls=1&rel=0&modestbranding=1` };
+    return { 
+      type: 'youtube', 
+      src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&controls=1&rel=0&modestbranding=1`,
+      thumbnail: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+    };
   }
 
   const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
-    return { type: 'drive', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview` };
+    return { type: 'drive', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: null };
   }
 
   const isDirect = /\.(mp4|webm|mov|ogv|m4v)(?:\?|$)/i.test(cleaned) || cleaned.startsWith('data:video/');
   if (isDirect) {
-    return { type: 'direct', src: cleaned };
+    return { type: 'direct', src: cleaned, thumbnail: null };
   }
 
-  return { type: 'fallback', src: cleaned };
+  return { type: 'fallback', src: cleaned, thumbnail: null };
 };
 
 const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
@@ -932,7 +936,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   );
 }
 
-// --- FEATURE: YOUTUBE NATIVE INTERFACE VIDEO VAULT ---
+// --- FEATURE: GALLERY-STYLE MODAL VIDEO VAULT ENGINE ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
@@ -941,6 +945,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadingState, setUploadingState] = useState(false);
   const [expandedComments, setExpandedComments] = useState({});
+  const [activeModalVideo, setActiveModalVideo] = useState(null); // The new gallery player state!
 
   const toggleComments = (id) => {
     setExpandedComments(prev => ({ ...prev, [id]: !prev[id] }));
@@ -1036,58 +1041,64 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
           return (
             <div key={vid.id} className="bg-white border border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn flex flex-col">
               
-              {/* TRUE YOUTUBE PLAYER LAYOUT: Zero Padding, 16:9 Standard Hack for 100% Touch Support */}
-              <div className="w-full bg-black relative pt-[56.25%] overflow-hidden shadow-inner">
-                {embed.type === 'youtube' || embed.type === 'drive' ? (
-                  <iframe 
-                    src={embed.src} 
-                    className="absolute inset-0 w-full h-full border-none" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                    allowFullScreen 
-                  />
-                ) : embed.type === 'direct' ? (
-                  <video 
-                    src={embed.src} 
-                    className="absolute inset-0 w-full h-full" 
-                    controls 
-                    controlsList="nodownload"
-                    playsInline
-                    preload="metadata"
-                    style={{ objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div className="absolute inset-0 w-full h-full p-6 flex flex-col items-center justify-center text-center text-xs font-mono text-white space-y-2">
-                    <p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p>
-                    <a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[11px]">{embed.src}</a>
+              {/* Header */}
+              <div className="p-3 flex items-center justify-between border-b border-slate-50 bg-slate-50/40">
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shrink-0">
+                    {renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg)}
                   </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-black text-slate-800 truncate">{vid.uploaderName}</h4>
+                    <span className="text-[8px] text-slate-400 font-mono block">{new Date(vid.createdAt).toLocaleDateString()} • {vid.size}</span>
+                  </div>
+                </div>
+                {(isAdmin || vid.uploaderUid === userProfile?.id) && (
+                  <button onClick={(e) => removeVideo(vid.id, e)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2 py-1 rounded-md hover:bg-rose-100 transition whitespace-nowrap">
+                    🗑️ Delete Item
+                  </button>
                 )}
+              </div>
+
+              {/* CINEMATIC THUMBNAIL PLACEHOLDER (Triggers Fullscreen Modal) */}
+              <div onClick={() => setActiveModalVideo(vid)} className="w-full aspect-video bg-slate-900 relative cursor-pointer group flex items-center justify-center overflow-hidden shadow-inner">
+                {/* Fallback pattern or YouTube thumbnail */}
+                {embed.thumbnail ? (
+                  <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                ) : (
+                  <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-700 via-slate-900 to-black"></div>
+                )}
+                
+                {/* Film borders */}
+                {!embed.thumbnail && (
+                  <>
+                    <div className="absolute top-0 left-0 right-0 h-4 flex justify-around opacity-20">
+                      {[...Array(10)].map((_, i) => <div key={i} className="w-3 h-full bg-white rounded-sm"></div>)}
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-4 flex justify-around opacity-20">
+                      {[...Array(10)].map((_, i) => <div key={i} className="w-3 h-full bg-white rounded-sm"></div>)}
+                    </div>
+                  </>
+                )}
+
+                {/* Big Play Button Overlay */}
+                <div className="relative z-10 w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/40 shadow-[0_0_30px_rgba(0,0,0,0.5)] group-hover:scale-110 group-hover:bg-[#C5A03A]/90 transition-all duration-300">
+                  <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-white border-b-[10px] border-b-transparent ml-1"></div>
+                </div>
+
+                <div className="absolute bottom-4 left-4 right-4 text-center z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <span className="bg-black/80 text-white text-[10px] px-3 py-1.5 rounded-full font-sans backdrop-blur-md shadow-md">Tap to open Gallery Player</span>
+                </div>
               </div>
 
               {/* YouTube Style Metadata Footer */}
               <div className="p-4 flex gap-3 bg-white">
-                <div className="w-10 h-10 rounded-full overflow-hidden border p-0.5 bg-slate-50 shrink-0 mt-0.5">
-                  {renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg)}
-                </div>
-                
                 <div className="flex flex-col flex-1 min-w-0">
-                  <h3 className="font-sans font-bold text-slate-900 text-sm leading-tight line-clamp-2">{vid.title}</h3>
-                  <div className="text-slate-500 text-[11px] mt-1 font-sans">
-                    {vid.uploaderName} • {new Date(vid.createdAt).toLocaleDateString()}
-                  </div>
-                  <div className="text-slate-400 text-[10px] mt-0.5 font-sans">
-                    {vid.size}
-                  </div>
-
+                  <h3 className="font-sans font-bold text-slate-900 text-base leading-tight line-clamp-2">{vid.title}</h3>
                   {/* Actions Row */}
                   <div className="flex items-center gap-3 mt-3">
                     <button onClick={() => toggleComments(vid.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 transition">
                       💬 {vid.comments?.length || 0} Feedback Notes
                     </button>
-                    {(isAdmin || vid.uploaderUid === userProfile?.id) && (
-                      <button onClick={(e) => removeVideo(vid.id, e)} className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-full text-xs font-bold transition">
-                        🗑️ Delete
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1123,9 +1134,37 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
         {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs">The Video Vault showcase is currently empty.</div>}
       </div>
 
-      {/* Upload Modal stays the same */}
+      {/* FULLSCREEN GALLERY PLAYER MODAL */}
+      {activeModalVideo && (
+        <div className="fixed inset-0 z-[99999] bg-black flex flex-col animate-fadeIn">
+          <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 bg-gradient-to-b from-black/80 to-transparent pb-8">
+            <div className="min-w-0 pr-4 text-white">
+              <h3 className="font-bold text-sm truncate drop-shadow-md">{activeModalVideo.title}</h3>
+              <p className="text-[10px] text-slate-300 drop-shadow-md">{activeModalVideo.uploaderName}</p>
+            </div>
+            <button onClick={() => setActiveModalVideo(null)} className="bg-white/10 text-white rounded-full p-2 px-4 text-xs font-bold hover:bg-white/20 transition shrink-0 border border-white/20 backdrop-blur-lg">
+              Close ✕
+            </button>
+          </div>
+
+          <div className="flex-1 flex items-center justify-center w-full h-full relative">
+            {(() => {
+              const embed = resolvePlayableVideo(activeModalVideo.hlsUrl);
+              if (embed.type === 'youtube' || embed.type === 'drive') {
+                return <iframe src={embed.src.replace('autoplay=0', 'autoplay=1')} className="w-full h-full max-h-[100dvh] border-none" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
+              } else if (embed.type === 'direct') {
+                return <video src={embed.src} className="w-full h-full max-h-[100dvh] object-contain" controls autoPlay playsInline />;
+              } else {
+                return <div className="text-white text-center text-sm font-mono px-6">Unable to render asset stream preview natively. <a href={embed.src} target="_blank" rel="noreferrer" className="block text-blue-400 mt-2 underline">Open source file link externally</a></div>;
+              }
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg">
             <h4 className="font-serif font-bold text-slate-800 text-sm">Ingest Video Content</h4>
             
@@ -1770,7 +1809,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                         </div>
                       )}
                     </td>
-                    <td className="py-2 uppercase font-mono text-[9px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'textemerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
+                    <td className="py-2 uppercase font-mono text-[9px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
                     <td className="py-2 text-right">
                       {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
                         <div className="flex items-center justify-end gap-1 flex-wrap">
