@@ -39,6 +39,18 @@ const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
 const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
+// --- 7-DAY EXPIRATION VISUAL TIMER ---
+const getDeletionTimeLeft = (createdAt) => {
+  if (!createdAt) return 'Unknown';
+  const expiryTime = createdAt + (7 * 24 * 60 * 60 * 1000);
+  const diff = expiryTime - Date.now();
+  if (diff <= 0) return 'Deleting soon...';
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  if (days > 0) return `${days}d ${hours}h`;
+  return `${hours}h ${Math.floor((diff / (1000 * 60)) % 60)}m`;
+};
+
 // --- FOOLPROOF LOCAL COMPRESSION UTILITY ---
 const compressAndConvertImage = (file, maxDim = 150) => {
   return new Promise((resolve, reject) => {
@@ -51,13 +63,8 @@ const compressAndConvertImage = (file, maxDim = 150) => {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        
-        if (width > height) {
-          if (width > maxDim) { height *= maxDim / width; width = maxDim; }
-        } else {
-          if (height > maxDim) { width *= maxDim / height; height = maxDim; }
-        }
-        
+        if (width > height) { if (width > maxDim) { height *= maxDim / width; width = maxDim; } } 
+        else { if (height > maxDim) { width *= maxDim / height; height = maxDim; } }
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
@@ -70,30 +77,33 @@ const compressAndConvertImage = (file, maxDim = 150) => {
   });
 };
 
-// --- SMART EMBEDDABLE PLAYER RESOLVER (OPTIMIZED FOR INLINE YOUTUBE EXPERIENCE) ---
+// --- SMART EMBEDDABLE PLAYER RESOLVER (WITH THUMBNAIL EXTRACTION) ---
 const resolvePlayableVideo = (url) => {
-  if (!url) return { type: 'none', src: '' };
+  if (!url) return { type: 'none', src: '', thumbnail: null };
   const cleaned = url.trim();
 
   const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
   const ytMatch = cleaned.match(ytRegex);
   if (ytMatch) {
-    // playsinline=1 guarantees native mobile rendering instead of forcing fullscreen overlays immediately
-    return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0&controls=1&rel=0&modestbranding=1&playsinline=1` };
+    return { 
+      type: 'youtube', 
+      src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`,
+      thumbnail: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
+    };
   }
 
   const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
-    return { type: 'drive', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview` };
+    return { type: 'drive', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: null };
   }
 
   const isDirect = /\.(mp4|webm|mov|ogv|m4v)(?:\?|$)/i.test(cleaned) || cleaned.startsWith('data:video/');
   if (isDirect) {
-    return { type: 'direct', src: cleaned };
+    return { type: 'direct', src: cleaned, thumbnail: null };
   }
 
-  return { type: 'fallback', src: cleaned };
+  return { type: 'fallback', src: cleaned, thumbnail: null };
 };
 
 const renderAvatar = (photoURL, className = "w-full h-full object-cover") => {
@@ -111,7 +121,7 @@ const WatercolorOverlay = () => (
   />
 );
 
-// --- NOTIFICATION BELL ---
+// --- NOTIFICATION BELL WITH SCREEN-TAP DISMISSAL ---
 function NotificationBell({ notifications, userProfile, isAdmin }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
@@ -269,7 +279,7 @@ export default function App() {
     return userProfile.role === 'admin' || userProfile.role === 'owner' || (userProfile.email || '').toLowerCase() === ADMIN_EMAIL;
   }, [userProfile]);
 
-  // --- FEATURE: AUTO-CLEANUP SWEEP ---
+  // --- 7-DAY BACKGROUND AUTO-CLEANUP SWEEP ---
   useEffect(() => {
     if (!isAuthReady || !userProfile) return;
     
@@ -281,25 +291,21 @@ export default function App() {
           try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {}
         }
       });
-      
       posts.forEach(async (item) => {
         if (item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {}
         }
       });
-
       notifications.forEach(async (item) => {
         if (item.timestamp && item.timestamp < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {}
         }
       });
-
       videos.forEach(async (item) => {
         if (item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {}
         }
       });
-
       scripts.forEach(async (item) => {
         if (item.createdAt && item.createdAt < sevenDaysAgo) {
           try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {}
@@ -307,10 +313,7 @@ export default function App() {
       });
     };
 
-    const delayTimer = setTimeout(() => {
-      runSevenDaySweep();
-    }, 8000);
-    
+    const delayTimer = setTimeout(() => { runSevenDaySweep(); }, 8000);
     return () => clearTimeout(delayTimer);
   }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts]);
 
@@ -345,9 +348,7 @@ export default function App() {
     notifications.forEach(n => {
       if (seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
       seenNotifIdsRef.current.add(n.id);
-      
       if (n.actor === userProfile.name) return;
-      
       const msg = n.message.toLowerCase();
       if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
       if (currentPage === 'projects' && msg.includes('concept whiteboard')) return;
@@ -395,10 +396,7 @@ export default function App() {
         showToast('Successfully authenticated!', 'success');
         setShowSignInModal(false);
       }
-    } 
-    catch (err) { 
-      showToast('Sign-in failed — check your connection.', 'warning'); 
-    }
+    } catch (err) { showToast('Sign-in failed — check your connection.', 'warning'); }
   };
 
   const handleSignOut = async () => {
@@ -528,7 +526,7 @@ export default function App() {
       <header className="sticky top-0 z-40 backdrop-blur-md bg-[#FFFDF9]/85 border-b-2 border-[#EADFC9]/60 px-4 sm:px-6 py-3 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)] font-sans">
         <div className="flex items-center space-x-3 min-w-0">
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50 shrink-0">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
           </button>
           <div className="flex items-center space-x-2 cursor-pointer min-w-0" onClick={() => handleNavigationChange('home')}>
             {siteSettings.logoUrl ? (
@@ -609,25 +607,27 @@ export default function App() {
       </div>
 
       {/* --- MAIN PAGE CONTENT --- */}
-      <main className="relative z-20 max-w-7xl mx-auto px-4 py-6 studio-page-wrap animate-fadeIn">
+      <main className="relative z-20 max-w-7xl mx-auto px-0 sm:px-4 py-6 studio-page-wrap animate-fadeIn">
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} />}
         {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} />}
         {currentPage === 'rejected-status' && <RejectedScreen userProfile={userProfile} />}
-        {currentPage === 'crew' && <CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} />}
-        {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} />}
+        {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} /></div>}
+        {currentPage === 'categories-view' && <div className="px-4 sm:px-0"><CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} /></div>}
+        
         {currentPage === 'vault' && <VideoVault videos={videos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} />}
-        {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} />}
-        {currentPage === 'scripts' && <ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} />}
-        {currentPage === 'chat' && <WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} />}
-        {currentPage === 'posts' && <PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} />}
+        
+        {currentPage === 'projects' && <div className="px-4 sm:px-0"><ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} /></div>}
+        {currentPage === 'scripts' && <div className="px-4 sm:px-0"><ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} /></div>}
+        {currentPage === 'chat' && <div className="px-4 sm:px-0"><WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} /></div>}
+        {currentPage === 'posts' && <div className="px-4 sm:px-0"><PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} /></div>}
         {currentPage === 'profile' && (
           !userProfile ? (
             <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md"><p className="text-slate-600 font-medium">Loading profile badge...</p></div>
           ) : (
-            <MyProfileWorkspace userProfile={userProfile} categories={categories} showToast={showToast} handleSignOut={handleSignOut} />
+            <div className="px-4 sm:px-0"><MyProfileWorkspace userProfile={userProfile} categories={categories} showToast={showToast} handleSignOut={handleSignOut} /></div>
           )
         )}
-        {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
+        {currentPage === 'admin' && isAdmin && <div className="px-4 sm:px-0"><AdminPanel profiles={profiles} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} /></div>}
       </main>
 
       {showSignInModal && <SignInModal handleGoogleSignIn={handleGoogleSignIn} setShowSignInModal={setShowSignInModal} />}
@@ -780,7 +780,7 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
   const studioUpdates = useMemo(() => notifications.filter(n => !n.message.startsWith('"') && n.actor !== 'System'), [notifications]);
 
   return (
-    <section className="space-y-8 py-2 animate-fadeIn font-sans">
+    <section className="space-y-8 py-2 animate-fadeIn font-sans px-4 sm:px-0">
       <div className="text-center py-2">
         <h1 className="font-serif text-2xl sm:text-3xl md:text-5xl font-black text-slate-800 uppercase tracking-tight leading-tight">
           {siteSettings.logoText || 'YOUTUBERS STUDIO'}
@@ -931,7 +931,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   );
 }
 
-// --- FEATURE: YOUTUBE NATIVE INTERFACE VIDEO VAULT ---
+// --- FEATURE: YOUTUBE NATIVE INTERFACE VIDEO VAULT (THUMBNAIL GALLERY + PLAYER VIEW) ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
@@ -939,11 +939,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
   const [galleryBase64, setGalleryBase64] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadingState, setUploadingState] = useState(false);
-  const [expandedComments, setExpandedComments] = useState({});
-
-  const toggleComments = (id) => {
-    setExpandedComments(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  const [activeVideo, setActiveVideo] = useState(null); // When set, changes view to Player mode.
 
   const handleGalleryFileSelect = async (e) => {
     const file = e.target.files[0];
@@ -1000,9 +996,9 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
     } catch (err) { showToast('Upload engine authorization failure.', 'warning'); }
   };
 
-  const removeVideo = async (id, e) => {
-    if (e) e.stopPropagation();
+  const removeVideo = async (id) => {
     await deleteDoc(doc(db, 'videos', id));
+    setActiveVideo(null);
     showToast('Video removed from Vault.', 'info');
   };
 
@@ -1013,112 +1009,170 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
     const newComment = { id: 'c_' + Date.now(), authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
     e.target.commentInput.value = '';
+    
+    // Refresh active video state to show new comment immediately
+    const freshDoc = await getDoc(doc(db, 'videos', videoId));
+    if (freshDoc.exists()) setActiveVideo({ id: freshDoc.id, ...freshDoc.data() });
+    
     showToast('Feedback note published!', 'success');
   };
 
   const deleteVideoComment = async (videoId, currentComments, commentId) => {
     const updatedComments = currentComments.filter(c => c.id !== commentId);
     await updateDoc(doc(db, 'videos', videoId), { comments: updatedComments });
+    
+    // Refresh active video state
+    const freshDoc = await getDoc(doc(db, 'videos', videoId));
+    if (freshDoc.exists()) setActiveVideo({ id: freshDoc.id, ...freshDoc.data() });
+
     showToast('Comment deleted.', 'info');
   };
 
+  // --- PLAYER VIEW (YOUTUBE STYLE) ---
+  if (activeVideo) {
+    const embed = resolvePlayableVideo(activeVideo.hlsUrl);
+    const timeLeft = getDeletionTimeLeft(activeVideo.createdAt);
+    
+    return (
+      <section className="bg-white min-h-[85vh] sm:rounded-2xl border-t border-[#EADFC9] sm:border shadow-sm flex flex-col font-sans animate-fadeIn relative z-30">
+        
+        {/* Navigation & Header */}
+        <div className="p-3 border-b border-[#EADFC9]/50 flex items-center gap-3">
+          <button onClick={() => setActiveVideo(null)} className="p-2 hover:bg-slate-100 rounded-full transition">
+            <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <span className="font-serif font-bold text-slate-800">Return to Vault</span>
+        </div>
+
+        {/* The Native Player Wrapper (Sticky for scrolling comments underneath) */}
+        <div className="w-full aspect-video bg-black sticky top-0 z-40 shadow-md">
+          {embed.type === 'youtube' || embed.type === 'drive' ? (
+             <iframe src={embed.src} className="w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+          ) : embed.type === 'direct' ? (
+             <video src={embed.src} className="w-full h-full" controls playsInline preload="metadata" style={{ objectFit: 'contain' }} autoPlay />
+          ) : (
+             <div className="w-full h-full p-4 flex flex-col items-center justify-center text-center text-xs font-mono text-white space-y-2">
+                <p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p>
+                <a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[10px]">{embed.src}</a>
+             </div>
+          )}
+        </div>
+
+        {/* Metadata Details Section */}
+        <div className="p-4 border-b border-slate-100">
+          <h1 className="text-lg font-bold text-slate-900 leading-tight mb-2">{activeVideo.title}</h1>
+          <div className="flex justify-between items-center text-xs text-slate-500">
+            <span>{new Date(activeVideo.createdAt).toLocaleDateString()}</span>
+            <span className="bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded border border-rose-100 flex items-center gap-1">
+              ⏳ {timeLeft}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-100">
+            <div className="w-10 h-10 rounded-full overflow-hidden border p-0.5 bg-slate-50 shrink-0">
+              {renderAvatar(activeVideo.uploaderAvatar || PRESET_AVATARS[0].svg)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-slate-800 text-sm">{activeVideo.uploaderName}</h4>
+              <p className="text-[10px] text-slate-400">{activeVideo.size}</p>
+            </div>
+            {(isAdmin || activeVideo.uploaderUid === userProfile?.id) && (
+              <button onClick={() => removeVideo(activeVideo.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-rose-100 transition">
+                🗑️ Delete Record
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Comments Section */}
+        <div className="p-4 flex-1 bg-slate-50/50">
+          <h3 className="font-bold text-sm text-slate-800 mb-4">Feedback Notes ({activeVideo.comments?.length || 0})</h3>
+          
+          <form onSubmit={(e) => handlePostVideoComment(e, activeVideo.id)} className="flex gap-2 mb-6">
+            <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 bg-white shrink-0 hidden sm:block">
+              {renderAvatar(userProfile?.photoURL)}
+            </div>
+            <input type="text" name="commentInput" placeholder="Add a feedback note..." className="flex-1 px-3 py-2 bg-white border border-[#EADFC9] rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required />
+            <button type="submit" className="bg-[#C5A03A] hover:bg-[#b08d32] text-white text-xs px-4 rounded-xl font-bold transition">Post</button>
+          </form>
+
+          <div className="space-y-3 pb-8">
+            {(activeVideo.comments || []).map((comment) => (
+              <div key={comment.id} className="text-xs flex items-start gap-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-bold text-slate-800">{comment.authorName}</span>
+                    <span className="text-[9px] text-slate-400">{new Date(comment.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  </div>
+                  <span className="text-slate-600 break-words leading-relaxed">{comment.text}</span>
+                </div>
+                {(isAdmin || comment.authorName === userProfile?.name) && (
+                  <button onClick={() => deleteVideoComment(activeVideo.id, activeVideo.comments, comment.id)} className="text-slate-400 hover:text-rose-500 text-lg leading-none shrink-0 px-1">×</button>
+                )}
+              </div>
+            ))}
+            {(!activeVideo.comments || activeVideo.comments.length === 0) && <p className="text-xs text-slate-400 text-center py-6">Be the first to leave a feedback note on this video.</p>}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // --- GALLERY FEED VIEW ---
   return (
-    <section className="py-2 space-y-6 font-sans animate-fadeIn">
+    <section className="py-2 space-y-6 font-sans animate-fadeIn px-4 sm:px-0">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans">
         <h3 className="font-serif font-bold text-slate-800 text-sm sm:text-base">🎞️ Premium Video Vault Feed</h3>
         <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">➕ Upload Dual Asset</button>
       </div>
 
-      <div className="max-w-2xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {videos.map((vid) => {
           const embed = resolvePlayableVideo(vid.hlsUrl);
+          const timeLeft = getDeletionTimeLeft(vid.createdAt);
+          
           return (
-            <div key={vid.id} className="bg-white border-y sm:border sm:rounded-2xl border-[#EADFC9] shadow-sm mb-6 overflow-hidden animate-fadeIn flex flex-col">
+            <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
               
-              {/* TRUE YOUTUBE PLAYER LAYOUT: Top Edge-to-Edge 16:9 Player Block */}
-              <div className="w-full aspect-video bg-black relative">
-                {embed.type === 'youtube' || embed.type === 'drive' ? (
-                  <iframe 
-                    src={embed.src} 
-                    className="w-full h-full border-none" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                    allowFullScreen 
-                  />
-                ) : embed.type === 'direct' ? (
-                  <video 
-                    src={embed.src} 
-                    className="w-full h-full object-contain" 
-                    controls 
-                    controlsList="nodownload"
-                    playsInline
-                    preload="metadata"
-                  />
+              {/* THUMBNAIL GALLERY PLACEHOLDER */}
+              <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
+                {embed.thumbnail ? (
+                  <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
-                  <div className="w-full h-full p-4 flex flex-col items-center justify-center text-center text-xs font-mono text-white space-y-2">
-                    <p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p>
-                    <a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[10px]">{embed.src}</a>
-                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-tr from-slate-800 to-slate-900 group-hover:scale-105 transition-transform duration-500"></div>
                 )}
+                
+                {/* Visual Play Icon */}
+                <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg">
+                  <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div>
+                </div>
+
+                {/* Duration / Deletion Timer Badge */}
+                <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">
+                  ⏳ {timeLeft}
+                </div>
               </div>
 
-              {/* YouTube Style Metadata Footer (Avatar + Title Info underneath video) */}
-              <div className="p-3 sm:p-4 flex gap-3 bg-white">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-1">
+              {/* Card Meta Info */}
+              <div className="p-3 flex gap-3 bg-white flex-1">
+                <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-0.5">
                   {renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg)}
                 </div>
-                
                 <div className="flex flex-col flex-1 min-w-0">
-                  <h3 className="font-sans font-bold text-slate-900 text-sm sm:text-base leading-snug line-clamp-2">{vid.title}</h3>
-                  <div className="text-slate-500 text-[10px] sm:text-xs mt-1 font-sans">
-                    {vid.uploaderName} • {new Date(vid.createdAt).toLocaleDateString()} • {vid.size}
-                  </div>
-
-                  {/* Actions Row */}
-                  <div className="flex items-center gap-3 mt-3">
-                    <button onClick={() => toggleComments(vid.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-[10px] sm:text-xs font-bold text-slate-700 transition">
-                      💬 {vid.comments?.length || 0} Comments
-                    </button>
-                    {(isAdmin || vid.uploaderUid === userProfile?.id) && (
-                      <button onClick={(e) => removeVideo(vid.id, e)} className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-full text-[10px] sm:text-xs font-bold transition">
-                        🗑️ Delete
-                      </button>
-                    )}
+                  <h3 className="font-sans font-bold text-slate-900 text-sm leading-tight line-clamp-2 group-hover:text-[#C5A03A] transition-colors">{vid.title}</h3>
+                  <div className="text-slate-500 text-[10px] mt-1 font-sans truncate">
+                    {vid.uploaderName} • {vid.comments?.length || 0} Notes
                   </div>
                 </div>
               </div>
-
-              {/* Expandable Comments Segment */}
-              {expandedComments[vid.id] && (
-                <div className="px-4 pb-4 pt-2 bg-slate-50 border-t border-slate-100 animate-fadeIn">
-                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1 custom-scrollbar mb-2">
-                    {(vid.comments || []).map((comment) => (
-                      <div key={comment.id} className="text-[11px] p-2 bg-white rounded-xl border flex justify-between items-start">
-                        <div className="min-w-0 pr-2">
-                          <span className="font-bold text-slate-800 mr-1">{comment.authorName}:</span>
-                          <span className="text-slate-600 break-words">{comment.text}</span>
-                        </div>
-                        {(isAdmin || comment.authorName === userProfile?.name) && (
-                          <button onClick={() => deleteVideoComment(vid.id, vid.comments, comment.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold px-1.5 shrink-0">✕</button>
-                        )}
-                      </div>
-                    ))}
-                    {(!vid.comments || vid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic">No feedback posted yet.</p>}
-                  </div>
-
-                  <form onSubmit={(e) => handlePostVideoComment(e, vid.id)} className="flex gap-2">
-                    <input type="text" name="commentInput" placeholder="Add a feedback note..." className="flex-1 px-3 py-1.5 bg-white border border-[#EADFC9] rounded-lg text-xs focus:outline-none" required />
-                    <button type="submit" className="bg-slate-800 hover:bg-slate-700 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold transition">Post</button>
-                  </form>
-                </div>
-              )}
-
             </div>
           );
         })}
-        {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs">The Video Vault showcase is currently empty.</div>}
       </div>
+      
+      {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs border-2 border-dashed border-[#EADFC9] rounded-2xl bg-white/50">The Video Vault showcase is currently empty.</div>}
 
-      {/* Upload Modal stays the same */}
+      {/* Upload Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg">
@@ -1215,6 +1269,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
                   <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>
                 )}
                 <h4 className="font-serif font-bold text-slate-800 pt-2 text-center line-clamp-2 text-xs">{p.title}</h4>
+                <div className="text-[9px] text-slate-400 text-center mt-2 font-mono">⏳ {getDeletionTimeLeft(p.createdAt)}</div>
               </div>
             ))}
           </div>
@@ -1230,8 +1285,9 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
             )}
           </div>
           <h3 className="font-serif text-lg font-bold text-slate-800">{selectedProject.title}</h3>
+          <p className="text-[9px] text-rose-500 font-bold">⏳ {getDeletionTimeLeft(selectedProject.createdAt)}</p>
           
-          <div className="divide-y text-xs">
+          <div className="divide-y text-xs border-t mt-2">
             {activeTasks.map((t) => (
               <div key={t.id} className="py-2.5 flex justify-between items-center group">
                 <span className="font-semibold text-slate-700">{t.title}</span>
@@ -1309,7 +1365,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
             <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-2.5 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
-                <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName}</span>
+                <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName} • ⏳ {getDeletionTimeLeft(s.createdAt)}</span>
               </div>
               {(isAdmin || s.authorUid === userProfile?.id) && (
                 <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>
@@ -1326,7 +1382,10 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
               <div className="flex justify-between items-start border-b pb-2">
                 <div>
                   <h3 className="font-serif text-base font-bold text-slate-800">{selectedScript.title}</h3>
-                  {selectedScript.lastEditedBy && <p className="text-[8px] text-slate-400">Last updated by {selectedScript.lastEditedBy}</p>}
+                  <div className="flex items-center gap-2 mt-1">
+                    {selectedScript.lastEditedBy && <p className="text-[8px] text-slate-400">Last updated by {selectedScript.lastEditedBy}</p>}
+                    <span className="bg-rose-50 text-rose-600 text-[8px] px-1.5 py-0.5 rounded border border-rose-100 font-bold">⏳ {getDeletionTimeLeft(selectedScript.createdAt)}</span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   {canEditSelected && !isEditingBody && (
@@ -1436,9 +1495,12 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
             <div key={m.id} className="text-xs p-2.5 bg-white border border-[#EADFC9]/40 rounded-xl max-w-[85%] sm:max-w-[75%] animate-fadeIn shadow-xs font-sans group relative">
               <div className="flex justify-between items-start">
                 <span className="text-[9px] text-[#C5A03A] font-bold block mb-0.5">{m.senderName}</span>
-                {(isAdmin || m.senderUid === userProfile?.id) && (
-                  <button onClick={() => deleteMessage(m.id)} className="text-rose-500 text-[9px] font-bold pl-3" title="Delete Message">✕ Delete</button>
-                )}
+                <div className="flex gap-2">
+                  <span className="text-[8px] text-slate-300 font-mono hidden sm:inline-block">⏳ {getDeletionTimeLeft(m.createdAt)}</span>
+                  {(isAdmin || m.senderUid === userProfile?.id) && (
+                    <button onClick={() => deleteMessage(m.id)} className="text-rose-500 text-[9px] font-bold pl-2" title="Delete Message">✕</button>
+                  )}
+                </div>
               </div>
               <p className="text-slate-700 font-medium leading-relaxed font-sans">{m.text}</p>
             </div>
@@ -1533,6 +1595,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                     <button onClick={() => toggleLikePost(post)} className="text-lg transition-transform active:scale-150">{amLiked ? '❤️' : '🤍'}</button>
                     <span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span>
                   </div>
+                  <span className="bg-slate-100 text-slate-500 text-[9px] font-bold px-2 py-1 rounded">⏳ {getDeletionTimeLeft(post.createdAt)}</span>
                 </div>
                 
                 <div className="text-xs">
