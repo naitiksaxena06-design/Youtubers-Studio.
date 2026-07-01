@@ -10,8 +10,7 @@ import {
   collection as fbCollection, addDoc, onSnapshot, query, orderBy, limit as fbLimit,
   arrayUnion 
 } from 'firebase/firestore';
-// NEW: Imported Firebase Storage to handle large video files properly!
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 // --- SAFE FIREBASE INITIALIZATION & FALLBACKS ---
 const firebaseConfig = {
@@ -30,7 +29,7 @@ try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
-  storage = getStorage(app); // Initialized Storage
+  storage = getStorage(app); 
 } catch (e) {
   console.error("Firebase critical initialization failed. Initializing placeholder services.", e);
   app = {}; auth = { currentUser: null }; db = {}; storage = {};
@@ -89,9 +88,10 @@ const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
 const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
+// FIX: 30-Day Expiration Timer
 const getDeletionTimeLeft = (createdAt) => {
   if (!createdAt) return 'Unknown';
-  const expiryTime = createdAt + (7 * 24 * 60 * 60 * 1000);
+  const expiryTime = createdAt + (30 * 24 * 60 * 60 * 1000); // 30 Days
   const diff = expiryTime - Date.now();
   if (diff <= 0) return 'Deleting soon...';
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -173,7 +173,7 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
   const containerRef = useRef(null);
 
   const visible = useMemo(() => (notifications || []).filter(n => {
-    // FIX: Filter out own notifications
+    // Prevent self-notifications
     if (!n || n.actor === 'System' || n.actor === userProfile?.name) return false; 
     const audience = n.audience || 'all';
     return audience === 'all' || (audience === 'admin' && isAdmin);
@@ -256,7 +256,6 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
   );
 }
 
-// --- SECURE FIRESTORE HOOKS ---
 function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -318,7 +317,7 @@ export default function App() {
 
   const showToast = useCallback((message, type = 'info') => {
     setCustomToast({ message, type });
-    // FIX: Changed toast duration to 1 second
+    // FIX: Floating bar now appears for just 1 second as requested
     setTimeout(() => setCustomToast(null), 1000);
   }, []);
 
@@ -403,7 +402,7 @@ export default function App() {
     }
 
     if (!isProfileIncomplete) {
-      if (userProfile.status === 'pending' && !['pending-status', 'profile'].includes(currentPage)) {
+      if (userProfile.status === 'pending' && currentPage !== 'pending-status') {
         setCurrentPage('pending-status');
       } else if (userProfile.status === 'rejected' && !['rejected-status', 'profile'].includes(currentPage)) {
         setCurrentPage('rejected-status');
@@ -415,16 +414,17 @@ export default function App() {
     }
   }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
 
+  // --- BACKGROUND TIME-BASED AUTO-SWEEPER (30 Days) ---
   useEffect(() => {
     if (!isAuthReady || !userProfile || !db || !db.app) return;
     const runSweep = async () => {
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-      chats.forEach(async (item) => { if (item.createdAt && item.createdAt < sevenDaysAgo) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
-      posts.forEach(async (item) => { if (item.createdAt && item.createdAt < sevenDaysAgo) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
+      chats.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
+      posts.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
       notifications.forEach(async (item) => { if (item.timestamp && item.timestamp < oneDayAgo) { try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {} } });
-      videos.forEach(async (item) => { if (item.createdAt && item.createdAt < sevenDaysAgo) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
-      scripts.forEach(async (item) => { if (item.createdAt && item.createdAt < sevenDaysAgo) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
+      videos.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
+      scripts.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
     };
     const delayTimer = setTimeout(() => { runSweep(); }, 8000);
     return () => clearTimeout(delayTimer);
@@ -809,7 +809,8 @@ export default function App() {
                 categories={categories} 
                 showToast={showToast} 
                 handleSignOut={handleSignOut} 
-                isOnboarding={isProfileIncomplete} 
+                isOnboarding={isProfileIncomplete}
+                onNavigate={handleNavigationChange}
               />
             </div>
           )
@@ -905,7 +906,7 @@ function ThreeArtBackground() {
     reelGroup.add(disk);
     const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 100);
     const brassMat = new THREE.MeshStandardMaterial({ color: 0xC5A03A, metalness: 0.9, roughness: 0.1 });
-    const brassRing = new THREE.Mesh(ringGeo, brassMat);
+    const brassRing = new Mesh(ringGeo, brassMat);
     brassRing.position.set(0, 0, 0.06);
     reelGroup.add(brassRing);
     reelGroup.position.set(4, -1, -2);
@@ -1052,7 +1053,7 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
 // --- HOMEPAGE HUB ---
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications, onNavigate, onInspectUser, userProfile }) {
   const studioUpdates = useMemo(() => {
-    // FIX: Filtering out own notifications in Home Hub
+    // FIX: Filter out own notifications
     return (notifications || []).filter(n => n && n.message && !String(n.message).startsWith('"') && n.actor !== 'System' && n.actor !== userProfile?.name);
   }, [notifications, userProfile]);
 
@@ -1226,7 +1227,7 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
   );
 }
 
-// --- ADVANCED NATIVE ADAPTABLE PLAYER (YOUTUBE COMPOSITION + VISUAL SCRUBBER FRAME HOVER) ---
+// --- ADVANCED NATIVE ADAPTABLE PLAYER ---
 function CustomVideoPlayer({ hlsUrl }) {
   const videoRef = useRef(null);
   const secondaryVideoRef = useRef(null); 
@@ -1235,7 +1236,8 @@ function CustomVideoPlayer({ hlsUrl }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [aspectRatio, setAspectRatio] = useState('16/9'); 
+  // FIX: Object scaling keeps the native size of the video without warping
+  const [aspectRatio, setAspectRatio] = useState('auto'); 
   const [volume, setVolume] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1243,9 +1245,6 @@ function CustomVideoPlayer({ hlsUrl }) {
   const [hoverTimeText, setHoverTimeText] = useState('');
   const [hoverX, setHoverX] = useState(0);
   const [showHoverPreview, setShowHoverPreview] = useState(false);
-  
-  // FIX: Added Dragging state for smooth scrub
-  const [isDragging, setIsDragging] = useState(false);
 
   const handleLoadedMetadata = (e) => {
     const video = e.target;
@@ -1298,6 +1297,7 @@ function CustomVideoPlayer({ hlsUrl }) {
     }
   };
 
+  // FIX: Restored Clean Scrubber behavior
   const scrubProgress = (e) => {
     if (!videoRef.current || !progressBarRef.current) return;
     const rect = progressBarRef.current.getBoundingClientRect();
@@ -1305,15 +1305,7 @@ function CustomVideoPlayer({ hlsUrl }) {
     videoRef.current.currentTime = percent * duration;
   };
 
-  // FIX: Added pointer events for dragging
-  const handlePointerDown = (e) => {
-    setIsDragging(true);
-    scrubProgress(e);
-  };
-
-  const handlePointerMove = (e) => {
-    if (isDragging) scrubProgress(e);
-    
+  const handleScrubberMouseMove = (e) => {
     if (!progressBarRef.current || !duration || !secondaryVideoRef.current) return;
     const rect = progressBarRef.current.getBoundingClientRect();
     const percent = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
@@ -1326,11 +1318,12 @@ function CustomVideoPlayer({ hlsUrl }) {
     setHoverTimeText(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
     setShowHoverPreview(true);
 
-    secondaryVideoRef.current.currentTime = targetTime;
+    if (Math.abs(secondaryVideoRef.current.currentTime - targetTime) > 1) {
+       secondaryVideoRef.current.currentTime = targetTime;
+    }
   };
 
-  const handlePointerUp = () => {
-    setIsDragging(false);
+  const handleScrubberMouseLeave = () => {
     setShowHoverPreview(false);
   };
 
@@ -1351,21 +1344,16 @@ function CustomVideoPlayer({ hlsUrl }) {
       setIsFullscreen(!!document.fullscreenElement);
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    
-    // Add global mouse up to stop dragging if they let go outside the bar
-    window.addEventListener('pointerup', handlePointerUp);
-    return () => {
-      document.removeEventListener('fullscreenchange', onFullscreenChange);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
   return (
-    <div className="relative bg-black w-full overflow-hidden flex items-center justify-center border-b border-slate-900 shadow-inner group/player" style={{ aspectRatio }}>
+    <div className="relative bg-black w-full h-[60vh] sm:h-full overflow-hidden flex items-center justify-center border-b border-slate-900 shadow-inner group/player">
       <video
         ref={videoRef}
         src={hlsUrl}
         className="w-full h-full object-contain cursor-pointer"
+        style={{ aspectRatio }}
         onLoadedMetadata={handleLoadedMetadata}
         onTimeUpdate={handleTimeUpdate}
         onClick={togglePlay}
@@ -1406,9 +1394,9 @@ function CustomVideoPlayer({ hlsUrl }) {
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-3 flex flex-col gap-2.5 opacity-0 group-hover/player:opacity-100 transition-opacity duration-300 z-50">
         <div 
           ref={progressBarRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerLeave={() => setShowHoverPreview(false)}
+          onClick={scrubProgress}
+          onMouseMove={handleScrubberMouseMove}
+          onMouseLeave={handleScrubberMouseLeave}
           className="h-1.5 bg-white/20 hover:h-2.5 rounded-full cursor-pointer relative transition-all"
         >
           <div 
@@ -1473,16 +1461,16 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [uploadMode, setUploadMode] = useState('link');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadingState, setUploadingState] = useState(false);
   
-  // FIX: Storing raw file instead of Base64 to bypass 1MB Firestore limit
+  const [uploadingState, setUploadingState] = useState(false);
+  // FIX: Added Progress Percentage Tracker
+  const [uploadProgress, setUploadProgress] = useState(0); 
   const [selectedVideoFile, setSelectedVideoFile] = useState(null);
 
   const handleGalleryFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setSelectedVideoFile(file);
-    showToast('Video ready for upload!', 'success');
   };
 
   const startUpload = async (e) => {
@@ -1494,29 +1482,54 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     let metricSize = '';
     
     setUploadingState(true);
+    setUploadProgress(0);
     
     try {
       if (uploadMode === 'link') {
         if (!videoUrlInput.trim()) { setUploadingState(false); return; }
         targetSrcLocation = videoUrlInput.trim();
         metricSize = "External URL Link";
+        
+        await completeFirebaseDocUpload(targetSrcLocation, metricSize);
+        
       } else {
         if (!selectedVideoFile) { showToast('Please select a video file first.', 'warning'); setUploadingState(false); return; }
         
-        // FIX: Uploading to Firebase Storage instead of Firestore Base64!
+        // FIX: Live Upload Resumable logic for UI feedback
         const fileRef = storageRef(storage, `videos/${Date.now()}_${selectedVideoFile.name}`);
-        await uploadBytes(fileRef, selectedVideoFile);
-        targetSrcLocation = await getDownloadURL(fileRef);
-        metricSize = `${(selectedVideoFile.size / 1024 / 1024).toFixed(2)} MB`;
+        const uploadTask = uploadBytesResumable(fileRef, selectedVideoFile);
+        
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(Math.round(progress));
+          },
+          (error) => { 
+            showToast('Storage transfer interrupted.', 'warning'); 
+            setUploadingState(false);
+          },
+          async () => {
+            targetSrcLocation = await getDownloadURL(uploadTask.snapshot.ref);
+            metricSize = `${(selectedVideoFile.size / 1024 / 1024).toFixed(2)} MB`;
+            await completeFirebaseDocUpload(targetSrcLocation, metricSize);
+          }
+        );
       }
+    } catch (err) { 
+      showToast('Upload authorization failure.', 'warning'); 
+      setUploadingState(false);
+    }
+  };
 
+  const completeFirebaseDocUpload = async (url, metric) => {
+    try {
       await addDoc(collection(db, 'videos'), {
         title: videoTitle.trim(),
-        hlsUrl: targetSrcLocation,
+        hlsUrl: url,
         uploaderUid: userProfile.id,
         uploaderName: userProfile.name,
         uploaderAvatar: userProfile.photoURL || '',
-        size: metricSize,
+        size: metric,
         comments: [],
         createdAt: Date.now(),
       });
@@ -1524,11 +1537,11 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
       pushNotification(`Added video: "${videoTitle}"`, userProfile.name);
       setVideoTitle(''); setVideoUrlInput(''); setSelectedVideoFile(null); setShowUploadModal(false);
       showToast('Video registered successfully!', 'success');
-    } catch (err) { 
-      showToast('Upload authorization failure.', 'warning'); 
-      console.error(err);
+    } catch (e) {
+      showToast('Database registration failed.', 'warning');
     } finally {
       setUploadingState(false);
+      setUploadProgress(0);
     }
   };
 
@@ -1733,7 +1746,16 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
               <div>
                 <label className="block text-[9px] font-bold text-slate-500 uppercase">Select Gallery Video Payload</label>
                 <input type="file" accept="video/*" onChange={handleGalleryFileSelect} className="w-full text-xs text-slate-500 mt-1" />
-                {uploadingState && <p className="text-[9px] text-[#C5A03A] animate-pulse mt-1">Uploading payload to storage...</p>}
+                
+                {/* FIX: Live UI Upload Progress percentage */}
+                {uploadingState && (
+                  <div className="mt-3">
+                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#C5A03A] transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                    </div>
+                    <p className="text-[9px] font-bold text-[#C5A03A] mt-1 text-right">Uploading... {uploadProgress}%</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2228,6 +2250,77 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     showToast("Comment removed.", "info");
   };
 
+  // FIX: Full Page Openable Post View (Replaces the Feed Grid just like VideoVault)
+  if (expandedPost) {
+    return (
+      <section className="bg-white min-h-[85vh] sm:rounded-2xl border-t border-[#EADFC9] sm:border shadow-sm flex flex-col font-sans animate-fadeIn relative z-30">
+        <div className="p-3 border-b border-[#EADFC9]/50 flex items-center gap-3 shrink-0">
+          <button onClick={() => setExpandedPost(null)} className="p-2 hover:bg-slate-100 rounded-full transition">
+            <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <span className="font-serif font-bold text-slate-800">Return to Feed</span>
+        </div>
+
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 bg-slate-50">
+          <div className="md:w-3/5 bg-slate-900 flex items-center justify-center p-4">
+            <img src={expandedPost.image} alt={expandedPost.title} className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-xl" />
+          </div>
+
+          <div className="md:w-2/5 flex flex-col bg-white border-l border-slate-200 shrink-0">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full border p-0.5">{renderAvatar(expandedPost.authorAvatar, "w-full h-full object-cover rounded-full", () => { setExpandedPost(null); onInspectUser(expandedPost.authorUid); })}</div>
+                <div>
+                  <p className="font-bold text-sm text-slate-800 cursor-pointer hover:underline" onClick={() => { setExpandedPost(null); onInspectUser(expandedPost.authorUid); }}>{expandedPost.authorName}</p>
+                  <p className="text-[10px] text-slate-400">{new Date(expandedPost.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+              {isAdmin && (
+                <button onClick={() => { removePost(expandedPost.id); setExpandedPost(null); }} className="text-rose-500 hover:bg-rose-50 px-2 py-1 rounded text-xs font-bold transition border border-rose-100">Delete</button>
+              )}
+            </div>
+            
+            <div className="p-4 overflow-y-auto custom-scrollbar flex-1 border-b border-slate-100">
+              <h3 className="font-bold text-lg text-slate-800 mb-2 font-serif">{expandedPost.title}</h3>
+              {expandedPost.description && <p className="text-sm text-slate-600 mb-6 whitespace-pre-wrap">{expandedPost.description}</p>}
+              
+              <div className="space-y-4">
+                <h4 className="font-bold text-xs text-slate-400 uppercase tracking-widest mb-4 border-b pb-2">Discussion</h4>
+                {(expandedPost.comments || []).map((c, i) => (
+                  <div key={i} className="flex justify-between items-start group text-sm p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="flex flex-col gap-1 min-w-0 pr-2">
+                      <span className="font-bold text-slate-800 cursor-pointer hover:underline text-xs" onClick={() => { setExpandedPost(null); onInspectUser(c.authorUid); }}>{c.authorName}</span>
+                      <span className="text-slate-600 leading-relaxed text-xs">{c.text}</span>
+                    </div>
+                    {(isAdmin || c.authorName === userProfile.name) && (
+                      <button onClick={() => removePostComment(expandedPost.id, expandedPost.comments, c.id)} className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded font-bold text-[10px]">✕</button>
+                    )}
+                  </div>
+                ))}
+                {(!expandedPost.comments || expandedPost.comments.length === 0) && <p className="text-xs text-slate-400 text-center py-4">No comments yet.</p>}
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 shrink-0">
+              <div className="flex items-center gap-3 mb-3">
+                <button onClick={() => toggleLikePost(expandedPost)} className="text-2xl transition-transform active:scale-125">
+                  {expandedPost.likedBy?.includes(userProfile?.id) ? '❤️' : '🤍'}
+                </button>
+                <span className="font-bold text-sm text-slate-800">{expandedPost.likes || 0} likes</span>
+              </div>
+              <form onSubmit={(e) => handleAddPostComment(e, expandedPost.id)} className="flex gap-2">
+                <div className="w-8 h-8 rounded-full border p-0.5 bg-white hidden sm:block shrink-0">{renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}</div>
+                <input name="commentInputText" type="text" placeholder="Add a comment..." className="flex-1 px-3 py-2 bg-white border border-[#EADFC9] shadow-inner rounded-xl text-xs focus:outline-none focus:border-[#C5A03A]" required />
+                <button type="submit" className="bg-[#C5A03A] text-white rounded-xl font-bold px-4 text-xs shadow-sm">Post</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // FIX: Restored Adaptive Masonry / Flex Layout for Insta Feed
   return (
     <section className="py-2 animate-fadeIn space-y-6 font-sans">
       <div className="flex justify-between items-center bg-white border border-[#EADFC9]/50 p-4 rounded-xl shadow-sm gap-4">
@@ -2235,85 +2328,74 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
         <button onClick={() => setShowCreatePostModal(true)} className="bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:opacity-90 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full border-b-[3px] border-amber-700 active:translate-y-[1px] active:border-b-0 shadow transition-all font-sans whitespace-nowrap">➕ Create Post</button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-5xl mx-auto animate-fadeIn">
+      <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 max-w-7xl mx-auto animate-fadeIn space-y-6">
         {posts.map(post => {
           const amLiked = post.likedBy?.includes(userProfile?.id);
           return (
-            <div key={post.id} className="bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all group" onClick={() => setExpandedPost(post)}>
-              <div className="w-full aspect-square overflow-hidden bg-slate-100 relative">
-                <img src={post.image} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <span className="text-white font-bold flex gap-4">
-                    <span>❤️ {post.likes || 0}</span>
-                    <span>💬 {post.comments?.length || 0}</span>
-                  </span>
+            <div key={post.id} className="break-inside-avoid bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn mb-6">
+              <div className="p-3.5 flex items-center justify-between border-b border-slate-50">
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">
+                    {renderAvatar(post.authorAvatar, "w-full h-full object-cover", () => onInspectUser(post.authorUid))}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-black text-slate-800 truncate hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(post.authorUid)}>
+                      {post.authorName}
+                    </h4>
+                    <span className="text-[8px] text-slate-400 font-mono block">{new Date(post.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                {isAdmin && (
+                  <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete</button>
+                )}
+              </div>
+              
+              <div 
+                className="w-full bg-slate-100 relative cursor-pointer group"
+                onClick={() => setExpandedPost(post)}
+              >
+                {/* FIX: h-auto allows the image to adopt its natural vertical size */}
+                <img src={post.image} alt={post.title} className="w-full h-auto object-contain animate-fadeIn" />
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                  <span className="bg-white/90 text-slate-900 font-bold px-4 py-2 rounded-full text-xs shadow-lg">View Full Thread</span>
+                </div>
+              </div>
+              
+              <div className="p-3.5 space-y-2.5 border-t border-slate-50 font-sans">
+                <div className="flex items-center justify-between font-sans">
+                  <div className="flex items-center space-x-2 font-sans">
+                    <button onClick={() => toggleLikePost(post)} className="text-lg transition-transform active:scale-150">{amLiked ? '❤️' : '🤍'}</button>
+                    <span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span>
+                  </div>
+                  <span className="bg-slate-100 text-slate-500 text-[9px] font-bold px-2 py-1 rounded">⏳ {getDeletionTimeLeft(post.createdAt)}</span>
+                </div>
+                
+                <div className="text-xs">
+                  <span className="font-bold text-slate-800 mr-2 hover:underline cursor-pointer" onClick={() => onInspectUser(post.authorUid)}>{post.authorName}</span>
+                  <span className="font-semibold text-slate-700">{post.title}</span>
+                  {post.description && <p className="text-slate-500 mt-1 leading-relaxed font-sans line-clamp-2">{post.description}</p>}
+                </div>
+                
+                <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1">
+                  {(post.comments || []).slice(0, 2).map((c, i) => (
+                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
+                      <div className="min-w-0 pr-2 truncate">
+                        <span className="font-bold text-slate-800 mr-1.5 hover:underline cursor-pointer" onClick={() => onInspectUser(c.authorUid)}>
+                          {c.authorName}
+                        </span>
+                        <span className="text-slate-600">{c.text}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {post.comments && post.comments.length > 2 && (
+                    <p className="text-[10px] text-slate-400 cursor-pointer hover:underline" onClick={() => setExpandedPost(post)}>View all {post.comments.length} comments...</p>
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
-        {posts.length === 0 && <div className="col-span-full text-center text-slate-400 py-16 italic text-xs border-2 border-dashed border-[#EADFC9] rounded-2xl bg-white/50">No showroom posts have been shared yet.</div>}
       </div>
-
-      {/* FIX: New YouTube-Style Expanded Post Modal */}
-      {expandedPost && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 sm:p-8 animate-fadeIn" onClick={() => setExpandedPost(null)}>
-          <div className="w-full max-w-5xl h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setExpandedPost(null)} className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black text-white w-8 h-8 rounded-full flex items-center justify-center transition-colors">✕</button>
-            
-            <div className="md:w-3/5 h-1/2 md:h-full bg-black flex items-center justify-center">
-              <img src={expandedPost.image} className="max-w-full max-h-full object-contain" />
-            </div>
-
-            <div className="md:w-2/5 flex flex-col h-1/2 md:h-full bg-white border-l border-slate-200">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full border p-0.5">{renderAvatar(expandedPost.authorAvatar, "w-full h-full object-cover rounded-full", () => { setExpandedPost(null); onInspectUser(expandedPost.authorUid); })}</div>
-                  <div>
-                    <p className="font-bold text-sm text-slate-800 cursor-pointer hover:underline" onClick={() => { setExpandedPost(null); onInspectUser(expandedPost.authorUid); }}>{expandedPost.authorName}</p>
-                    <p className="text-[10px] text-slate-400">{new Date(expandedPost.createdAt).toLocaleString()}</p>
-                  </div>
-                </div>
-                {isAdmin && (
-                  <button onClick={() => { removePost(expandedPost.id); setExpandedPost(null); }} className="text-rose-500 hover:bg-rose-50 px-2 py-1 rounded text-xs font-bold transition">Delete</button>
-                )}
-              </div>
-              
-              <div className="p-4 overflow-y-auto custom-scrollbar flex-1 border-b border-slate-100">
-                <h3 className="font-bold text-slate-800 mb-2">{expandedPost.title}</h3>
-                {expandedPost.description && <p className="text-sm text-slate-600 mb-6 whitespace-pre-wrap">{expandedPost.description}</p>}
-                
-                <div className="space-y-4">
-                  {(expandedPost.comments || []).map((c, i) => (
-                    <div key={i} className="flex justify-between items-start group text-sm">
-                      <div className="flex gap-2">
-                        <span className="font-bold text-slate-800 cursor-pointer hover:underline" onClick={() => { setExpandedPost(null); onInspectUser(c.authorUid); }}>{c.authorName}</span>
-                        <span className="text-slate-600">{c.text}</span>
-                      </div>
-                      {(isAdmin || c.authorName === userProfile.name) && (
-                        <button onClick={() => removePostComment(expandedPost.id, expandedPost.comments, c.id)} className="text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-50">
-                <div className="flex items-center gap-3 mb-3">
-                  <button onClick={() => toggleLikePost(expandedPost)} className="text-2xl transition-transform active:scale-125">
-                    {expandedPost.likedBy?.includes(userProfile?.id) ? '❤️' : '🤍'}
-                  </button>
-                  <span className="font-bold text-sm text-slate-800">{expandedPost.likes || 0} likes</span>
-                </div>
-                <form onSubmit={(e) => handleAddPostComment(e, expandedPost.id)} className="flex gap-2">
-                  <input name="commentInputText" type="text" placeholder="Add a comment..." className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#C5A03A]" required />
-                  <button type="submit" className="text-[#C5A03A] font-bold px-2">Post</button>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
@@ -2336,7 +2418,8 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 }
 
 // --- MY PROFILE ---
-function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut, isOnboarding }) {
+// FIX: Passed onNavigate from App.js to handle direct routing
+function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut, isOnboarding, onNavigate }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState(userProfile?.photoURL || '');
@@ -2366,6 +2449,14 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
         isProfileComplete: true 
       });
       showToast('Profile credentials mapped successfully!', 'success');
+      
+      // FIX: Instantly teleports pending users straight to the Waiting Page
+      if (userProfile.status === 'pending') {
+        onNavigate('pending-status');
+      } else {
+        onNavigate('home');
+      }
+      
     } catch (err) { 
       showToast('Save failed.', 'warning'); 
     } finally { 
