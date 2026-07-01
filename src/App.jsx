@@ -334,6 +334,14 @@ export default function App() {
     return !userProfile.name || userProfile.name.trim() === '' || !userProfile.workCategory || userProfile.isProfileComplete === false;
   }, [authUser, userProfile]);
 
+  // --- GLOBAL LOGOUT REDIRECT FAILSAFE ---
+  useEffect(() => {
+    // If fully loaded and not authenticated, force the router back to the safe Home Hub
+    if (!authLoading && !authUser && currentPage !== 'home') {
+      setCurrentPage('home');
+    }
+  }, [authUser, authLoading, currentPage]);
+
   // --- AUTOMATIC PROFILE SPRINT & STATUS REDIRECTS ---
   useEffect(() => {
     if (!authUser || !userProfile) return;
@@ -462,10 +470,14 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
-    await fbSignOut(auth);
-    setCurrentPage('home');
-    setActiveVideo(null);
-    showToast('Signed out.', 'info');
+    try {
+      await fbSignOut(auth);
+      setCurrentPage('home');
+      setActiveVideo(null);
+      showToast('Signed out successfully.', 'info');
+    } catch (err) {
+      showToast('Sign out failed.', 'warning');
+    }
   };
 
   const handleNavigationChange = (targetPage) => {
@@ -712,8 +724,8 @@ export default function App() {
       {/* --- MAIN PAGE CONTENT --- */}
       <main className="relative z-20 max-w-7xl mx-auto px-0 sm:px-4 py-6 studio-page-wrap animate-fadeIn">
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} onNavigate={setCurrentPage} onInspectUser={setInspectUser} />}
-        {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} handleNavigationChange={handleNavigationChange} />}
-        {currentPage === 'rejected-status' && <RejectedScreen userProfile={userProfile} />}
+        {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} handleNavigationChange={handleNavigationChange} handleSignOut={handleSignOut} />}
+        {currentPage === 'rejected-status' && <RejectedScreen handleSignOut={handleSignOut} />}
         {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
         {currentPage === 'categories-view' && <div className="px-4 sm:px-0"><CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} onInspectUser={setInspectUser} /></div>}
         
@@ -1006,17 +1018,17 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
     <section className="space-y-8 py-2 animate-fadeIn font-sans px-4 sm:px-0">
       <div className="text-center py-2">
         <h1 className="font-serif text-2xl sm:text-3xl md:text-5xl font-black text-slate-800 uppercase tracking-tight leading-tight">
-          {siteSettings.logoText || 'YOUTUBERS STUDIO'}
+          {siteSettings?.logoText || 'YOUTUBERS STUDIO'}
         </h1>
         <p className="text-slate-500 font-serif italic text-xs sm:text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'YouTube Subscribers', value: ytConfig.subscribers, icon: '📈', change: ytConfig.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
-          { label: 'Latest Video Views', value: ytConfig.latestVideoViews, icon: '📺', change: ytConfig.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
-          { label: 'Vault Records', value: `${videos.length} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
-          { label: 'Active Ideas', value: `${projects.length} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
+          { label: 'YouTube Subscribers', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
+          { label: 'Latest Video Views', value: ytConfig?.latestVideoViews || '—', icon: '📺', change: ytConfig?.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
+          { label: 'Vault Records', value: `${videos?.length || 0} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
+          { label: 'Active Ideas', value: `${projects?.length || 0} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
         ].map((stat, idx) => (
           <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-4 shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-36">
             <div>
@@ -2498,18 +2510,26 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   );
 }
 
-function PendingScreen({ userProfile, handleNavigationChange }) {
+function PendingScreen({ userProfile, handleNavigationChange, handleSignOut }) {
   return (
     <div className="min-h-[60vh] flex items-center justify-center text-center p-4">
       <div className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl max-w-sm shadow-skeuo-md animate-fadeIn font-sans flex flex-col items-center">
         <h3 className="font-serif font-bold text-base mb-1 text-slate-800">Roster Waiting Room</h3>
         <p className="text-xs text-slate-500 mb-4 font-sans">Hello {userProfile?.name}! Your request has been routed to the pending list for review. The studio owner will see it on the Admin panel.</p>
-        <button onClick={() => handleNavigationChange('profile')} className="text-[10px] font-bold text-[#C5A03A] underline mt-1 py-1 px-3 hover:bg-amber-50 rounded-lg transition-colors">Edit My Profile Details</button>
+        <div className="flex gap-3 mt-1">
+          <button onClick={() => handleNavigationChange('profile')} className="text-[10px] font-bold text-[#C5A03A] underline py-1 px-3 hover:bg-amber-50 rounded-lg transition-colors">Edit Profile</button>
+          <button onClick={handleSignOut} className="text-[10px] font-bold text-rose-500 underline py-1 px-3 hover:bg-rose-50 rounded-lg transition-colors">Sign Out</button>
+        </div>
       </div>
     </div>
   );
 }
 
-function RejectedScreen({ userProfile }) {
-  return <div className="text-center py-20 font-sans font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</div>;
+function RejectedScreen({ handleSignOut }) {
+  return (
+    <div className="text-center py-20 font-sans flex flex-col items-center justify-center gap-4">
+      <p className="font-bold text-rose-500">Access Restricted. Contact the studio owner directly.</p>
+      <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 bg-rose-50 px-4 py-2 rounded-full border border-rose-200 hover:bg-rose-100 transition-colors">Sign Out</button>
+    </div>
+  );
 }
