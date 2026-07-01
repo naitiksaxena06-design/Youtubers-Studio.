@@ -12,7 +12,6 @@ import {
 } from 'firebase/firestore';
 
 // --- SAFE FIREBASE INITIALIZATION ---
-// NO FIREBASE STORAGE IMPORTS - STRICTLY USING FIRESTORE DATABASE
 const firebaseConfig = {
   apiKey: "AIzaSyBsFo07T-8_CA6EWzaLfeWLJ3ShuGx5KIM",
   authDomain: "rs-b5cf5.firebaseapp.com",
@@ -87,7 +86,7 @@ const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
 const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
-// --- EXPIRATION TIMERS ---
+// --- 7-DAY EXPIRATION VISUAL TIMER ---
 const getExpiry7 = (createdAt) => {
   if (!createdAt) return 'Unknown';
   const expiryTime = createdAt + (7 * 24 * 60 * 60 * 1000); 
@@ -99,9 +98,10 @@ const getExpiry7 = (createdAt) => {
   return `${hours}h ${Math.floor((diff / (1000 * 60)) % 60)}m`;
 };
 
+// --- 30-DAY EXPIRATION VISUAL TIMER ---
 const getExpiry30 = (createdAt) => {
   if (!createdAt) return 'Unknown';
-  const expiryTime = createdAt + (30 * 24 * 60 * 60 * 1000); // 1 Month
+  const expiryTime = createdAt + (30 * 24 * 60 * 60 * 1000); 
   const diff = expiryTime - Date.now();
   if (diff <= 0) return 'Deleting soon...';
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -110,8 +110,7 @@ const getExpiry30 = (createdAt) => {
   return `${hours}h ${Math.floor((diff / (1000 * 60)) % 60)}m`;
 };
 
-// STRONGLY COMPRESS TO AVOID FIRESTORE 1MB LIMIT CATASTROPHE
-const compressAndConvertImage = (file, maxDim = 600) => {
+const compressAndConvertImage = (file, maxDim = 150) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -128,8 +127,7 @@ const compressAndConvertImage = (file, maxDim = 600) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        // Force high compression to safely fit into Database limits
-        resolve(canvas.toDataURL('image/jpeg', 0.60));
+        resolve(canvas.toDataURL('image/jpeg', 0.70));
       };
       img.onerror = (err) => reject(err);
     };
@@ -155,16 +153,14 @@ const resolvePlayableVideo = (url) => {
 
   const photosRegex = /photos\.app\.goo\.gl|photos\.google\.com/i;
   if (photosRegex.test(cleaned)) {
-    return { type: 'photos', src: cleaned, thumbnail: null };
+    return { type: 'external', src: cleaned, thumbnail: null };
   }
 
-  // Forces mobile browsers to load the 1st frame as a thumbnail automatically
   const isDirect = /\.(mp4|webm|mov|ogv|m4v)(?:\?|$)/i.test(cleaned) || cleaned.startsWith('data:video/') || cleaned.includes('firebasestorage.googleapis.com');
   if (isDirect) {
-    const thumbSrc = cleaned.includes('#t=') ? cleaned : `${cleaned}#t=0.1`;
-    return { type: 'direct', src: cleaned, thumbnail: thumbSrc };
+    return { type: 'direct', src: cleaned, thumbnail: null };
   }
-  return { type: 'fallback', src: cleaned, thumbnail: null };
+  return { type: 'external', src: cleaned, thumbnail: null };
 };
 
 const renderAvatar = (photoURL, className = "w-full h-full object-cover", onClick = null) => {
@@ -391,7 +387,7 @@ export default function App() {
     }
   }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
 
-  // --- SEPARATE DATABASE EXPIRATION SWEEPERS ---
+  // --- BACKGROUND TIME-BASED AUTO-SWEEPER (Active Firebase Deletion) ---
   useEffect(() => {
     if (!isAuthReady || !userProfile || !db || !db.app) return;
     const runSweep = async () => {
@@ -399,14 +395,16 @@ export default function App() {
       const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
 
+      // 7-Day Logic (Vault, Chat, Posts)
       chats.forEach(async (item) => { if (item.createdAt && item.createdAt < sevenDaysAgo) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
       posts.forEach(async (item) => { if (item.createdAt && item.createdAt < sevenDaysAgo) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
       videos.forEach(async (item) => { if (item.createdAt && item.createdAt < sevenDaysAgo) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
       
-      // Projects and Scripts - exactly 30 days
+      // 30-Day Logic (Projects, Scripts)
       projects.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'projects', item.id)); } catch (e) {} } });
       scripts.forEach(async (item) => { if (item.createdAt && item.createdAt < thirtyDaysAgo) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
       
+      // 1-Day Logic
       notifications.forEach(async (item) => { if (item.timestamp && item.timestamp < oneDayAgo) { try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {} } });
     };
     const delayTimer = setTimeout(() => { runSweep(); }, 8000);
@@ -670,11 +668,269 @@ export default function App() {
   );
 }
 
-// --- FULL YOUTUBE-STYLE NATIVE ADAPTABLE PLAYER ---
+// --- THREEJS BACKGROUND GRAPHICS ---
+function ThreeArtBackground() {
+  const mountRef = useRef(null);
+  useEffect(() => {
+    if (!window.THREE) return;
+    const THREE = window.THREE;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.z = 11;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    mountRef.current.appendChild(renderer.domElement);
+    scene.add(new THREE.AmbientLight(0xfffdf2, 0.5));
+    const specularSpot = new THREE.SpotLight(0xffedd5, 12, 40, Math.PI / 4, 0.5, 1);
+    specularSpot.position.set(0, 0, 8); scene.add(specularSpot);
+    const cobaltPoint = new THREE.PointLight(0x1d4ed8, 2.5, 18); cobaltPoint.position.set(-5, -3, 2); scene.add(cobaltPoint);
+    const rosePoint = new THREE.PointLight(0xf43f5e, 2.5, 18); rosePoint.position.set(5, 3, 2); scene.add(rosePoint);
+
+    const cameraRigGroup = new THREE.Group();
+    const outerRingGeo = new THREE.TorusGeometry(1.9, 0.12, 16, 100); const darkTitaniumMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, metalness: 0.95, roughness: 0.15 });
+    const outerRing = new THREE.Mesh(outerRingGeo, darkTitaniumMat); cameraRigGroup.add(outerRing);
+    const innerRingGeo = new THREE.TorusGeometry(1.5, 0.08, 16, 100); const chromeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 1.0, roughness: 0.05 });
+    const innerRing = new THREE.Mesh(innerRingGeo, chromeMat); innerRing.rotation.x = Math.PI / 2; cameraRigGroup.add(innerRing);
+    const lensBarrelGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.5, 32, 1, true); const goldMat = new THREE.MeshStandardMaterial({ color: 0xD4AF37, metalness: 0.9, roughness: 0.1 });
+    const lensBarrel = new THREE.Mesh(lensBarrelGeo, goldMat); lensBarrel.rotation.x = Math.PI / 2; cameraRigGroup.add(lensBarrel);
+    const glassGeo = new THREE.SphereGeometry(0.75, 32, 32); const glassMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.05, transparent: true, opacity: 0.65, transmission: 0.9, ior: 1.5, thickness: 1.0 });
+    const glassLens = new THREE.Mesh(glassGeo, glassMat); cameraRigGroup.add(glassLens);
+    const bladeGeo = new THREE.BoxGeometry(0.04, 0.55, 0.02); const blackAnodizedMat = new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 0.4 });
+    for (let i = 0; i < 8; i++) { const blade = new THREE.Mesh(bladeGeo, blackAnodizedMat); const angle = (i / 8) * Math.PI * 2; blade.position.set(Math.cos(angle) * 1.0, Math.sin(angle) * 1.0, 0); blade.rotation.z = angle + Math.PI / 4; cameraRigGroup.add(blade); }
+    cameraRigGroup.position.set(-3.5, 1.5, -2); scene.add(cameraRigGroup);
+
+    const reelGroup = new THREE.Group();
+    const diskGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.1, 32); const darkMetal = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 });
+    const disk = new THREE.Mesh(diskGeo, darkMetal); disk.rotation.x = Math.PI / 2; reelGroup.add(disk);
+    const ringGeo = new THREE.TorusGeometry(0.5, 0.1, 16, 100); const brassMat = new THREE.MeshStandardMaterial({ color: 0xC5A03A, metalness: 0.9, roughness: 0.1 });
+    const brassRing = new THREE.Mesh(ringGeo, brassMat); brassRing.position.set(0, 0, 0.06); reelGroup.add(brassRing);
+    reelGroup.position.set(4, -1, -2); scene.add(reelGroup);
+
+    const pCount = 100; const pPositions = new Float32Array(pCount * 3); const pGeometry = new THREE.BufferGeometry();
+    for (let i = 0; i < pCount; i++) { pPositions[i * 3] = (Math.random() - 0.5) * 18; pPositions[i * 3 + 1] = (Math.random() - 0.5) * 10; pPositions[i * 3 + 2] = (Math.random() - 0.5) * 4 - 3; }
+    pGeometry.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+    const pMaterial = new THREE.PointsMaterial({ color: 0xC5A03A, size: 0.14, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending });
+    scene.add(new THREE.Points(pGeometry, pMaterial));
+
+    let mouseX = 0, mouseY = 0; const targetMouse = { x: 0, y: 0 };
+    const handleWindowMouseMove = (e) => { targetMouse.x = (e.clientX / window.innerWidth) * 2 - 1; targetMouse.y = -(e.clientY / window.innerHeight) * 2 + 1; };
+    window.addEventListener('mousemove', handleWindowMouseMove);
+
+    const clock = new THREE.Clock(); let frameId;
+    const animate = () => {
+      frameId = requestAnimationFrame(animate); const elapsed = clock.getElapsedTime();
+      outerRing.rotation.y = elapsed * 0.14; outerRing.rotation.x = elapsed * 0.07;
+      innerRing.rotation.x = elapsed * 0.22; innerRing.rotation.z = elapsed * 0.16;
+      lensBarrel.rotation.y = elapsed * 0.28; cameraRigGroup.position.y = 1.5 + Math.sin(elapsed * 0.45) * 0.2;
+      reelGroup.rotation.z = elapsed * 0.35; reelGroup.rotation.y = elapsed * 0.15; reelGroup.position.y = -1 + Math.cos(elapsed * 0.5) * 0.15;
+      mouseX += (targetMouse.x - mouseX) * 0.05; mouseY += (targetMouse.y - mouseY) * 0.05;
+      specularSpot.position.x = 5 + mouseX * 4; specularSpot.position.y = 5 + mouseY * 4;
+      camera.position.x = mouseX * 0.8; camera.position.y = mouseY * 0.8; camera.lookAt(scene.position); renderer.render(scene, camera);
+    };
+    animate();
+
+    const resize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
+    window.addEventListener('resize', resize);
+    return () => { cancelAnimationFrame(frameId); window.removeEventListener('resize', resize); window.removeEventListener('mousemove', handleWindowMouseMove); if (mountRef.current) mountRef.current.innerHTML = ''; };
+  }, []);
+  return <div ref={mountRef} className="fixed inset-0 pointer-events-none z-0 opacity-40 animate-fadeIn" />;
+}
+
+// --- SIGN IN MODAL ---
+function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
+  const [emailMode, setEmailMode] = useState(false); const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [loading, setLoading] = useState(false);
+
+  const handleEmailAuthSubmit = async (e) => {
+    e.preventDefault(); const cleanEmail = email.trim(); const cleanPassword = password.trim();
+    if (!cleanEmail || !cleanPassword) return; if (!auth || !auth.app) { showToast('Authentication mock active in offline state.', 'info'); setShowSignInModal(false); return; }
+    setLoading(true);
+    try {
+      if (isSignUp) { await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword); showToast('Created credentials!', 'success'); } 
+      else { await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword); showToast('Successfully logged in!', 'success'); }
+      setShowSignInModal(false);
+    } catch (err) { showToast(err.message.includes('auth/') ? err.message.split('auth/')[1].replace('-', ' ') : 'Authentication failed.', 'warning'); } 
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn font-sans">
+      <div className="w-full max-w-md bg-white border-2 border-[#EADFC9] rounded-[2rem] p-8 shadow-skeuo-lg relative font-sans animate-fadeIn">
+        <button onClick={() => setShowSignInModal(false)} className="absolute top-4 right-4 font-bold text-slate-400 hover:text-slate-600 transition">✕</button>
+        <h3 className="font-serif text-xl font-bold text-slate-800 text-center mb-1">Crew Member Sign In</h3>
+        <p className="text-xs text-slate-400 text-center mb-6">Gain credentials and establish customized role specializations on the storyboard.</p>
+        
+        {!emailMode ? (
+          <div className="space-y-3">
+            <button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-3 py-3 bg-white border-2 border-[#EADFC9] hover:border-[#C5A03A] rounded-xl text-sm font-bold text-slate-700 shadow-sm transition">
+              <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.2 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.3 5.3C40.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+              Continue with Google
+            </button>
+            <div className="relative flex py-2 items-center"><div className="flex-grow border-t border-slate-200"></div><span className="flex-shrink mx-3 text-slate-400 text-[10px] font-bold uppercase">or</span><div className="flex-grow border-t border-slate-200"></div></div>
+            <button onClick={() => setEmailMode(true)} className="w-full py-2.5 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700 transition">✉️ Continue with Email / Pass</button>
+          </div>
+        ) : (
+          <form onSubmit={handleEmailAuthSubmit} className="space-y-3.5 animate-fadeIn">
+            <div><label className="block text-[9px] font-bold text-slate-400 uppercase">Email Address</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@domain.com" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs mt-1 focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required /></div>
+            <div><label className="block text-[9px] font-bold text-slate-400 uppercase">Secret Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimum 6 characters" className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs mt-1 focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required /></div>
+            <button type="submit" disabled={loading} className="w-full py-2.5 bg-[#C5A03A] border-b-[4px] border-[#ab892c] active:border-b-0 text-white text-xs font-bold rounded-xl transition">{loading ? "Authorizing credentials..." : (isSignUp ? "Sign Up as Crew" : "Authorize Crew Account")}</button>
+            <div className="flex justify-between items-center pt-2 text-[10px]">
+              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-slate-500 hover:text-[#C5A03A] font-bold">{isSignUp ? "Already have an account? Sign In" : "Need credentials? Register here"}</button>
+              <button type="button" onClick={() => setEmailMode(false)} className="text-slate-400 hover:underline">◀ Go Back</button>
+            </div>
+          </form>
+        )}
+        <p className="text-[10px] text-slate-400 text-center mt-6">New accounts are put on pending review. Please communicate with the owner for expedited access.</p>
+      </div>
+    </div>
+  );
+}
+
+// --- HOMEPAGE HUB ---
+function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications, onNavigate, onInspectUser, userProfile }) {
+  const studioUpdates = useMemo(() => {
+    return (notifications || []).filter(n => n && n.message && !String(n.message).startsWith('"') && n.actor !== 'System' && n.actor !== userProfile?.name);
+  }, [notifications, userProfile]);
+
+  return (
+    <section className="space-y-8 py-2 animate-fadeIn font-sans px-4 sm:px-0">
+      <div className="text-center py-2">
+        <h1 className="font-serif text-2xl sm:text-3xl md:text-5xl font-black text-slate-800 uppercase tracking-tight leading-tight">{siteSettings?.logoText || 'YOUTUBERS STUDIO'}</h1>
+        <p className="text-slate-500 font-serif italic text-xs sm:text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: 'YouTube Subscribers', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString()}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
+          { label: 'Latest Video Views', value: ytConfig?.latestVideoViews || '—', icon: '📺', change: ytConfig?.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
+          { label: 'Vault Records', value: `${videos?.length || 0} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
+          { label: 'Active Ideas', value: `${projects?.length || 0} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
+        ].map((stat, idx) => (
+          <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-4 shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-36">
+            <div><div className="flex justify-between items-center text-slate-400 mb-1"><span className="text-[9px] uppercase font-bold tracking-wider font-sans">{stat.label}</span><span className="text-base">{stat.icon}</span></div><p className="text-lg md:text-xl font-black text-slate-800 font-sans leading-none">{stat.value}</p></div>
+            <div className="mt-1 font-sans"><span className="text-[9px] text-[#C5A03A] font-semibold block truncate leading-tight">{stat.change}</span>{stat.action}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans">
+        <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-2 mb-3 font-serif"><h3 className="font-serif text-sm font-bold text-[#C5A03A]">📢 Studio Updates</h3><span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans border border-emerald-200">Recent Activity</span></div>
+        <div className="space-y-2.5 max-h-48 overflow-y-auto custom-scrollbar font-sans pr-1">
+          {studioUpdates.map(notif => (
+            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-1.5 animate-fadeIn">
+              <span className="font-bold text-slate-800 font-sans cursor-pointer hover:underline" onClick={() => onInspectUser(notif.authorUid)}>{notif.actor}:{' '}</span>
+              <span className="text-slate-600 font-sans">{notif.message}</span>
+              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString()}</p>
+            </div>
+          ))}
+          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No updates mapped to log yet.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// --- CREW DIRECTORY SECTION ---
+function CrewSection({ profiles, userProfile, showToast, isAdmin, onInspectUser }) {
+  const [focusIdx, setFocusIdx] = useState(0);
+  const approvedProfiles = useMemo(() => (profiles || []).filter(p => p.status === 'approved'), [profiles]);
+
+  const removeMember = async (uid) => {
+    if (!db || !db.app) return;
+    try { await deleteDoc(doc(db, 'profiles', uid)); showToast('Crew member removed.', 'success'); } catch (err) { showToast('Failed to remove.', 'warning'); }
+  };
+
+  if (approvedProfiles.length === 0) return <div className="text-center text-slate-400 py-20">No approved crew members yet.</div>;
+
+  return (
+    <section className="py-2 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
+      <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl text-center shadow-skeuo-md animate-fadeIn h-fit">
+        <div className="w-24 h-24 rounded-full border-4 border-[#C5A03A]/20 mx-auto overflow-hidden p-0.5 mb-3 flex items-center justify-center bg-slate-50 shadow-inner">{renderAvatar(approvedProfiles[focusIdx]?.photoURL, "w-full h-full object-cover rounded-full", () => onInspectUser(approvedProfiles[focusIdx]?.id))}</div>
+        <h3 className="font-serif text-xl font-bold text-slate-800 cursor-pointer hover:text-[#C5A03A]" onClick={() => onInspectUser(approvedProfiles[focusIdx]?.id)}>{approvedProfiles[focusIdx]?.name}</h3>
+        <p className="text-xs text-slate-400 mt-1 font-sans">{approvedProfiles[focusIdx]?.email}</p>
+        <span className="bg-[#C5A03A] text-white text-[9px] px-3 py-1 rounded-full font-bold mt-2 inline-block font-sans shadow-sm uppercase">{approvedProfiles[focusIdx]?.role}</span>
+        {approvedProfiles[focusIdx]?.bio && <p className="text-xs text-slate-500 mt-4 border-t pt-3 italic font-serif">"{approvedProfiles[focusIdx].bio}"</p>}
+      </div>
+
+      <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md max-h-[450px] overflow-y-auto custom-scrollbar animate-fadeIn">
+        <h4 className="font-serif font-bold text-sm border-b pb-2 mb-3 text-slate-700">Production Team Members</h4>
+        <div className="space-y-2 font-sans">
+          {profiles.map((p, i) => (
+            <div key={p.id} className="flex justify-between items-center p-2.5 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer shrink-0">{renderAvatar(p.photoURL, "w-full h-full object-cover rounded-full", () => onInspectUser(p.id))}</div>
+                <div className="cursor-pointer min-w-0" onClick={() => setFocusIdx(approvedProfiles.indexOf(p) !== -1 ? approvedProfiles.indexOf(p) : 0)}>
+                  <p className="text-xs font-bold text-slate-800 truncate hover:text-[#C5A03A]" onClick={() => onInspectUser(p.id)}>{p.name}</p>
+                  <span className="text-[9px] font-mono text-slate-400 block truncate">{p.email} • {p.role} • {p.workCategory}</span>
+                </div>
+              </div>
+              {isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL && <button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2.5 py-1 rounded-full hover:bg-rose-100 font-sans whitespace-nowrap">Remove</button>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// --- CATEGORIES VIEW ---
+function CategoriesViewSection({ profiles, categories, showToast, onInspectUser }) {
+  const [activeCategory, setActiveCategory] = useState(categories[0] || 'Editing');
+  const [newCatInput, setNewCustomCategory] = useState('');
+
+  const handleAddCategory = async (e) => {
+    e.preventDefault(); const clean = newCatInput.trim(); if (!clean || !db || !db.app) return;
+    if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) { showToast('Category exists.', 'warning'); return; }
+    await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(clean) }, { merge: true });
+    setActiveCategory(clean); setNewCustomCategory(''); showToast(`Category added.`, 'success');
+  };
+
+  const matchedMembers = useMemo(() => (profiles || []).filter(p => p.status === 'approved' && p.workCategory === activeCategory), [profiles, activeCategory]);
+
+  return (
+    <section className="py-2 animate-fadeIn grid grid-cols-1 lg:grid-cols-4 gap-6 font-sans">
+      <div className="lg:col-span-1 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-4 rounded-2xl shadow-skeuo-md space-y-4 animate-fadeIn">
+        <div>
+          <h4 className="font-serif text-xs font-bold text-slate-800 mb-1.5">Add Custom Category</h4>
+          <form onSubmit={handleAddCategory} className="space-y-1.5 font-sans font-semibold">
+            <input type="text" value={newCatInput} onChange={(e) => setNewCustomCategory(e.target.value)} placeholder="e.g. 3D Matte Shader" className="w-full px-3 py-1.5 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none" required />
+            <button type="submit" className="w-full py-1 bg-[#C5A03A] text-white text-[9px] font-bold uppercase rounded-lg border-b-[3px] border-[#ab892c] active:border-b-[1px] active:translate-y-[1px] shadow-sm">Add Role Tag</button>
+          </form>
+        </div>
+        <div className="pt-3 border-t border-slate-100 space-y-1">
+          <span className="text-[9px] font-bold text-[#C5A03A] uppercase tracking-wider block mb-1.5 font-sans">Role tags</span>
+          {categories.map((cat, idx) => (<button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold transition ${activeCategory === cat ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-500 hover:bg-slate-50'}`}>🎥 {cat}</button>))}
+        </div>
+      </div>
+
+      <div className="lg:col-span-3 bg-white/70 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md space-y-3 animate-fadeIn">
+        <div className="flex justify-between items-center border-b pb-2 border-slate-100 font-serif">
+          <h3 className="font-serif text-base font-bold text-slate-800">Specialization: <span className="text-[#C5A03A]">{activeCategory}</span></h3>
+          <span className="text-xs bg-slate-100 px-2 py-0.5 rounded font-bold text-slate-500 font-sans">{matchedMembers.length} Specialists</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 font-sans animate-fadeIn">
+          {matchedMembers.map((member) => (
+            <div key={member.id} className="flex items-center space-x-2.5 p-3 border bg-white rounded-xl shadow-sm animate-fadeIn">
+              <div className="w-9 h-9 rounded-full border bg-white overflow-hidden p-0.5 flex items-center justify-center shrink-0">{renderAvatar(member.photoURL, "w-full h-full object-cover rounded-full", () => onInspectUser(member.id))}</div>
+              <div className="min-w-0">
+                <h5 className="font-bold text-xs text-slate-800 font-sans truncate hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(member.id)}>{member.name}</h5>
+                <p className="text-[9px] text-slate-400 font-sans truncate">{member.email}</p>
+                <span className="inline-block bg-amber-50 text-[#C5A03A] text-[8px] font-bold px-1.5 py-0.5 rounded mt-0.5 font-sans uppercase">{member.role}</span>
+              </div>
+            </div>
+          ))}
+          {matchedMembers.length === 0 && <div className="col-span-full py-12 text-center text-slate-400 italic text-xs">"No crew member is currently assigned to this specialization."</div>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// --- ADVANCED NATIVE ADAPTABLE PLAYER ---
 function CustomVideoPlayer({ hlsUrl }) {
   const videoRef = useRef(null);
   const progressBarRef = useRef(null);
-  const secondaryVideoRef = useRef(null); 
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -682,16 +938,6 @@ function CustomVideoPlayer({ hlsUrl }) {
   const [volume, setVolume] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
-  // Hover & Scrubbing State
-  const [hoverFrameSrc, setHoverFrameSrc] = useState(null);
-  const [hoverTimeText, setHoverTimeText] = useState('');
-  const [hoverX, setHoverX] = useState(0);
-  const [showHoverPreview, setShowHoverPreview] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Zoom State
-  const [isZoomed, setIsZoomed] = useState(false);
 
   const handleLoadedMetadata = (e) => {
     setDuration(e.target.duration || 0);
@@ -720,62 +966,19 @@ function CustomVideoPlayer({ hlsUrl }) {
     if (videoRef.current) videoRef.current.volume = val;
   };
 
+  const handleSeek = (e) => {
+    const time = parseFloat(e.target.value);
+    if (videoRef.current) {
+      videoRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
   const toggleFullscreen = () => {
     const container = progressBarRef.current?.parentElement?.parentElement;
     if (!container) return;
     if (!document.fullscreenElement) { container.requestFullscreen().catch(() => {}); setIsFullscreen(true); } 
     else { document.exitFullscreen(); setIsFullscreen(false); }
-  };
-
-  const scrubProgress = (e) => {
-    if (!videoRef.current || !progressBarRef.current) return;
-    const rect = progressBarRef.current.getBoundingClientRect();
-    const percent = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-    videoRef.current.currentTime = percent * duration;
-  };
-
-  // TOUCH/DRAG HANDLERS FOR PROGRESS BAR
-  const handlePointerDown = (e) => { 
-    setIsDragging(true); 
-    scrubProgress(e); 
-    e.target.setPointerCapture(e.pointerId); 
-  };
-  
-  const handlePointerMove = (e) => {
-    if (isDragging) scrubProgress(e);
-    if (!progressBarRef.current || !duration || !secondaryVideoRef.current) return;
-    
-    const rect = progressBarRef.current.getBoundingClientRect();
-    const percent = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-    const targetTime = percent * duration;
-    
-    setHoverX(e.clientX - rect.left);
-    const mins = Math.floor(targetTime / 60); 
-    const secs = Math.floor(targetTime % 60);
-    setHoverTimeText(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
-    setShowHoverPreview(true);
-    
-    if (Math.abs(secondaryVideoRef.current.currentTime - targetTime) > 1) { 
-       secondaryVideoRef.current.currentTime = targetTime; 
-    }
-  };
-  
-  const handlePointerUp = (e) => { 
-    setIsDragging(false); 
-    setShowHoverPreview(false); 
-    e.target.releasePointerCapture(e.pointerId); 
-  };
-
-  const onSecondaryVideoSeeked = () => {
-    if (!secondaryVideoRef.current) return;
-    try {
-      const canvas = document.createElement('canvas'); 
-      canvas.width = 160; 
-      canvas.height = 90;
-      const ctx = canvas.getContext('2d'); 
-      ctx.drawImage(secondaryVideoRef.current, 0, 0, canvas.width, canvas.height);
-      setHoverFrameSrc(canvas.toDataURL('image/jpeg', 0.5));
-    } catch (err) {}
   };
 
   useEffect(() => {
@@ -785,72 +988,40 @@ function CustomVideoPlayer({ hlsUrl }) {
   }, []);
 
   return (
-    <div className="relative w-full flex flex-col justify-center bg-black overflow-hidden shadow-inner border border-slate-900 group/player select-none" style={{ minHeight: '35vh' }}>
+    <div className="relative bg-black w-full flex flex-col justify-center border border-slate-800 shadow-inner rounded-xl overflow-hidden group/player" style={{ height: isFullscreen ? '100vh' : '70vh' }}>
       
-      {/* PERFECT ADAPTIVE VIDEO CONTAINER: Vertical or horizontal fits perfectly. Double Tap to zoom. */}
-      <video 
-        ref={videoRef} 
-        src={hlsUrl} 
-        className={`w-full h-auto max-h-[85vh] transition-transform duration-300 ${isZoomed ? 'scale-125 cursor-zoom-out' : 'object-contain cursor-zoom-in'}`}
-        onLoadedMetadata={handleLoadedMetadata} 
-        onTimeUpdate={e => setCurrentTime(e.target.currentTime)} 
-        onClick={togglePlay} 
-        onDoubleClick={() => setIsZoomed(!isZoomed)}
-        playsInline 
-      />
-      
-      {/* Hidden secondary video for scrub thumbnails */}
-      <video ref={secondaryVideoRef} src={hlsUrl} className="hidden" muted preload="auto" onSeeked={onSecondaryVideoSeeked} />
+      <video ref={videoRef} src={hlsUrl} className="w-full h-full object-contain cursor-pointer" onLoadedMetadata={handleLoadedMetadata} onTimeUpdate={e => setCurrentTime(e.target.currentTime)} onClick={togglePlay} playsInline />
 
-      {/* Large Central Play Button Overlay */}
       {!isPlaying && (
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none transition">
-          <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl animate-pulse">
-            <div className="w-0 h-0 border-t-[12px] border-t-transparent border-l-[20px] border-l-[#C5A03A] border-b-[12px] border-b-transparent ml-2" />
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none transition" onClick={togglePlay}>
+          <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl animate-pulse">
+            <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-[#C5A03A] border-b-[10px] border-b-transparent ml-1.5" />
           </div>
         </div>
       )}
 
-      {/* Pop-up Video Mini Frame (Thumbnails while scrolling) */}
-      {showHoverPreview && (
-        <div className="absolute bottom-20 bg-black border border-white/20 p-1.5 rounded-lg shadow-2xl z-50 pointer-events-none transition" style={{ left: `${Math.max(10, Math.min(hoverX, window.innerWidth - 150))}px`, transform: 'translateX(-50%)' }}>
-          {hoverFrameSrc ? <img src={hoverFrameSrc} alt="Preview" className="w-32 h-18 object-cover rounded mb-1 bg-slate-950" /> : <div className="w-32 h-18 bg-slate-900 animate-pulse-slow flex items-center justify-center text-[8px] text-slate-500 rounded">Loading...</div>}
-          <span className="text-[10px] text-white font-mono font-bold block text-center leading-none">{hoverTimeText}</span>
-        </div>
-      )}
-
-      {/* PERMANENT YOUTUBE-STYLE CONTROL BAR - NEVER DISAPPEARS */}
-      <div className="bg-gradient-to-t from-black via-black/90 to-transparent pt-8 pb-3 px-3 w-full absolute bottom-0 left-0 flex flex-col gap-2 z-50">
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-12 pb-4 px-4 flex flex-col gap-3 z-50">
         
-        {/* Slidable Progress Bar (Touch Friendly) */}
-        <div 
-          ref={progressBarRef} 
-          onPointerDown={handlePointerDown} 
-          onPointerMove={handlePointerMove} 
-          onPointerUp={handlePointerUp} 
-          onPointerLeave={() => setShowHoverPreview(false)} 
-          className="h-2.5 bg-white/30 rounded-full cursor-pointer relative transition-all shadow-inner touch-none mx-2"
-        >
-          <div className="h-full bg-[#C5A03A] rounded-full relative" style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}>
-            <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#C5A03A] border-[3px] border-white shadow-md" />
-          </div>
-        </div>
+        {/* NATIVE RANGE SCRUBBER */}
+        <input 
+          type="range" min="0" max={duration || 100} value={currentTime} onChange={handleSeek} ref={progressBarRef}
+          className="w-full h-1.5 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-2 transition-all shadow-inner"
+        />
 
-        {/* Video Actions Container */}
-        <div className="flex items-center justify-between text-white text-xs font-bold font-sans overflow-x-auto custom-scrollbar pb-1 px-1">
-          <div className="flex items-center gap-3 shrink-0">
-            <button onClick={togglePlay} className="text-xl hover:text-[#C5A03A] transition hover:scale-110 active:scale-90 px-1">{isPlaying ? '⏸' : '▶'}</button>
-            <button onClick={() => skip10(-10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2.5 py-1.5 rounded-lg active:bg-white/20">⏪ 10s</button>
-            <button onClick={() => skip10(10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2.5 py-1.5 rounded-lg active:bg-white/20">⏩ 10s</button>
+        <div className="flex items-center justify-between text-white text-xs font-bold select-none font-sans overflow-x-auto custom-scrollbar pb-1">
+          <div className="flex items-center gap-4 shrink-0">
+            <button onClick={togglePlay} className="text-lg hover:text-[#C5A03A] transition hover:scale-110">{isPlaying ? '⏸' : '▶'}</button>
+            <button onClick={() => skip10(-10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2 py-1 rounded">⏪ 10s</button>
+            <button onClick={() => skip10(10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2 py-1 rounded">⏩ 10s</button>
             <span className="font-mono text-[10px] ml-1 text-slate-200">{Math.floor(currentTime/60)}:{(Math.floor(currentTime%60)<10?'0':'')}{Math.floor(currentTime%60)} / {Math.floor(duration/60)}:{(Math.floor(duration%60)<10?'0':'')}{Math.floor(duration%60)}</span>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 ml-4">
-            <div className="flex items-center bg-black/60 rounded-lg px-2 py-1 gap-1 border border-white/10 text-[9px] shadow-inner">
+          <div className="flex items-center gap-4 shrink-0 ml-4">
+            <div className="flex items-center bg-black/50 rounded-lg px-2 py-1 gap-1 border border-white/10 text-[9px] shadow-inner">
               <span className="text-slate-400 mr-1 tracking-wider hidden sm:inline">SPEED</span>
-              {[0.5, 1, 1.5, 2].map(speed => <button key={speed} onClick={() => changeSpeed(speed)} className={`px-2 py-1 rounded transition ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'hover:bg-white/20 active:bg-white/30'}`}>{speed}x</button>)}
+              {[0.5, 1, 1.5, 2].map(speed => <button key={speed} onClick={() => changeSpeed(speed)} className={`px-2 py-0.5 rounded transition ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'hover:bg-white/20'}`}>{speed}x</button>)}
             </div>
-            <button onClick={toggleFullscreen} className="text-lg hover:scale-110 transition hover:text-[#C5A03A] px-1">⛶</button>
+            <button onClick={toggleFullscreen} className="text-lg hover:scale-110 transition hover:text-[#C5A03A]">⛶</button>
           </div>
         </div>
       </div>
@@ -925,20 +1096,22 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
-        <div className="w-full bg-slate-900 shadow-md relative rounded-t-xl overflow-hidden flex justify-center border-b-4 border-[#C5A03A]">
+        <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden flex justify-center p-4">
           {embed.type === 'youtube' ? (
-             <div className="w-full relative" style={{ paddingTop: '56.25%' }}><iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-t-xl" allowFullScreen /></div>
-          ) : embed.type === 'drive' || embed.type === 'photos' ? (
-             <div className="w-full py-16 px-4 flex flex-col items-center justify-center text-center text-white space-y-4">
-                <span className="text-5xl">{embed.type === 'photos' ? '📸' : '📁'}</span>
-                <p className="text-amber-400 font-bold font-serif text-xl">Secure External Asset</p>
-                <p className="text-xs text-slate-400 max-w-sm leading-relaxed">Due to Google security protocols, this asset must be viewed directly. Click below to safely open it in a new window.</p>
-                <a href={embed.src} target="_blank" rel="noreferrer" className="bg-[#C5A03A] text-white px-8 py-3 rounded-full font-bold text-sm hover:bg-[#a68630] transition border-b-[4px] border-[#8a6e26] active:translate-y-[3px] active:border-b-0 shadow-lg">Open in {embed.type === 'photos' ? 'Google Photos' : 'Google Drive'}</a>
+             <div className="w-full relative" style={{ paddingTop: '56.25%' }}>
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl" allowFullScreen />
              </div>
           ) : embed.type === 'direct' ? (
              <CustomVideoPlayer hlsUrl={embed.src} />
+          ) : embed.type === 'photos' || embed.type === 'drive' ? (
+             <div className="w-full h-[50vh] p-4 flex flex-col items-center justify-center text-center bg-slate-900 rounded-xl shadow-inner text-white space-y-4">
+                <span className="text-5xl">📁</span>
+                <p className="text-amber-400 font-bold font-serif text-xl">External Secure Asset</p>
+                <p className="text-xs text-slate-400 max-w-sm leading-relaxed pb-2">For security reasons, external streaming is disabled for this URL type. Click below to open the asset directly in a new secure window.</p>
+                <a href={embed.src} target="_blank" rel="noreferrer" className="bg-[#C5A03A] text-white px-8 py-3 rounded-full font-bold text-sm hover:bg-[#a68630] transition border-b-[4px] border-[#8a6e26] active:translate-y-[3px] active:border-b-0 shadow-lg">Open Video</a>
+             </div>
           ) : (
-             <div className="w-full py-12 flex flex-col items-center justify-center text-center text-xs font-mono text-white"><p className="text-amber-400">🎞️ Asset Stream Link</p><a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[10px] mt-2 max-w-md px-4">{embed.src}</a></div>
+             <div className="w-full h-48 p-4 flex flex-col items-center justify-center text-center text-xs font-mono text-white bg-slate-900 rounded-xl"><p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p><a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[10px] mt-2">{embed.src}</a></div>
           )}
         </div>
 
@@ -1005,13 +1178,12 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           return (
             <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
               <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
-                {/* Dynamically loading the direct URL as an image forces the browser to pull the first frame as the thumbnail */}
                 {embed.thumbnail ? <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" /> : <div className="absolute inset-0 bg-gradient-to-tr from-slate-800 to-slate-900 group-hover:scale-105 transition-transform duration-500" />}
                 <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
                 <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
               </div>
               <div className="p-3 flex gap-3 bg-white flex-1">
-                <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-0.5">{renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover rounded-full", (e) => { e.stopPropagation(); onInspectUser(vid.uploaderUid); })}</div>
+                <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-0.5">{renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(vid.uploaderUid); })}</div>
                 <div className="flex flex-col flex-1 min-w-0">
                   <h3 className="font-sans font-bold text-slate-900 text-sm leading-tight line-clamp-2 group-hover:text-[#C5A03A] transition-colors">{vid.title}</h3>
                   <div className="text-slate-500 text-[10px] mt-1 font-sans truncate">{vid.uploaderName} • {vid.comments?.length || 0} Notes</div>
@@ -1028,7 +1200,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-6 rounded-2xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
             <div className="border-b pb-2 mb-2">
               <h4 className="font-serif font-black text-slate-800 text-base">Link External Video Asset</h4>
-              <p className="text-[10px] text-slate-500 mt-1">Due to database limits, direct gallery uploads are disabled. Please paste a link to Google Drive, Google Photos, YouTube, or a direct MP4.</p>
+              <p className="text-[10px] text-slate-500 mt-1">Due to database limits, direct gallery uploads are disabled. Please paste a link to Google Drive, Google Photos, YouTube, or an MP4.</p>
             </div>
             <div>
               <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Showcase Label</label>
@@ -1419,8 +1591,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     if (!postTitle.trim() || !file || !db || !db.app) return;
     setPublishing(true);
     try {
-      // FORCING AGGRESSIVE COMPRESSION TO ENSURE IT FITS IN FIRESTORE (< 1MB)
-      const compressedString = await compressAndConvertImage(file, 800);
+      const compressedString = await compressAndConvertImage(file, 500);
       await addDoc(collection(db, 'posts'), {
         title: postTitle.trim(), description: postText.trim(), image: compressedString,
         authorName: userProfile.name, authorAvatar: userProfile.photoURL, authorUid: userProfile.id,
@@ -1428,11 +1599,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
       });
       pushNotification(`Shared showroom post: "${postTitle}"`, userProfile.name);
       setPostTitle(''); setPostText(''); setShowCreatePostModal(false); showToast('Showcase uploaded to feed!', 'success');
-    } catch (err) { 
-      showToast('Image too large or compression failed.', 'warning'); 
-    } finally { 
-      setPublishing(false); 
-    }
+    } catch (err) { showToast('Upload failed — check size.', 'warning'); } finally { setPublishing(false); }
   };
 
   const toggleLikePost = async (post) => {
