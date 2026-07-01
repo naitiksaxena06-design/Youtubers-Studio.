@@ -1,3 +1,4 @@
+```react
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   auth, db, googleProvider,
@@ -932,7 +933,7 @@ function CategoriesViewSection({ profiles, categories, showToast }) {
   );
 }
 
-// --- VIDEO VAULT WITH NATIVE CONTROLS PLAYER (YOUTUBE INTERFACE STYLE) ---
+// --- FEATURE: YOUTUBE NATIVE INTERFACE VIDEO VAULT ---
 function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
@@ -959,7 +960,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
     reader.onload = () => {
       setGalleryBase64(reader.result);
       setUploadingState(false);
-      showToast('Gallery video ready for stream workflow!', 'success');
+      showToast('Gallery video compressed & ready to inject!', 'success');
     };
     reader.onerror = () => {
       setUploadingState(false);
@@ -997,7 +998,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
       });
       pushNotification(`Added tracked video workspace: "${videoTitle}"`, userProfile.name);
       setVideoTitle(''); setVideoUrlInput(''); setGalleryBase64(''); setShowUploadModal(false);
-      showToast('Video uploaded successfully!', 'success');
+      showToast('Video registered to feed successfully!', 'success');
     } catch (err) { showToast('Upload engine authorization failure.', 'warning'); }
   };
 
@@ -1034,84 +1035,88 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
         {videos.map((vid) => {
           const embed = resolvePlayableVideo(vid.hlsUrl);
           return (
-            <div key={vid.id} className="bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn flex flex-col">
+            <div key={vid.id} className="bg-white border border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn flex flex-col">
               
-              {/* Card Header Tag */}
-              <div className="p-3 flex items-center justify-between border-b border-slate-50 bg-slate-50/40">
-                <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shrink-0">
-                    {renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg)}
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-black text-slate-800 truncate">{vid.uploaderName}</h4>
-                    <span className="text-[8px] text-slate-400 font-mono block">{new Date(vid.createdAt).toLocaleDateString()} • {vid.size}</span>
-                  </div>
-                </div>
-                {(isAdmin || vid.uploaderUid === userProfile?.id) && (
-                  <button onClick={(e) => removeVideo(vid.id, e)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2 py-1 rounded-md hover:bg-rose-100 transition whitespace-nowrap">
-                    🗑️ Delete Item
-                  </button>
-                )}
-              </div>
-
-              {/* YouTube Native Controls Interface Workspace */}
-              <div className="w-full bg-black relative aspect-video flex items-center justify-center overflow-hidden">
+              {/* TRUE YOUTUBE PLAYER LAYOUT: Zero Padding, 16:9 Standard Hack for 100% Touch Support */}
+              <div className="w-full bg-black relative pt-[56.25%] overflow-hidden shadow-inner">
                 {embed.type === 'youtube' || embed.type === 'drive' ? (
                   <iframe 
                     src={embed.src} 
-                    className="w-full h-full border-none absolute inset-0 z-10" 
+                    className="absolute inset-0 w-full h-full border-none" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
                     allowFullScreen 
                   />
                 ) : embed.type === 'direct' ? (
                   <video 
                     src={embed.src} 
-                    className="w-full h-full object-contain absolute inset-0 z-10" 
+                    className="absolute inset-0 w-full h-full" 
                     controls 
+                    controlsList="nodownload"
                     playsInline
                     preload="metadata"
+                    style={{ objectFit: 'contain' }}
                   />
                 ) : (
-                  <div className="p-6 text-center text-xs font-mono text-white space-y-2 z-10">
+                  <div className="absolute inset-0 w-full h-full p-6 flex flex-col items-center justify-center text-center text-xs font-mono text-white space-y-2">
                     <p className="text-amber-400">🎞️ Asset Stream Blueprint Link</p>
                     <a href={embed.src} target="_blank" rel="noreferrer" className="underline break-all block text-blue-300 text-[11px]">{embed.src}</a>
                   </div>
                 )}
               </div>
 
-              {/* Action Information Layer */}
-              <div className="p-4 border-t border-slate-50 space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <h5 className="font-serif font-bold text-slate-800 text-sm">{vid.title}</h5>
-                  <button onClick={() => toggleComments(vid.id)} className="text-[#C5A03A] font-bold hover:underline">
-                    💬 Feedback Notes ({vid.comments?.length || 0})
-                  </button>
+              {/* YouTube Style Metadata Footer */}
+              <div className="p-4 flex gap-3 bg-white">
+                <div className="w-10 h-10 rounded-full overflow-hidden border p-0.5 bg-slate-50 shrink-0 mt-0.5">
+                  {renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg)}
                 </div>
-
-                {expandedComments[vid.id] && (
-                  <div className="pt-2 mt-2 border-t border-[#EADFC9]/20 space-y-2 animate-fadeIn">
-                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1 custom-scrollbar">
-                      {(vid.comments || []).map((comment) => (
-                        <div key={comment.id} className="text-[11px] p-2 bg-slate-50 rounded-xl border flex justify-between items-start">
-                          <div className="min-w-0 pr-2">
-                            <span className="font-bold text-slate-800 mr-1">{comment.authorName}:</span>
-                            <span className="text-slate-600 break-words">{comment.text}</span>
-                          </div>
-                          {(isAdmin || comment.authorName === userProfile?.name) && (
-                            <button onClick={() => deleteVideoComment(vid.id, vid.comments, comment.id)} className="text-rose-500 hover:text-rose-700 text-[8px] border rounded bg-white px-1">✕</button>
-                          )}
-                        </div>
-                      ))}
-                      {(!vid.comments || vid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic">No timeline markup feedback posted.</p>}
-                    </div>
-
-                    <form onSubmit={(e) => handlePostVideoComment(e, vid.id)} className="flex gap-2 pt-1.5">
-                      <input type="text" name="commentInput" placeholder="Add showroom feedback Note..." className="flex-1 px-3 py-1 bg-slate-50 border rounded-lg text-xs focus:outline-none" required />
-                      <button type="submit" className="bg-[#C5A03A] text-white text-[10px] px-2.5 rounded-lg font-bold">Post</button>
-                    </form>
+                
+                <div className="flex flex-col flex-1 min-w-0">
+                  <h3 className="font-sans font-bold text-slate-900 text-sm leading-tight line-clamp-2">{vid.title}</h3>
+                  <div className="text-slate-500 text-[11px] mt-1 font-sans">
+                    {vid.uploaderName} • {new Date(vid.createdAt).toLocaleDateString()}
                   </div>
-                )}
+                  <div className="text-slate-400 text-[10px] mt-0.5 font-sans">
+                    {vid.size}
+                  </div>
+
+                  {/* Actions Row */}
+                  <div className="flex items-center gap-3 mt-3">
+                    <button onClick={() => toggleComments(vid.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 transition">
+                      💬 {vid.comments?.length || 0} Feedback Notes
+                    </button>
+                    {(isAdmin || vid.uploaderUid === userProfile?.id) && (
+                      <button onClick={(e) => removeVideo(vid.id, e)} className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-full text-xs font-bold transition">
+                        🗑️ Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
+
+              {/* Expandable Comments Segment */}
+              {expandedComments[vid.id] && (
+                <div className="px-4 pb-4 pt-2 bg-slate-50/50 border-t border-slate-100 animate-fadeIn">
+                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1 custom-scrollbar mb-2">
+                    {(vid.comments || []).map((comment) => (
+                      <div key={comment.id} className="text-[11px] p-2 bg-white rounded-xl border flex justify-between items-start">
+                        <div className="min-w-0 pr-2">
+                          <span className="font-bold text-slate-800 mr-1">{comment.authorName}:</span>
+                          <span className="text-slate-600 break-words">{comment.text}</span>
+                        </div>
+                        {(isAdmin || comment.authorName === userProfile?.name) && (
+                          <button onClick={() => deleteVideoComment(vid.id, vid.comments, comment.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold px-1.5 shrink-0">✕</button>
+                        )}
+                      </div>
+                    ))}
+                    {(!vid.comments || vid.comments.length === 0) && <p className="text-[11px] text-slate-400 italic">No feedback posted yet.</p>}
+                  </div>
+
+                  <form onSubmit={(e) => handlePostVideoComment(e, vid.id)} className="flex gap-2">
+                    <input type="text" name="commentInput" placeholder="Add a feedback note..." className="flex-1 px-3 py-1.5 bg-white border border-[#EADFC9] rounded-lg text-xs focus:outline-none" required />
+                    <button type="submit" className="bg-slate-800 hover:bg-slate-700 text-white text-[10px] px-3 py-1.5 rounded-lg font-bold transition">Post</button>
+                  </form>
+                </div>
+              )}
 
             </div>
           );
@@ -1119,6 +1124,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification 
         {videos.length === 0 && <div className="text-center text-slate-400 py-16 italic text-xs">The Video Vault showcase is currently empty.</div>}
       </div>
 
+      {/* Upload Modal stays the same */}
       {showUploadModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={startUpload} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg">
@@ -1765,7 +1771,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                         </div>
                       )}
                     </td>
-                    <td className="py-2 uppercase font-mono text-[9px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
+                    <td className="py-2 uppercase font-mono text-[9px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'textemerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
                     <td className="py-2 text-right">
                       {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
                         <div className="flex items-center justify-end gap-1 flex-wrap">
