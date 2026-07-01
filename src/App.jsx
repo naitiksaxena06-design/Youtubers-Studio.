@@ -148,7 +148,7 @@ const resolvePlayableVideo = (url) => {
   const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
-    return { type: 'iframe-stream', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: null };
+    return { type: 'iframe-stream', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w640` };
   }
 
   const photosRegex = /photos\.app\.goo\.gl|photos\.google\.com/i;
