@@ -1195,8 +1195,32 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
-        {/* Video Canvas Box Node with Aspect-Ratio Adaptability Framework */}
-        <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden flex justify-center p-4">
+                {/* NEW: Dynamic Context Control Bar for External Links */}
+        {embed.type === 'iframe-stream' && (
+          <div className="px-4 py-2 bg-amber-500/10 border-b border-[#EADFC9]/60 flex items-center justify-between text-xs gap-2">
+            <span className="text-amber-800 font-semibold font-sans">🔄 External Stream Grid Layout Optimization</span>
+            <button 
+              type="button"
+              onClick={() => {
+                const wrapper = document.getElementById('iframe-aspect-container');
+                if (wrapper) {
+                  if (wrapper.classList.contains('aspect-video')) {
+                    wrapper.classList.remove('aspect-video', 'max-h-[75vh]');
+                    wrapper.classList.add('aspect-[9/16]', 'max-w-sm', 'mx-auto');
+                  } else {
+                    wrapper.classList.remove('aspect-[9/16]', 'max-w-sm', 'mx-auto');
+                    wrapper.classList.add('aspect-video', 'max-h-[75vh]');
+                  }
+                }
+              }}
+              className="bg-[#C5A03A] text-white font-bold px-3 py-1 rounded-md text-[10px] uppercase tracking-wide transition shadow active:translate-y-0.5"
+            >
+              📐 Switch Layout (Vertical / Widescreen)
+            </button>
+          </div>
+        )}
+
+        <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden p-2 sm:p-4">
           {embed.type === 'youtube' ? (
              <div className="w-full relative aspect-video max-h-[75vh]">
                <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
@@ -1204,8 +1228,8 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           ) : embed.type === 'direct' ? (
              <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
           ) : embed.type === 'iframe-stream' ? (
-             <div className="w-full relative aspect-video max-h-[75vh]">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="autoplay; encrypted-media" allowFullScreen />
+             <div id="iframe-aspect-container" className="w-full relative aspect-video max-h-[75vh] transition-all duration-300">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner bg-black" allow="autoplay; encrypted-media" allowFullScreen />
              </div>
           ) : (
              <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
