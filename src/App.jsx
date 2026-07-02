@@ -1189,7 +1189,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     showToast('Comment deleted.', 'info');
   };
 
-  if (activeVideo) {
+    if (activeVideo) {
     const embed = resolvePlayableVideo(activeVideo.hlsUrl);
     const timeLeft = getExpiry7(activeVideo.createdAt);
     
@@ -1200,51 +1200,15 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
-                {/* NEW: Dynamic Context Control Bar for External Links */}
-        {embed.type === 'iframe-stream' && (
-          <div className="px-4 py-2 bg-amber-500/10 border-b border-[#EADFC9]/60 flex items-center justify-between text-xs gap-2">
-            <span className="text-amber-800 font-semibold font-sans">🔄 External Stream Grid Layout Optimization</span>
-            <button 
-              type="button"
-              onClick={() => {
-                const wrapper = document.getElementById('iframe-aspect-container');
-                if (wrapper) {
-                  if (wrapper.classList.contains('aspect-video')) {
-                    wrapper.classList.remove('aspect-video', 'max-h-[75vh]');
-                    wrapper.classList.add('aspect-[9/16]', 'max-w-sm', 'mx-auto');
-                  } else {
-                    wrapper.classList.remove('aspect-[9/16]', 'max-w-sm', 'mx-auto');
-                    wrapper.classList.add('aspect-video', 'max-h-[75vh]');
-                  }
-                }
-              }}
-              className="bg-[#C5A03A] text-white font-bold px-3 py-1 rounded-md text-[10px] uppercase tracking-wide transition shadow active:translate-y-0.5"
-            >
-              📐 Switch Layout (Vertical / Widescreen)
-            </button>
-          </div>
-        )}
-
-                <div className="w-full bg-slate-950 relative overflow-hidden p-0 flex items-center justify-center min-h-[40vh] max-h-[75vh] rounded-t-xl">
+        <div className="w-full bg-slate-950 relative overflow-hidden p-0 flex items-center justify-center min-h-[40vh] max-h-[75vh] rounded-t-xl">
           {embed.type === 'youtube' ? (
              <div className="w-full relative aspect-video">
                <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
              </div>
           ) : (
-             /* Clean, secure, auto-reframing layer wrapper node */
-             <div className="w-full max-w-sm sm:max-w-4xl transition-all duration-300 mx-auto">
-               <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
+             <div className="w-full max-w-sm sm:max-w-4xl transition-all duration-300 mx-auto p-2">
+               <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
              </div>
-          )}
-        </div>
-          ) : embed.type === 'direct' ? (
-             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
-                    ) : embed.type === 'iframe-stream' ? (
-             <div className="w-full max-w-sm sm:max-w-4xl aspect-[9/16] sm:aspect-video relative max-h-[75vh] transition-all duration-300 mx-auto bg-black rounded-xl overflow-hidden shadow-2xl">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
-             </div>
-          ) : (
-             <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
           )}
         </div>
 
@@ -1271,7 +1235,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <h3 className="font-black text-sm text-slate-800 mb-4 uppercase tracking-wider">Feedback Notes ({activeVideo.comments?.length || 0})</h3>
           <form onSubmit={(e) => handlePostVideoComment(e, activeVideo.id)} className="flex gap-2 mb-6">
             <div className="w-9 h-9 rounded-full overflow-hidden border p-0.5 bg-white shrink-0 hidden sm:block shadow-sm">{renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}</div>
-            <input type="text" name="commentInput" placeholder="Add a feedback note..." className="flex-1 px-4 py-2 bg-white border border border-[#EADFC9] shadow-inner rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required />
+            <input type="text" name="commentInput" placeholder="Add a feedback note..." className="flex-1 px-4 py-2 bg-white border border-[#EADFC9] shadow-inner rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required />
             <button type="submit" className="bg-[#C5A03A] hover:bg-[#b08d32] text-white text-xs px-5 rounded-xl font-bold transition shadow-md border-b-[3px] border-[#9c7d2c] active:border-b-0 active:translate-y-[2px]">Post</button>
           </form>
 
@@ -1296,7 +1260,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
       </section>
     );
   }
-
+  
   return (
     <section className="py-2 space-y-6 font-sans animate-fadeIn px-4 sm:px-0">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-sm gap-4">
