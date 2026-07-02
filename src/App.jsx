@@ -383,7 +383,32 @@ export default function App() {
     if (!userProfile) return false;
     const roleLower = (userProfile.role || '').toLowerCase();
     return roleLower === 'roasting waiter' || roleLower === 'waiter';
+ 
   }, [userProfile]);
+  useEffect(() => {
+    const pruneOldNotifications = async () => {
+      try {
+        if (!db || !db.app || !isAdmin) return;
+        
+        // Calculate the timestamp threshold exactly 7 days ago
+        const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        
+        const notificationsRef = fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications');
+        const oldAlertsQuery = query(notificationsRef, where('timestamp', '<', oneWeekAgo));
+        const snapshot = await getDocs(oldAlertsQuery);
+        
+        // Clear all matches in parallel batches
+        const batchPromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
+        await Promise.all(batchPromises);
+        console.log(`Database storage optimized: ${snapshot.docs.length} old logs cleared.`);
+      } catch (err) {
+        console.error("Auto-cleanup tracking error:", err);
+      }
+    };
+
+    // Trigger maintenance check routine on system initialization pass
+    pruneOldNotifications();
+  }, [db, isAdmin]);
 
   const isProfileIncomplete = useMemo(() => {
     if (!authUser || !userProfile) return false;
