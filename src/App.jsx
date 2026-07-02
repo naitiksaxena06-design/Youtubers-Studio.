@@ -244,22 +244,44 @@ function NotificationBell({ notifications, userProfile, isAdmin, onNavigate, onS
       </button>
 
       {open && (
-        <div className="fixed top-20 left-4 right-4 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:w-80 bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg z-[9999] overflow-hidden max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0">
-            <span className="font-serif font-bold text-sm text-slate-800">Notifications</span>
-            <button onClick={() => setOpen(false)} className="text-slate-400 text-xs font-bold p-1 hover:text-slate-600">✕</button>
+        <>
+          {/* Transparent full-screen backdrop layer: captures outside clicks to close the panel */}
+          <div 
+            className="fixed inset-0 z-40 bg-transparent" 
+            onClick={() => setOpen(false)} 
+          />
+          
+          {/* Upgraded Scrollable Panel Box */}
+          <div 
+            className="absolute right-0 mt-2 w-85 max-h-[380px] overflow-y-auto bg-white rounded-2xl border border-slate-100 shadow-xl z-50 p-2 scroll-smooth"
+            onClick={(e) => {
+              // STOPS click events from bubbling up so scrolling or touching items doesn't close it
+              e.stopPropagation();
+            }}
+          >
+            <div className="p-3 border-b border-slate-100 flex justify-between items-center">
+              <span className="font-serif font-bold text-slate-800 text-sm">Updates Log</span>
+              <button onClick={() => setOpen(false)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            
+            <div className="space-y-1 mt-1">
+              {visible.length === 0 ? (
+                <div className="text-center py-6 text-xs text-slate-400 italic">No recent alerts</div>
+              ) : (
+                visible.slice(0, 30).map((n) => (
+                  <div key={n.id} className="p-2.5 hover:bg-slate-50 rounded-xl text-xs text-slate-700 border border-transparent hover:border-slate-100 transition">
+                    <p className="leading-relaxed">{n.message}</p>
+                    <span className="text-[9px] text-slate-400 font-mono mt-1 block">
+                      {n.timestamp ? new Date(n.timestamp).toLocaleDateString() : ''}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-          <div className="overflow-y-auto custom-scrollbar flex-1 max-h-[300px]">
-            {visible.slice(0, 30).map(n => (
-              <div key={n.id} onClick={() => handleNotificationClick(n)} className={`p-3 border-b border-slate-50 text-[11px] cursor-pointer hover:bg-[#C5A03A]/5 transition ${n.timestamp > lastSeen ? 'bg-amber-50/40' : ''}`}>
-                <span className="font-bold text-slate-800">{n.actor}: </span><span className="text-slate-600">{n.message}</span>
-                <p className="text-[9px] text-slate-400 mt-0.5 font-mono">{new Date(n.timestamp).toLocaleString()}</p>
-              </div>
-            ))}
-            {visible.length === 0 && <p className="text-xs text-slate-400 italic p-4 text-center">No notifications yet.</p>}
-          </div>
-        </div>
+        </>
       )}
+      
     </div>
   );
 }
