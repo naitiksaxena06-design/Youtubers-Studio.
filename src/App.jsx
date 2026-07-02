@@ -942,24 +942,41 @@ function CategoriesViewSection({ profiles, categories, showToast, onInspectUser 
   );
 }
 
-// --- ADVANCED ADVANCED YOUTUBE-LIKE ADAPTABLE PLAYER (Aspect Ratio Canvas Adaptability + Multi-Zoom + Frame Scrubbing) ---
 function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   const videoRef = useRef(null);
   const progressBarRef = useRef(null);
   const playerWrapperRef = useRef(null);
+  const clickTimeoutRef = useRef(null);
+  const controlsTimeoutRef = useRef(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [volume, setVolume] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [zoomScale, setZoomScale] = useState(1); // YouTube Zooming state feature
+  const [showControls, setShowControls] = useState(true);
+  const [videoRatio, setVideoRatio] = useState(16 / 9);
+  const [zoomScale, setZoomScale] = useState(1); 
   const [hoverTime, setHoverTime] = useState(null);
   const [hoverX, setHoverX] = useState(0);
 
   const handleLoadedMetadata = (e) => {
     setDuration(e.target.duration || 0);
+    if (e.target.videoWidth && e.target.videoHeight) {
+      setVideoRatio(e.target.videoWidth / e.target.videoHeight);
+    }
+  };
+
+  const hideControlsTimeout = useCallback(() => {
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    controlsTimeoutRef.current = setTimeout(() => {
+      setIsPlaying((p) => { if (p) setShowControls(false); return p; });
+    }, 1500);
+  }, []);
+
+  const awakeControlsOverlay = () => {
+    setShowControls(true);
+    if (isPlaying) hideControlsTimeout();
   };
 
   const togglePlay = () => {
@@ -971,12 +988,14 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   const skip10 = (secs) => {
     if (!videoRef.current) return;
     videoRef.current.currentTime = Math.min(Math.max(videoRef.current.currentTime + secs, 0), duration);
+    awakeControlsOverlay();
   };
 
   const changeSpeed = (speed) => {
     if (!videoRef.current) return;
     videoRef.current.playbackRate = speed;
     setPlaybackSpeed(speed);
+    awakeControlsOverlay();
   };
 
   const handleSeek = (e) => {
@@ -985,60 +1004,43 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
       videoRef.current.currentTime = time;
       setCurrentTime(time);
     }
+    awakeControlsOverlay();
   };
 
-  const handleProgressBarMouseMove = (e) => {
+  const handleTimelinePosition = (clientX) => {
     if (!progressBarRef.current || duration === 0) return;
     const rect = progressBarRef.current.getBoundingClientRect();
-    const posX = e.clientX - rect.left;
-    const computedPercentage = Math.min(Math.max(posX / rect.width, 0), 1);
-    setHoverTime(computedPercentage * duration);
-    setHoverX(e.clientX - rect.left);
+    const posX = clientX - rect.left;
+    const pct = Math.min(Math.max(posX / rect.width, 0), 1);
+    setHoverTime(pct * duration);
+    setHoverX(clientX - rect.left);
   };
 
-  const handleProgressBarMouseLeave = () => {
-    setHoverTime(null);
-  };
-
-  // Double tap layout action implementation (Left/Right skip region map)
-  const handlePlayerVideoTap = (e) => {
-    if (e.detail === 2) {
+  const handleVideoSurfaceClickTracker = (e) => {
+    if (e.detail === 1) {
+      clickTimeoutRef.current = setTimeout(() => {
+        setShowControls((prev) => {
+          const ns = !prev;
+          if (ns && isPlaying) hideControlsTimeout();
+          return ns;
+        });
+      }, 220);
+    } else if (e.detail === 2) {
+      clearTimeout(clickTimeoutRef.current);
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      if (clickX < rect.width / 2) {
-        skip10(-10);
-      } else {
-        skip10(10);
-      }
-    } else if (e.detail === 1) {
-      togglePlay();
+      if (clickX < rect.width / 2) skip10(-10); else skip10(10);
     }
   };
 
-  const toggleFullscreen = () => {
-    if (!playerWrapperRef.current) return;
-    if (!document.fullscreenElement) { 
-      playerWrapperRef.current.requestFullscreen().catch(() => {}); 
-      setIsFullscreen(true); 
-    } else { 
-      document.exitFullscreen(); 
-      setIsFullscreen(false); 
-    }
-  };
-
-  const handleCycleZoom = () => {
-    setZoomScale(current => {
-      if (current === 1) return 1.35;
-      if (current === 1.35) return 1.75;
+  const cycleZoomScale = () => {
+    setZoomScale((z) => {
+      if (z === 1) return 1.25;
+      if (z === 1.25) return 1.50;
       return 1;
     });
+    awakeControlsOverlay();
   };
-
-  useEffect(() => {
-    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
-  }, []);
 
   const formatTime = (timeSecs) => {
     const min = Math.floor(timeSecs / 60);
@@ -1049,84 +1051,76 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   return (
     <div 
       ref={playerWrapperRef} 
-      className={`relative bg-black w-full border border-slate-800 shadow-skeuo-lg overflow-hidden group/player transition-all duration-300 aspect-video h-auto max-h-[82vh] rounded-2xl`}
+      onMouseMove={awakeControlsOverlay}
+      onTouchStart={awakeControlsOverlay}
+      style={{ aspectRatio: videoRatio }}
+      className="relative bg-black w-full max-w-4xl mx-auto shadow-skeuo-lg overflow-hidden group/player transition-all duration-300 h-auto rounded-xl max-h-[75vh]"
     >
-      {/* Video Box Canvas with Adaptive Dynamic Scaling Framework */}
       <div className="w-full h-full flex items-center justify-center overflow-hidden">
         <video 
           ref={videoRef} 
           src={hlsUrl} 
-          style={{ transform: `scale(${zoomScale})`, transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}
+          style={{ transform: `scale(${zoomScale})`, transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
           className="w-full h-full object-contain cursor-pointer" 
           onLoadedMetadata={handleLoadedMetadata} 
           onTimeUpdate={e => setCurrentTime(e.target.currentTime)} 
-          onClick={handlePlayerVideoTap} 
+          onClick={handleVideoSurfaceClickTracker} 
           playsInline 
         />
       </div>
 
-      {!isPlaying && (
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none transition">
-          <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl animate-pulse">
-            <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-[#C5A03A] border-b-[10px] border-b-transparent ml-1.5" />
-          </div>
+      <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t from-black/80 via-black/10 to-black/40 transition-opacity duration-300 flex flex-col justify-between p-2.5 sm:p-4 z-40 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="w-full flex items-center justify-between text-white drop-shadow-md select-none font-sans text-[10px] sm:text-xs">
+          <span className="font-serif font-bold tracking-wide truncate max-w-[60%]">{videoTitle || 'Playing Asset'}</span>
+          <span className="font-mono text-slate-300 text-[9px] bg-black/40 px-1.5 py-0.5 rounded">{formatTime(currentTime)} / {formatTime(duration)}</span>
         </div>
-      )}
 
-      {/* Controller GUI Overlay Menu */}
-      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent pt-16 pb-4 px-4 flex flex-col gap-3 z-50 opacity-0 group-hover/player:opacity-100 transition-opacity duration-200">
-        
-        {/* RANGE SCRUBBER TIMELINE CONTROL PANEL + HOVER FRAME TIMELINE PREVIEW */}
-        <div className="relative w-full group/scrub">
-          {hoverTime !== null && (
-            <div 
-              style={{ left: `${hoverX}px` }} 
-              className="absolute bottom-6 transform -translate-x-1/2 bg-slate-900/95 border border-amber-500/40 text-white rounded-lg p-2 flex flex-col items-center gap-1 shadow-skeuo-lg font-sans pointer-events-none z-50 w-24 text-center animate-fadeIn"
-            >
-              <div className="w-full aspect-video bg-amber-500/10 border border-amber-500/20 rounded flex items-center justify-center text-[8px] font-mono font-bold text-amber-500 select-none uppercase truncate px-1">
-                {videoTitle ? videoTitle.substring(0, 10) : 'Preview Frame'}
+        <div className="w-full flex items-center justify-center">
+          <button onClick={togglePlay} className="pointer-events-auto w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-black/50 hover:bg-black/70 border border-white/20 flex items-center justify-center text-white text-base sm:text-xl backdrop-blur-xs transition transform active:scale-90 shadow-2xl">
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+        </div>
+
+        <div className="w-full flex flex-col gap-2 pointer-events-auto bg-black/70 backdrop-blur-xs p-2 rounded-xl border border-white/5">
+          <div className="relative w-full group/scrub h-4 flex items-center">
+            {hoverTime !== null && (
+              <div 
+                style={{ left: `${Math.min(Math.max(hoverX, 40), window.innerWidth - 40)}px` }} 
+                className="absolute bottom-5 transform -translate-x-1/2 bg-slate-900 border border-[#C5A03A]/50 text-white rounded-md p-1 flex flex-col items-center shadow-lg pointer-events-none z-50 w-16 text-center"
+              >
+                <span className="font-mono text-[9px] text-amber-400 font-bold">{formatTime(hoverTime)}</span>
               </div>
-              <span className="font-mono text-[10px] text-white font-bold tracking-tight">{formatTime(hoverTime)}</span>
-            </div>
-          )}
-          <input 
-            type="range" 
-            min="0" 
-            max={duration || 100} 
-            value={currentTime} 
-            onChange={handleSeek} 
-            onMouseMove={handleProgressBarMouseMove}
-            onMouseLeave={handleProgressBarMouseLeave}
-            ref={progressBarRef}
-            className="w-full h-1.5 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-2.5 transition-all shadow-inner"
-          />
-        </div>
-
-        <div className="flex items-center justify-between text-white text-xs font-bold select-none font-sans overflow-x-auto custom-scrollbar pb-1">
-          <div className="flex items-center gap-4 shrink-0">
-            <button onClick={togglePlay} className="text-lg hover:text-[#C5A03A] transition hover:scale-110">{isPlaying ? '⏸' : '▶'}</button>
-            <button onClick={() => skip10(-10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2.5 py-1 rounded-md transition border border-white/5">⏪ 10s</button>
-            <button onClick={() => skip10(10)} className="hover:text-[#C5A03A] text-[10px] font-mono bg-white/10 px-2.5 py-1 rounded-md transition border border-white/5">⏩ 10s</button>
-            <span className="font-mono text-[11px] ml-1 text-slate-200">{formatTime(currentTime)} / {formatTime(duration)}</span>
+            )}
+            <input 
+              type="range" 
+              min="0" 
+              max={duration || 100} 
+              value={currentTime} 
+              onChange={handleSeek} 
+              onMouseMove={(e) => handleTimelinePosition(e.clientX)}
+              onTouchMove={(e) => e.touches[0] && handleTimelinePosition(e.touches[0].clientX)}
+              onMouseLeave={() => setHoverTime(null)}
+              onTouchEnd={() => setHoverTime(null)}
+              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-1.5 transition-all"
+            />
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 ml-4">
-            {/* Multi-Level Screen Zoom Trigger Overlay Button */}
-            <button 
-              onClick={handleCycleZoom} 
-              className="text-[10px] font-mono tracking-tight font-bold bg-[#C5A03A]/20 border border-[#C5A03A]/60 px-2.5 py-1 rounded-lg text-amber-400 hover:bg-[#C5A03A]/40 transition"
-              title="YouTube-like Canvas Crop Scale Zoom"
-            >
-              🔍 ZOOM: {zoomScale}x
-            </button>
-            
-            <div className="flex items-center bg-black/50 rounded-lg px-2 py-1 gap-1 border border-white/10 text-[9px] shadow-inner">
-              <span className="text-slate-400 mr-1 tracking-wider hidden sm:inline font-mono">SPEED</span>
-              {[0.5, 1, 1.5, 2].map(speed => (
-                <button key={speed} onClick={() => changeSpeed(speed)} className={`px-2 py-0.5 rounded transition font-mono ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'hover:bg-white/20'}`}>{speed}x</button>
-              ))}
+          <div className="flex items-center justify-between text-white text-[10px] sm:text-xs font-bold font-sans">
+            <div className="flex items-center gap-2">
+              <button onClick={() => skip10(-10)} className="active:text-amber-400 text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded">⏪ 10s</button>
+              <button onClick={() => skip10(10)} className="active:text-amber-400 text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded">⏩ 10s</button>
             </div>
-            <button onClick={toggleFullscreen} className="text-lg hover:scale-110 transition hover:text-[#C5A03A]">⛶</button>
+
+            <div className="flex items-center gap-2">
+              <button onClick={cycleZoomScale} className="text-[9px] font-mono bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition">
+                🔍 {zoomScale === 1 ? 'Fit' : `${zoomScale}x`}
+              </button>
+              <div className="flex items-center bg-black/40 rounded px-1.5 py-0.5 gap-1 border border-white/5 text-[8px]">
+                {[1, 1.5, 2].map(speed => (
+                  <button key={speed} onClick={() => changeSpeed(speed)} className={`px-1 rounded font-mono ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'text-slate-300'}`}>{speed}x</button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1276,25 +1270,33 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {videos.map((vid) => {
-          const embed = resolvePlayableVideo(vid.hlsUrl);
-          const timeLeft = getExpiry7(vid.createdAt);
-          return (
-            <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
-              
-              {/* Premium Video Production Grid Card Fallback Template */}
-              <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
-                {embed.thumbnail ? (
-                  <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
-                ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-[#1e293b] to-zinc-900 group-hover:scale-105 transition-transform duration-500 flex flex-col items-center justify-center p-4 text-center select-none">
-                    <div className="text-3xl mb-1.5 transform group-hover:rotate-12 transition-transform duration-300">🎬</div>
-                    <span className="text-[11px] font-serif font-black tracking-wider text-amber-400 uppercase line-clamp-1">{vid.title}</span>
-                    <span className="text-[8px] font-mono font-bold text-slate-400 tracking-widest uppercase mt-1">Production Template Blueprint</span>
-                  </div>
-                )}
-                <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
-                <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
-              </div>
+  const embed = resolvePlayableVideo(vid.hlsUrl);
+  const timeLeft = getExpiry7(vid.createdAt);
+  
+  // Create an automated dynamic thumbnail background preview matching asset attributes
+  const templateBgStyle = vid.title.toLowerCase().includes('edit') 
+    ? 'from-blue-900 via-indigo-950 to-slate-950' 
+    : 'from-amber-900 via-zinc-900 to-stone-950';
+
+  return (
+    <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
+      <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
+        {embed.thumbnail ? (
+          <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
+        ) : (
+          /* Enforce structural automated visible template block layout layout */
+          <div className={`absolute inset-0 bg-gradient-to-br ${templateBgStyle} group-hover:scale-105 transition-transform duration-500 flex flex-col items-center justify-center p-4 text-center select-none border-b border-white/5`}>
+            <span className="text-3xl mb-1.5 filter drop-shadow animate-pulse-slow">🎞️</span>
+            <span className="text-xs font-serif font-black tracking-wide text-amber-400 uppercase line-clamp-2 px-2 max-w-full drop-shadow-md">{vid.title}</span>
+            <div className="mt-2 flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-full border border-white/10">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+              <span className="text-[8px] font-mono tracking-widest text-slate-300 font-bold uppercase">Ready to Stream</span>
+            </div>
+          </div>
+        )}
+        <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
+        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
+      </div>
 
               <div className="p-3 flex gap-3 bg-white flex-1">
                 <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-0.5">{renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(vid.uploaderUid); })}</div>
