@@ -1775,13 +1775,20 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     if (expandedPost?.id === post.id) { setExpandedPost({ ...expandedPost, likedBy: newLikedBy, likes: newLikedBy.length }); }
   };
 
-  const handleAddPostComment = async (e, postId) => {
+const handleAddPostComment = async (e, postId) => {
     e.preventDefault();
     if (!db || !db.app) return;
     const commentVal = e.target.commentInputText.value.trim();
     if (!commentVal) return;
     const newComment = { id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal, timestamp: Date.now() };
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion(newComment) });
+       await addDoc(fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { 
+      message: `${userProfile?.name || 'Someone'} commented on Instagram draft post! 📸`, 
+      actor: userProfile?.name || 'System', 
+      timestamp: Date.now(), 
+      audience: "admin" 
+    });
+
     e.target.commentInputText.value = ''; showToast('Comment published!', 'success');
     if (expandedPost?.id === postId) { setExpandedPost({ ...expandedPost, comments: [...(expandedPost.comments || []), newComment] }); }
   };
