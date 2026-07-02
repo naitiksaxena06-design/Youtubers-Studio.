@@ -145,10 +145,14 @@ const resolvePlayableVideo = (url) => {
     return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`, thumbnail: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` };
   }
   
-  const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
+    const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
-    return { type: 'iframe-stream', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: null };
+    return { 
+      type: 'iframe-stream', 
+      src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, 
+      thumbnail: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w600` 
+    };
   }
 
   const photosRegex = /photos\.app\.goo\.gl|photos\.google\.com/i;
@@ -475,6 +479,9 @@ export default function App() {
         photoURL: user.photoURL || PRESET_AVATARS[0].svg, createdAt: Date.now(), bio: '', isProfileComplete: false
       };
       await setDoc(ref, newProfile);
+      
+      await addDoc(fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { message: `New crew member applied to roster: "${newProfile.name}"`, actor: "System", timestamp: Date.now(), audience: "admin" });
+    
       return newProfile;
     } else if (isOwner && snap.data().role !== 'owner') { await updateDoc(ref, { role: 'owner', status: 'approved' }); }
     return snap.data();
@@ -1227,9 +1234,9 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
              </div>
           ) : embed.type === 'direct' ? (
              <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
-          ) : embed.type === 'iframe-stream' ? (
-             <div id="iframe-aspect-container" className="w-full relative aspect-video max-h-[75vh] transition-all duration-300">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner bg-black" allow="autoplay; encrypted-media" allowFullScreen />
+                    ) : embed.type === 'iframe-stream' ? (
+             <div className="w-full max-w-sm sm:max-w-4xl aspect-[9/16] sm:aspect-video relative max-h-[75vh] transition-all duration-300 mx-auto bg-black rounded-xl overflow-hidden shadow-2xl">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
              </div>
           ) : (
              <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
