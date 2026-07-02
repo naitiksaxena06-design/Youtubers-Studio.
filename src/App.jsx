@@ -1061,13 +1061,13 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
       onMouseMove={awakeControlsOverlay}
       onTouchStart={awakeControlsOverlay}
       style={{ aspectRatio: videoRatio }}
-      className="relative bg-black w-full max-w-4xl mx-auto shadow-skeuo-md overflow-hidden group/player transition-all duration-300 h-auto rounded-xl max-h-[75vh]"
+      className="relative bg-black w-full max-w-4xl mx-auto shadow-skeuo-lg overflow-hidden group/player transition-all duration-300 h-auto rounded-xl max-h-[75vh]"
     >
       <div className="w-full h-full flex items-center justify-center overflow-hidden">
         <video 
           ref={videoRef} 
           src={hlsUrl} 
-          style={{ transform: `scale(${zoomScale})`, transition: 'transform 0.2s ease' }}
+          style={{ transform: `scale(${zoomScale})`, transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
           className="w-full h-full object-contain cursor-pointer" 
           onLoadedMetadata={handleLoadedMetadata} 
           onTimeUpdate={e => setCurrentTime(e.target.currentTime)} 
@@ -1076,24 +1076,26 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
         />
       </div>
 
-      {/* Elegant, Low-Profile Grey Interactive Overlay */}
-      <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t from-black/70 via-transparent to-black/30 transition-opacity duration-300 flex flex-col justify-between p-3 z-40 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="w-full flex items-center justify-between text-white/90 font-sans text-[11px]">
-          <span className="font-serif font-bold truncate max-w-[60%]">{videoTitle || 'Studio Playback'}</span>
-          <span className="font-mono text-slate-300 bg-slate-900/60 px-2 py-0.5 rounded-md">{formatTime(currentTime)} / {formatTime(duration)}</span>
+      <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t from-black/80 via-black/10 to-black/40 transition-opacity duration-300 flex flex-col justify-between p-2.5 sm:p-4 z-40 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="w-full flex items-center justify-between text-white drop-shadow-md select-none font-sans text-[10px] sm:text-xs">
+          <span className="font-serif font-bold tracking-wide truncate max-w-[60%]">{videoTitle || 'Playing Asset'}</span>
+          <span className="font-mono text-slate-300 text-[9px] bg-black/40 px-1.5 py-0.5 rounded">{formatTime(currentTime)} / {formatTime(duration)}</span>
         </div>
 
         <div className="w-full flex items-center justify-center">
-          <button onClick={togglePlay} className="pointer-events-auto w-12 h-11 rounded-full bg-white/15 hover:bg-white/25 border border-white/10 flex items-center justify-center text-white backdrop-blur-md transition shadow-lg transform active:scale-95">
+          <button onClick={togglePlay} className="pointer-events-auto w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-black/50 hover:bg-black/70 border border-white/20 flex items-center justify-center text-white text-base sm:text-xl backdrop-blur-xs transition transform active:scale-90 shadow-2xl">
             {isPlaying ? '⏸' : '▶'}
           </button>
         </div>
 
-        <div className="w-full flex flex-col gap-1.5 pointer-events-auto bg-slate-900/80 backdrop-blur-md p-2.5 rounded-xl border border-white/5">
-          <div className="relative w-full">
+        <div className="w-full flex flex-col gap-2 pointer-events-auto bg-black/70 backdrop-blur-xs p-2 rounded-xl border border-white/5">
+          <div className="relative w-full group/scrub h-4 flex items-center">
             {hoverTime !== null && (
-              <div style={{ left: `${hoverX}px` }} className="absolute bottom-5 transform -translate-x-1/2 bg-slate-800 border border-slate-700 text-white rounded px-1.5 py-0.5 shadow pointer-events-none z-50 text-[10px] font-mono">
-                {formatTime(hoverTime)}
+              <div 
+                style={{ left: `${Math.min(Math.max(hoverX, 40), window.innerWidth - 40)}px` }} 
+                className="absolute bottom-5 transform -translate-x-1/2 bg-slate-900 border border-[#C5A03A]/50 text-white rounded-md p-1 flex flex-col items-center shadow-lg pointer-events-none z-50 w-16 text-center"
+              >
+                <span className="font-mono text-[9px] text-amber-400 font-bold">{formatTime(hoverTime)}</span>
               </div>
             )}
             <input 
@@ -1106,23 +1108,23 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
               onTouchMove={(e) => e.touches[0] && handleTimelinePosition(e.touches[0].clientX)}
               onMouseLeave={() => setHoverTime(null)}
               onTouchEnd={() => setHoverTime(null)}
-              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-slate-300"
+              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-1.5 transition-all"
             />
           </div>
 
-          <div className="flex items-center justify-between text-white text-[10px]">
+          <div className="flex items-center justify-between text-white text-[10px] sm:text-xs font-bold font-sans">
             <div className="flex items-center gap-2">
-              <button onClick={() => skip10(-10)} className="text-slate-200 bg-white/5 px-2 py-0.5 rounded hover:bg-white/10">⏪ 10s</button>
-              <button onClick={() => skip10(10)} className="text-slate-200 bg-white/5 px-2 py-0.5 rounded hover:bg-white/10">⏩ 10s</button>
+              <button onClick={() => skip10(-10)} className="active:text-amber-400 text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded">⏪ 10s</button>
+              <button onClick={() => skip10(10)} className="active:text-amber-400 text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded">⏩ 10s</button>
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={cycleZoomScale} className="bg-white/5 border border-white/10 px-2 py-0.5 rounded text-slate-200 hover:bg-white/10">
+              <button onClick={cycleZoomScale} className="text-[9px] font-mono bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition">
                 🔍 {zoomScale === 1 ? 'Fit' : `${zoomScale}x`}
               </button>
-              <div className="flex items-center bg-black/20 rounded px-1 py-0.5 gap-1">
+              <div className="flex items-center bg-black/40 rounded px-1.5 py-0.5 gap-1 border border-white/5 text-[8px]">
                 {[1, 1.5, 2].map(speed => (
-                  <button key={speed} onClick={() => changeSpeed(speed)} className={`px-1 rounded font-mono ${playbackSpeed === speed ? 'bg-slate-200 text-slate-900' : 'text-slate-400'}`}>{speed}x</button>
+                  <button key={speed} onClick={() => changeSpeed(speed)} className={`px-1 rounded font-mono ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'text-slate-300'}`}>{speed}x</button>
                 ))}
               </div>
             </div>
@@ -1189,7 +1191,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     showToast('Comment deleted.', 'info');
   };
 
-    if (activeVideo) {
+  if (activeVideo) {
     const embed = resolvePlayableVideo(activeVideo.hlsUrl);
     const timeLeft = getExpiry7(activeVideo.createdAt);
     
@@ -1200,15 +1202,44 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
-        <div className="w-full bg-slate-950 relative overflow-hidden p-0 flex items-center justify-center min-h-[40vh] max-h-[75vh] rounded-t-xl">
+                {/* NEW: Dynamic Context Control Bar for External Links */}
+        {embed.type === 'iframe-stream' && (
+          <div className="px-4 py-2 bg-amber-500/10 border-b border-[#EADFC9]/60 flex items-center justify-between text-xs gap-2">
+            <span className="text-amber-800 font-semibold font-sans">🔄 External Stream Grid Layout Optimization</span>
+            <button 
+              type="button"
+              onClick={() => {
+                const wrapper = document.getElementById('iframe-aspect-container');
+                if (wrapper) {
+                  if (wrapper.classList.contains('aspect-video')) {
+                    wrapper.classList.remove('aspect-video', 'max-h-[75vh]');
+                    wrapper.classList.add('aspect-[9/16]', 'max-w-sm', 'mx-auto');
+                  } else {
+                    wrapper.classList.remove('aspect-[9/16]', 'max-w-sm', 'mx-auto');
+                    wrapper.classList.add('aspect-video', 'max-h-[75vh]');
+                  }
+                }
+              }}
+              className="bg-[#C5A03A] text-white font-bold px-3 py-1 rounded-md text-[10px] uppercase tracking-wide transition shadow active:translate-y-0.5"
+            >
+              📐 Switch Layout (Vertical / Widescreen)
+            </button>
+          </div>
+        )}
+
+        <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden p-2 sm:p-4">
           {embed.type === 'youtube' ? (
-             <div className="w-full relative aspect-video">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+             <div className="w-full relative aspect-video max-h-[75vh]">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+             </div>
+          ) : embed.type === 'direct' ? (
+             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
+                    ) : embed.type === 'iframe-stream' ? (
+             <div className="w-full max-w-sm sm:max-w-4xl aspect-[9/16] sm:aspect-video relative max-h-[75vh] transition-all duration-300 mx-auto bg-black rounded-xl overflow-hidden shadow-2xl">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
              </div>
           ) : (
-             <div className="w-full max-w-sm sm:max-w-4xl transition-all duration-300 mx-auto p-2">
-               <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
-             </div>
+             <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
           )}
         </div>
 
@@ -1235,7 +1266,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <h3 className="font-black text-sm text-slate-800 mb-4 uppercase tracking-wider">Feedback Notes ({activeVideo.comments?.length || 0})</h3>
           <form onSubmit={(e) => handlePostVideoComment(e, activeVideo.id)} className="flex gap-2 mb-6">
             <div className="w-9 h-9 rounded-full overflow-hidden border p-0.5 bg-white shrink-0 hidden sm:block shadow-sm">{renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}</div>
-            <input type="text" name="commentInput" placeholder="Add a feedback note..." className="flex-1 px-4 py-2 bg-white border border-[#EADFC9] shadow-inner rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required />
+            <input type="text" name="commentInput" placeholder="Add a feedback note..." className="flex-1 px-4 py-2 bg-white border border border-[#EADFC9] shadow-inner rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required />
             <button type="submit" className="bg-[#C5A03A] hover:bg-[#b08d32] text-white text-xs px-5 rounded-xl font-bold transition shadow-md border-b-[3px] border-[#9c7d2c] active:border-b-0 active:translate-y-[2px]">Post</button>
           </form>
 
@@ -1260,7 +1291,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
       </section>
     );
   }
-  
+
   return (
     <section className="py-2 space-y-6 font-sans animate-fadeIn px-4 sm:px-0">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-sm gap-4">
@@ -2141,4 +2172,4 @@ function RejectedScreen({ handleSignOut }) {
       <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 bg-rose-50 px-4 py-2 rounded-full border border-rose-200 hover:bg-rose-100 transition-colors">Sign Out</button>
     </div>
   );
-        }
+  }
