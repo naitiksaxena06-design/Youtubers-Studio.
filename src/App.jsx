@@ -1061,13 +1061,13 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
       onMouseMove={awakeControlsOverlay}
       onTouchStart={awakeControlsOverlay}
       style={{ aspectRatio: videoRatio }}
-      className="relative bg-black w-full max-w-4xl mx-auto shadow-skeuo-lg overflow-hidden group/player transition-all duration-300 h-auto rounded-xl max-h-[75vh]"
+      className="relative bg-black w-full max-w-4xl mx-auto shadow-skeuo-md overflow-hidden group/player transition-all duration-300 h-auto rounded-xl max-h-[75vh]"
     >
       <div className="w-full h-full flex items-center justify-center overflow-hidden">
         <video 
           ref={videoRef} 
           src={hlsUrl} 
-          style={{ transform: `scale(${zoomScale})`, transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
+          style={{ transform: `scale(${zoomScale})`, transition: 'transform 0.2s ease' }}
           className="w-full h-full object-contain cursor-pointer" 
           onLoadedMetadata={handleLoadedMetadata} 
           onTimeUpdate={e => setCurrentTime(e.target.currentTime)} 
@@ -1076,26 +1076,24 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
         />
       </div>
 
-      <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t from-black/80 via-black/10 to-black/40 transition-opacity duration-300 flex flex-col justify-between p-2.5 sm:p-4 z-40 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="w-full flex items-center justify-between text-white drop-shadow-md select-none font-sans text-[10px] sm:text-xs">
-          <span className="font-serif font-bold tracking-wide truncate max-w-[60%]">{videoTitle || 'Playing Asset'}</span>
-          <span className="font-mono text-slate-300 text-[9px] bg-black/40 px-1.5 py-0.5 rounded">{formatTime(currentTime)} / {formatTime(duration)}</span>
+      {/* Elegant, Low-Profile Grey Interactive Overlay */}
+      <div className={`absolute inset-0 pointer-events-none bg-gradient-to-t from-black/70 via-transparent to-black/30 transition-opacity duration-300 flex flex-col justify-between p-3 z-40 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="w-full flex items-center justify-between text-white/90 font-sans text-[11px]">
+          <span className="font-serif font-bold truncate max-w-[60%]">{videoTitle || 'Studio Playback'}</span>
+          <span className="font-mono text-slate-300 bg-slate-900/60 px-2 py-0.5 rounded-md">{formatTime(currentTime)} / {formatTime(duration)}</span>
         </div>
 
         <div className="w-full flex items-center justify-center">
-          <button onClick={togglePlay} className="pointer-events-auto w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-black/50 hover:bg-black/70 border border-white/20 flex items-center justify-center text-white text-base sm:text-xl backdrop-blur-xs transition transform active:scale-90 shadow-2xl">
+          <button onClick={togglePlay} className="pointer-events-auto w-12 h-11 rounded-full bg-white/15 hover:bg-white/25 border border-white/10 flex items-center justify-center text-white backdrop-blur-md transition shadow-lg transform active:scale-95">
             {isPlaying ? '⏸' : '▶'}
           </button>
         </div>
 
-        <div className="w-full flex flex-col gap-2 pointer-events-auto bg-black/70 backdrop-blur-xs p-2 rounded-xl border border-white/5">
-          <div className="relative w-full group/scrub h-4 flex items-center">
+        <div className="w-full flex flex-col gap-1.5 pointer-events-auto bg-slate-900/80 backdrop-blur-md p-2.5 rounded-xl border border-white/5">
+          <div className="relative w-full">
             {hoverTime !== null && (
-              <div 
-                style={{ left: `${Math.min(Math.max(hoverX, 40), window.innerWidth - 40)}px` }} 
-                className="absolute bottom-5 transform -translate-x-1/2 bg-slate-900 border border-[#C5A03A]/50 text-white rounded-md p-1 flex flex-col items-center shadow-lg pointer-events-none z-50 w-16 text-center"
-              >
-                <span className="font-mono text-[9px] text-amber-400 font-bold">{formatTime(hoverTime)}</span>
+              <div style={{ left: `${hoverX}px` }} className="absolute bottom-5 transform -translate-x-1/2 bg-slate-800 border border-slate-700 text-white rounded px-1.5 py-0.5 shadow pointer-events-none z-50 text-[10px] font-mono">
+                {formatTime(hoverTime)}
               </div>
             )}
             <input 
@@ -1108,23 +1106,23 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
               onTouchMove={(e) => e.touches[0] && handleTimelinePosition(e.touches[0].clientX)}
               onMouseLeave={() => setHoverTime(null)}
               onTouchEnd={() => setHoverTime(null)}
-              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#C5A03A] hover:h-1.5 transition-all"
+              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-slate-300"
             />
           </div>
 
-          <div className="flex items-center justify-between text-white text-[10px] sm:text-xs font-bold font-sans">
+          <div className="flex items-center justify-between text-white text-[10px]">
             <div className="flex items-center gap-2">
-              <button onClick={() => skip10(-10)} className="active:text-amber-400 text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded">⏪ 10s</button>
-              <button onClick={() => skip10(10)} className="active:text-amber-400 text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded">⏩ 10s</button>
+              <button onClick={() => skip10(-10)} className="text-slate-200 bg-white/5 px-2 py-0.5 rounded hover:bg-white/10">⏪ 10s</button>
+              <button onClick={() => skip10(10)} className="text-slate-200 bg-white/5 px-2 py-0.5 rounded hover:bg-white/10">⏩ 10s</button>
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={cycleZoomScale} className="text-[9px] font-mono bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition">
+              <button onClick={cycleZoomScale} className="bg-white/5 border border-white/10 px-2 py-0.5 rounded text-slate-200 hover:bg-white/10">
                 🔍 {zoomScale === 1 ? 'Fit' : `${zoomScale}x`}
               </button>
-              <div className="flex items-center bg-black/40 rounded px-1.5 py-0.5 gap-1 border border-white/5 text-[8px]">
+              <div className="flex items-center bg-black/20 rounded px-1 py-0.5 gap-1">
                 {[1, 1.5, 2].map(speed => (
-                  <button key={speed} onClick={() => changeSpeed(speed)} className={`px-1 rounded font-mono ${playbackSpeed === speed ? 'bg-[#C5A03A] text-white' : 'text-slate-300'}`}>{speed}x</button>
+                  <button key={speed} onClick={() => changeSpeed(speed)} className={`px-1 rounded font-mono ${playbackSpeed === speed ? 'bg-slate-200 text-slate-900' : 'text-slate-400'}`}>{speed}x</button>
                 ))}
               </div>
             </div>
@@ -1227,11 +1225,18 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           </div>
         )}
 
-        <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden p-2 sm:p-4">
+                <div className="w-full bg-slate-950 relative overflow-hidden p-0 flex items-center justify-center min-h-[40vh] max-h-[75vh] rounded-t-xl">
           {embed.type === 'youtube' ? (
-             <div className="w-full relative aspect-video max-h-[75vh]">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+             <div className="w-full relative aspect-video">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
              </div>
+          ) : (
+             /* Clean, secure, auto-reframing layer wrapper node */
+             <div className="w-full max-w-sm sm:max-w-4xl transition-all duration-300 mx-auto">
+               <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
+             </div>
+          )}
+        </div>
           ) : embed.type === 'direct' ? (
              <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
                     ) : embed.type === 'iframe-stream' ? (
