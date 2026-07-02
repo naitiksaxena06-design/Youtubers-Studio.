@@ -1227,13 +1227,19 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           </div>
         )}
 
-                <div className="w-full bg-slate-950 relative overflow-hidden p-0 flex items-center justify-center min-h-[50vh] max-h-[80vh] rounded-t-xl">
+        <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden p-2 sm:p-4">
           {embed.type === 'youtube' ? (
-             <div className="w-full relative aspect-video">
-               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+             <div className="w-full relative aspect-video max-h-[75vh]">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+             </div>
+          ) : embed.type === 'direct' ? (
+             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
+                    ) : embed.type === 'iframe-stream' ? (
+             <div className="w-full max-w-sm sm:max-w-4xl aspect-[9/16] sm:aspect-video relative max-h-[75vh] transition-all duration-300 mx-auto bg-black rounded-xl overflow-hidden shadow-2xl">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
              </div>
           ) : (
-             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
+             <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
           )}
         </div>
 
@@ -2166,4 +2172,4 @@ function RejectedScreen({ handleSignOut }) {
       <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 bg-rose-50 px-4 py-2 rounded-full border border-rose-200 hover:bg-rose-100 transition-colors">Sign Out</button>
     </div>
   );
-                           }
+                               }
