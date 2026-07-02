@@ -1797,20 +1797,11 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
               ) : (
                 <div className="space-y-2 pt-2">
                   <textarea value={editingMessageText} onChange={e => setEditingMessageText(e.target.value)} className="w-full p-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" rows={3} />
-                  <div className="flex gap-2 justify-end">
-                    <button onClick={() => { setEditingMessageId(null); setActiveMessageMenu(null); }} className="px-2.5 py-1 bg-slate-100 rounded-lg text-[10px]">Cancel</button>
-                    <button onClick={saveEditedMessage} className="px-3 py-1 bg-[#C5A03A] text-white rounded-lg text-[10px] font-bold">Save</button>
-                  </div>
-                </div>
-              )}
-              <button onClick={() => { setActiveMessageMenu(null); setEditingMessageId(null); }} className="w-full text-slate-400 text-[10px] font-bold pt-1.5 border-t">Close Panel</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
+                            </div>
+        )}                       
+        );
+    }
+  }
 
 // --- INSTA FEED ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
