@@ -148,7 +148,7 @@ const resolvePlayableVideo = (url) => {
   const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
-    return { type: 'iframe-stream', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w640` };
+    return { type: 'iframe-stream', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: null };
   }
 
   const photosRegex = /photos\.app\.goo\.gl|photos\.google\.com/i;
@@ -593,6 +593,19 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
+          {typeof Notification !== "undefined" && Notification.permission !== "granted" && (
+            <button 
+              onClick={async () => {
+                const permission = await Notification.requestPermission();
+                if (permission === "granted") {
+                  new Notification("Youtubers Studio", { body: "Alerts synced! 🎉" });
+                }
+              }}
+              className="text-[10px] bg-amber-500/20 text-amber-700 px-2.5 py-1 rounded-md font-bold"
+            >
+              🔔 Enable Phone Alerts
+            </button>
+          )}
           {userProfile && userProfile.status === 'approved' && !isRoastingWaiter && <NotificationBell notifications={notifications} userProfile={userProfile} isAdmin={isAdmin} onNavigate={setCurrentPage} onSetActiveVideo={setActiveVideo} videos={videos} />}
           {userProfile ? (
             <div className="flex items-center space-x-2">
@@ -1190,21 +1203,20 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
         {/* Video Canvas Box Node with Aspect-Ratio Adaptability Framework */}
         <div className="w-full bg-slate-50 shadow-md relative rounded-t-xl overflow-hidden flex justify-center p-4">
-        <div className="w-full bg-black relative overflow-hidden flex justify-center">
-  {embed.type === 'youtube' ? (
-    <div className="w-full aspect-video">
-      <iframe src={embed.src} className="w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
-    </div>
-  ) : embed.type === 'direct' ? (
-    <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
-  ) : embed.type === 'iframe-stream' ? (
-    <div className="w-full" style={{ height: '75vh' }}>
-      <iframe src={embed.src} className="w-full h-full border-none" allow="autoplay; encrypted-media" allowFullScreen />
-    </div>
-  ) : (
-    <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
-  )}
-</div>
+          {embed.type === 'youtube' ? (
+             <div className="w-full relative aspect-video max-h-[75vh]">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+             </div>
+          ) : embed.type === 'direct' ? (
+             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
+          ) : embed.type === 'iframe-stream' ? (
+             <div className="w-full relative aspect-video max-h-[75vh]">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none rounded-xl shadow-inner" allow="autoplay; encrypted-media" allowFullScreen />
+             </div>
+          ) : (
+             <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
+          )}
+        </div>
 
         <div className="p-5 border-b border-slate-100">
           <h1 className="text-xl font-black text-slate-900 leading-tight mb-2 font-serif">{activeVideo.title}</h1>
@@ -2127,4 +2139,4 @@ function RejectedScreen({ handleSignOut }) {
       <button onClick={handleSignOut} className="text-xs font-bold text-rose-500 bg-rose-50 px-4 py-2 rounded-full border border-rose-200 hover:bg-rose-100 transition-colors">Sign Out</button>
     </div>
   );
-    }
+                           }
