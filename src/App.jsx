@@ -455,10 +455,23 @@ export default function App() {
       if (currentPage === 'chat' && !msg.startsWith('"')) return;
 
       const audience = n.audience || 'all';
-      const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
-      if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try { new Notification('Youtubers Studio', { body: n.message, icon: siteSettings.logoUrl || undefined }); } catch (e) {}
-      }
+const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
+if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+  try { 
+    // Forces phone browsers to display high-priority banner popups instantly
+    const options = {
+      body: n.message,
+      icon: siteSettings.logoUrl || undefined,
+      badge: siteSettings.logoUrl || undefined,
+      tag: n.id,
+      renotify: true,
+      requireInteraction: true // Keeps the banner up until dismissed on mobile screens
+    };
+    new Notification('Youtubers Studio', options); 
+  } catch (e) {
+    console.error("Native push dispatch failure", e);
+  }
+}
     });
   }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, isRoastingWaiter]);
 
@@ -1174,6 +1187,13 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     if (!commentText) return;
     const newComment = { id: 'c_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
+    await addDoc(fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { 
+  message: `${userProfile.name} commented on video: "${activeVideo.title}"`, 
+  actor: userProfile.name, 
+  timestamp: Date.now(), 
+  audience: "admin" 
+});
+
     e.target.commentInput.value = '';
     const freshDoc = await getDoc(doc(db, 'videos', videoId));
     if (freshDoc.exists()) setActiveVideo({ id: freshDoc.id, ...freshDoc.data() });
