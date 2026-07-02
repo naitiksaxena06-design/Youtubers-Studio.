@@ -1689,23 +1689,48 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
         )}
       </div>
       
-      <div className="sm:col-span-3 flex flex-col h-full bg-slate-50/20 font-sans min-h-0 flex-1 relative">
-        <div className="p-3.5 overflow-y-auto space-y-2.5 custom-scrollbar flex-1 font-sans min-h-0 select-none">
-          {chats.filter(c => c.projectId === chatChannel).slice().reverse().map((m) => (
-            <div key={m.id} onMouseDown={() => handleTouchStart(m)} onMouseUp={handleTouchEnd} onTouchStart={() => handleTouchStart(m)} onTouchEnd={handleTouchEnd} onContextMenu={(e) => { e.preventDefault(); setActiveMessageMenu(m); }} className={`text-xs p-3 border border-[#EADFC9]/40 rounded-2xl max-w-[85%] sm:max-w-[75%] animate-fadeIn shadow-xs font-sans relative cursor-pointer select-none transition-transform active:scale-[0.98] ${m.senderUid === userProfile?.id ? 'bg-[#C5A03A]/5 ml-auto border-[#C5A03A]/20' : 'bg-white'}`}>
-              <div className="flex justify-between items-start mb-1">
-                <span className="text-[9px] text-[#C5A03A] font-bold block hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); onInspectUser(m.senderUid); }}>{m.senderName}</span>
-                <span className="text-[8px] text-slate-300 font-mono">⏳ {getExpiry7(m.createdAt)}</span>
+                  <div className="sm:col-span-3 flex flex-col h-[70vh] bg-white rounded-2xl border border-slate-100 shadow-sm relative">
+              <div 
+                ref={(el) => {
+                  if (el) {
+                    // Automatically pins the conversation view screen directly to the bottom
+                    el.scrollTop = el.scrollHeight;
+                  }
+                }}
+                className="flex-1 overflow-y-auto p-3.5 space-y-3 scroll-smooth"
+              >
+                {(chats || [])
+                  .filter((c) => c.projectId === activeProject?.id || c.channelId === activeChannel?.id)
+                  .map((m) => (
+                    <div key={m.id} className={`flex flex-col ${m.author === userProfile?.name ? 'items-end' : 'items-start'}`}>
+                      <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-xs ${m.author === userProfile?.name ? 'bg-[#C5A03A] text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
+                        <div className="flex justify-between items-center gap-4 mb-0.5 opacity-75">
+                          <span className="text-[9px] font-bold">{m.author}</span>
+                          <span className="text-[8px] font-mono">{new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
+                        <p className="break-words leading-relaxed">{m.text}</p>
+                      </div>
+                    </div>
+                  ))}
               </div>
-              <p className="text-slate-700 font-medium leading-relaxed font-sans break-words">{m.text}</p>
+
+              <form 
+                onSubmit={async (e) => {
+                  // Fire your original data commit logic function
+                  await commit(e);
+                  
+                  // Clear the chat field element bar instantly so it doesn't get stuck typing
+                  const textualInput = e.target.querySelector('input[type="text"]');
+                  if (textualInput) {
+                    textualInput.value = '';
+                  }
+                }} 
+                className="p-3 bg-slate-50 border-t border-slate-100 rounded-b-2xl flex gap-2"
+              >
+                <input type="text" placeholder="Message..." className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-full text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required />
+                <button type="submit" className="bg-[#C5A03A] text-white text-xs font-bold px-4 rounded-full transition active:scale-95">Send</button>
+              </form>
             </div>
-          ))}
-          {chats.filter(c => c.projectId === chatChannel).length === 0 && <p className="text-slate-400 text-xs text-center py-6">Hold/Right-Click any sent commentary to Edit, Copy, or delete.</p>}
-        </div>
-        <form onSubmit={commit} className="p-2.5 border-t flex gap-2 bg-white font-sans shrink-0">
-          <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="Type commentary..." className="flex-1 px-3 py-1.5 border rounded-xl text-xs focus:outline-none" />
-          <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white text-xs rounded-xl font-bold border-b-[4px] border-[#ab892c]">Send</button>
-        </form>
 
         {activeMessageMenu && (
           <div className="absolute inset-0 z-50 bg-black/35 flex items-center justify-center p-4 animate-fadeIn" onClick={() => { setActiveMessageMenu(null); setEditingMessageId(null); }}>
