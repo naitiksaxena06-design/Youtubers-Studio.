@@ -145,10 +145,15 @@ const resolvePlayableVideo = (url) => {
     return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`, thumbnail: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` };
   }
   
-  const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
+    const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
-    return { type: 'iframe-stream', src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, thumbnail: null };
+    return { 
+      type: 'iframe-stream', 
+      src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, 
+      // This grabs the exact first second/thumbnail frame from Google's servers
+      thumbnail: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w600` 
+    };
   }
 
   const photosRegex = /photos\.app\.goo\.gl|photos\.google\.com/i;
