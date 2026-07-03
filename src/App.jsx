@@ -1798,11 +1798,9 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
                 <div className="space-y-2 pt-2">
                   <textarea value={editingMessageText} onChange={e => setEditingMessageText(e.target.value)} className="w-full p-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" rows={3} />
                             </div>
-        )}                       
-        );
-    }
+      )}      
+    );
   }
-
 // --- INSTA FEED ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
   const [postTitle, setPostTitle] = useState('');
