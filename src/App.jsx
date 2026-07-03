@@ -1802,6 +1802,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 </div>
 </div>              
     )}
+  </section>
   );
 }            
 // --- INSTA FEED ---
