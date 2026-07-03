@@ -1801,6 +1801,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       )}      
     );
   }
+  }             
 // --- INSTA FEED ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
   const [postTitle, setPostTitle] = useState('');
