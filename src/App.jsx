@@ -63,7 +63,6 @@ const formatDateTimeAMPM = (timestamp) => {
   return d.toLocaleDateString('en-US') + ' • ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 };
 
-
 // --- STYLING INJECTION ---
 const injectArtStyleStyles = () => {
   if (document.getElementById('studio-aurum-styles')) return;
@@ -163,12 +162,14 @@ const resolvePlayableVideo = (url) => {
     return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`, thumbnail: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` };
   }
   
-    const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
+  // FIX: Force Google Drive links to export as direct raw MP4 streams so they play in OUR custom player, 
+  // bypassing Google's native double-controls iframe completely.
+  const driveRegex = /drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
     return { 
-      type: 'iframe-stream', 
-      src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, 
+      type: 'direct', 
+      src: `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`, 
       thumbnail: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w600` 
     };
   }
@@ -198,7 +199,6 @@ const renderAvatar = (photoURL, className = "w-full h-full object-cover", onClic
 const WatercolorOverlay = () => (
   <div className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }} />
 );
-
 
 function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
   const [items, setItems] = useState([]);
@@ -249,6 +249,7 @@ export default function App() {
   const [customToast, setCustomToast] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [chatChannel, setChatChannel] = useState('general');
+  const [chatViewMode, setChatViewMode] = useState('list');
   const [activeVideo, setActiveVideo] = useState(null);
   const [inspectUser, setInspectUser] = useState(null);
 
@@ -258,6 +259,24 @@ export default function App() {
   }, []);
 
   const ensureProfileDocRef = useRef(() => {});
+
+  // FIX: Force native mobile browsers to register a Service Worker so Push Notifications don't get silently blocked.
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      const swScript = `
+        self.addEventListener('push', function(e) {});
+        self.addEventListener('notificationclick', function(e) {
+          e.notification.close();
+          e.waitUntil(clients.matchAll({ type: 'window' }).then(clientsArr => {
+            if (clientsArr.length) { clientsArr[0].focus(); } else { clients.openWindow('/'); }
+          }));
+        });
+      `;
+      const blob = new Blob([swScript], { type: 'application/javascript' });
+      const swUrl = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(swUrl).catch(e => console.warn('Background SW reg bypassed:', e));
+    }
+  }, []);
 
   useEffect(() => {
     if (!auth || !auth.app) { setAuthLoading(false); return; }
@@ -389,10 +408,10 @@ export default function App() {
     const lastSeen = userProfile?.lastSeenNotifAt || 0;
     const unread = visibleNotifications.filter(n => n.timestamp > lastSeen);
     return {
-      vault: unread.some(n => { const msg = String(n.message).toLowerCase(); return msg.includes('video asset') || msg.includes('commented on video'); }),
-      projects: unread.some(n => String(n.message).toLowerCase().includes('concept whiteboard')),
-      scripts: unread.some(n => String(n.message).toLowerCase().includes('script topic')),
-      posts: unread.some(n => String(n.message).toLowerCase().includes('showroom draft')),
+      vault: unread.some(n => n.type === 'video'),
+      projects: unread.some(n => n.type === 'project'),
+      scripts: unread.some(n => n.type === 'script'),
+      posts: unread.some(n => n.type === 'post'),
       overall: unread.length
     };
   }, [visibleNotifications, userProfile, isRoastingWaiter]);
@@ -407,20 +426,23 @@ export default function App() {
       firstNotifLoadRef.current = false;
       return;
     }
+    
     (notifications || []).forEach(n => {
-      if (!n || !n.message || seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
+      if (!n || !n.message || seenNotifIdsRef.current.has(n.id)) return;
       seenNotifIdsRef.current.add(n.id);
-      if (n.actor === userProfile.name) return;
       
-      const msg = String(n.message).toLowerCase();
-      if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
-      if (currentPage === 'projects' && msg.includes('concept whiteboard')) return;
-      if (currentPage === 'scripts' && msg.includes('script topic')) return;
-      if (currentPage === 'posts' && msg.includes('showroom draft')) return;
-      if (currentPage === 'chat' && !msg.startsWith('"')) return;
+      // Strict ignore filter: If you are looking right at the page where the notification comes from, SUPPRESS it!
+      if (n.actor === userProfile.name) return;
+      if (currentPage === 'vault' && n.type === 'video') return;
+      if (currentPage === 'projects' && n.type === 'project') return;
+      if (currentPage === 'scripts' && n.type === 'script') return;
+      if (currentPage === 'posts' && n.type === 'post') return;
+      if (currentPage === 'admin' && n.type === 'system') return;
+      if (currentPage === 'chat' && n.type === 'chat' && n.meta?.channelId === chatChannel && chatViewMode === 'chat') return;
 
       const audience = n.audience || 'all';
       const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
+      
       if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try { 
           const options = {
@@ -431,15 +453,19 @@ export default function App() {
             renotify: true,
             requireInteraction: true 
           };
-          new Notification('Youtubers Studio', options); 
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+             navigator.serviceWorker.ready.then(reg => reg.showNotification('Youtubers Studio', options));
+          } else {
+             new Notification('Youtubers Studio', options);
+          }
         } catch (e) { console.error("Native push dispatch failure", e); }
       }
     });
-  }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, isRoastingWaiter]);
+  }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, chatChannel, chatViewMode, isRoastingWaiter]);
 
-  const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
+  const pushNotification = useCallback(async (message, type = 'system', meta = {}, actorName = 'Crew Member', audience = 'all') => {
     if (isRoastingWaiter || !db || !db.app || userProfile?.status !== 'approved') return;
-    try { await addDoc(collection(db, 'notifications'), { message, actor: actorName, timestamp: Date.now(), audience }); } catch (err) {}
+    try { await addDoc(collection(db, 'notifications'), { message, type, meta, actor: actorName, timestamp: Date.now(), audience }); } catch (err) {}
   }, [isRoastingWaiter, userProfile]);
 
   const ensureProfileDoc = useCallback(async (user) => {
@@ -455,6 +481,13 @@ export default function App() {
         photoURL: user.photoURL || PRESET_AVATARS[0].svg, createdAt: Date.now(), bio: '', isProfileComplete: false
       };
       await setDoc(ref, newProfile);
+      if (!isOwner) {
+        // Send admin notification explicitly about waiting list roster!
+        await addDoc(collection(db, 'notifications'), { 
+          message: `New crew application from ${newProfile.name}. Awaiting approval on roster list.`, 
+          type: 'system', actor: 'System', timestamp: Date.now(), audience: "admin" 
+        });
+      }
       return newProfile;
     } else if (isOwner && snap.data().role !== 'owner') { await updateDoc(ref, { role: 'owner', status: 'approved' }); }
     return snap.data();
@@ -641,7 +674,7 @@ export default function App() {
         {currentPage === 'vault' && <VideoVault videos={videos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} activeVideo={activeVideo} setActiveVideo={setActiveVideo} onInspectUser={setInspectUser} />}
         {currentPage === 'projects' && <div className="px-4 sm:px-0"><ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} /></div>}
         {currentPage === 'scripts' && <div className="px-4 sm:px-0"><ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} /></div>}
-        {currentPage === 'chat' && <div className="px-4 sm:px-0"><WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} onInspectUser={setInspectUser} /></div>}
+        {currentPage === 'chat' && <div className="px-4 sm:px-0"><WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} onInspectUser={setInspectUser} viewMode={chatViewMode} setViewMode={setChatViewMode} /></div>}
         {currentPage === 'posts' && <div className="px-4 sm:px-0"><PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
         
         {currentPage === 'profile' && (
@@ -1193,7 +1226,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
         comments: [],
         createdAt: Date.now(),
       });
-      pushNotification(`Added video link: "${videoTitle}"`, userProfile.name);
+      pushNotification(`Added video link: "${videoTitle}"`, 'video', {}, userProfile.name);
       setVideoTitle(''); setVideoUrlInput(''); setShowUploadModal(false);
       showToast('Video link registered successfully!', 'success');
     } catch (err) { showToast('Upload authorization failure.', 'warning'); }
@@ -1213,12 +1246,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     if (!commentText) return;
     const newComment = { id: 'c_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
-    await addDoc(fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { 
-  message: `${userProfile.name} commented on video: "${activeVideo.title}"`, 
-  actor: userProfile.name, 
-  timestamp: Date.now(), 
-  audience: "admin" 
-});
+    pushNotification(`${userProfile.name} commented on video: "${activeVideo.title}"`, 'video', {}, userProfile.name, 'admin');
 
     e.target.commentInput.value = '';
     const freshDoc = await getDoc(doc(db, 'videos', videoId));
@@ -1246,7 +1274,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
-                {/* NEW: Dynamic Context Control Bar for External Links */}
         {embed.type === 'iframe-stream' && (
           <div className="px-4 py-2 bg-amber-500/10 border-b border-[#EADFC9]/60 flex items-center justify-between text-xs gap-2">
             <span className="text-amber-800 font-semibold font-sans">🔄 External Stream Grid Layout Optimization</span>
@@ -1337,7 +1364,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
   }
 
   return (
-    <section className="py-2 space-y-6 font-sans animate-fadeIn px-4 sm:px-0">
+    <section className="py-2 animate-fadeIn space-y-6 font-sans px-4 sm:px-0">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-sm gap-4">
         <h2 className="font-serif text-lg font-bold text-slate-800">🎞️ Premium Video Vault Feed</h2>
         <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">➕ Link Dual Asset</button>
@@ -1423,7 +1450,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
     if (!db || !db.app) return;
     try {
       await addDoc(collection(db, 'projects'), { title: newConcept, creatorName: userProfile.name, createdAt: Date.now() });
-      pushNotification(`Created whiteboard: "${newConcept}"`, userProfile.name);
+      pushNotification(`Created whiteboard: "${newConcept}"`, 'project', {}, userProfile.name);
       setNewConcept(''); showToast('Artboard concept mapped!', 'success');
     } catch(err) {}
   };
@@ -1531,7 +1558,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     if (!clean || !db || !db.app) return;
     try {
       const ref = await addDoc(collection(db, 'scripts'), { title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now() });
-      pushNotification(`Started script: "${clean}"`, userProfile.name);
+      pushNotification(`Started script: "${clean}"`, 'script', {}, userProfile.name);
       setNewTopicTitle(''); setShowNewTopicModal(false); setSelectedScriptId(ref.id); showToast('Topic created!', 'success');
     } catch(err) {}
   };
@@ -1627,14 +1654,13 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 }
 
 // --- CHATROOM ---
-function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast, onInspectUser }) {
+function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast, onInspectUser, viewMode, setViewMode }) {
   const [inputText, setInputText] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [activeMessageMenu, setActiveMessageMenu] = useState(null);
   const [editingMessageText, setEditingMessageText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
-  const [viewMode, setViewMode] = useState('list');
 
   const longPressTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -1696,7 +1722,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       await addDoc(collection(db, 'chats'), {
         projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
       });
-      pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'all');
+      pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, 'chat', { channelId: chatChannel }, userProfile?.name || 'Guest Creator', 'all');
       setInputText('');
     } catch (err) {}
   };
@@ -1927,7 +1953,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       )}
     </section>
   );
-        }
+}
 
 // --- INSTA FEED ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
@@ -1951,7 +1977,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
         authorName: userProfile.name, authorAvatar: userProfile.photoURL, authorUid: userProfile.id,
         likes: 0, likedBy: [], comments: [], createdAt: Date.now(),
       });
-      pushNotification(`Shared showroom post: "${postTitle}"`, userProfile.name);
+      pushNotification(`Shared showroom post: "${postTitle}"`, 'post', {}, userProfile.name);
       setPostTitle(''); setPostText(''); setShowCreatePostModal(false); showToast('Showcase uploaded to feed!', 'success');
     } catch (err) { showToast('Upload failed — check size.', 'warning'); } finally { setPublishing(false); }
   };
@@ -1971,12 +1997,7 @@ const handleAddPostComment = async (e, postId) => {
     if (!commentVal) return;
     const newComment = { id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal, timestamp: Date.now() };
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion(newComment) });
-       await addDoc(fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { 
-      message: `${userProfile?.name || 'Someone'} commented on Instagram draft post! 📸`, 
-      actor: userProfile?.name || 'System', 
-      timestamp: Date.now(), 
-      audience: "admin" 
-    });
+    pushNotification(`${userProfile?.name || 'Someone'} commented on Instagram draft post! 📸`, 'post', {}, userProfile?.name || 'System', 'admin');
 
     e.target.commentInputText.value = ''; showToast('Comment published!', 'success');
     if (expandedPost?.id === postId) { setExpandedPost({ ...expandedPost, comments: [...(expandedPost.comments || []), newComment] }); }
