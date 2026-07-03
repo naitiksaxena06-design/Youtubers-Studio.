@@ -1651,12 +1651,24 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast, onInspectUser }) {
   const [inputText, setInputText] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
-  const [activeMessageMenu, setActiveMessageMenu] = useState(null); 
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [activeMessageMenu, setActiveMessageMenu] = useState(null);
   const [editingMessageText, setEditingMessageText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'chat'
 
   const longPressTimerRef = useRef(null);
-  const channels = siteSettings.chatChannels || [{id: 'general', name: '🌍 Studio Room'}];
+  const channels = siteSettings.chatChannels || [{ id: 'general', name: '🌍 Studio Room' }];
+
+  const openChannel = (id) => { setChatChannel(id); setViewMode('chat'); };
+
+  const channelPreviews = useMemo(() => {
+    return channels.map(ch => {
+      const channelChats = (chats || []).filter(c => c.projectId === ch.id).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const last = channelChats[0];
+      return { ...ch, lastMessage: last?.text || 'No messages yet', lastSender: last?.senderName || '', lastTime: last?.createdAt || null };
+    }).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
+  }, [channels, chats]);
 
   const commit = async (e) => {
     e.preventDefault();
@@ -1668,31 +1680,34 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       });
       pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, userProfile?.name || 'Guest Creator', 'all');
       setInputText('');
-    } catch(err) {}
+    } catch (err) {}
   };
 
-  const handleAddChannel = async (e) => {
+  const handleCreateGroup = async (e) => {
     e.preventDefault();
-    if(!newChannelName.trim() || !db || !db.app) return;
+    const clean = newChannelName.trim();
+    if (!clean || !db || !db.app) return;
     try {
-      await setDoc(doc(db, 'meta/settings'), { chatChannels: [...channels, {id: 'ch_' + Date.now(), name: newChannelName.trim()}] }, {merge: true});
-      setNewChannelName(''); showToast("Whiteboard channel added!", "success");
-    } catch(err) {}
+      const newId = 'ch_' + Date.now();
+      await setDoc(doc(db, 'meta/settings'), { chatChannels: [...channels, { id: newId, name: clean }] }, { merge: true });
+      setNewChannelName(''); setShowNewGroupModal(false); showToast("Group created!", "success");
+      openChannel(newId);
+    } catch (err) {}
   };
 
   const removeChannel = async (id, e) => {
     e.stopPropagation();
     if (!db || !db.app) return;
     try {
-      await setDoc(doc(db, 'meta/settings'), { chatChannels: channels.filter(c => c.id !== id) }, {merge: true});
-      if(chatChannel === id) setChatChannel('general');
+      await setDoc(doc(db, 'meta/settings'), { chatChannels: channels.filter(c => c.id !== id) }, { merge: true });
+      if (chatChannel === id) { setChatChannel('general'); setViewMode('list'); }
       showToast("Channel removed!", "info");
-    } catch(err) {}
+    } catch (err) {}
   };
 
-  const deleteMessage = async (msgId) => { 
+  const deleteMessage = async (msgId) => {
     if (!db || !db.app) return;
-    await deleteDoc(doc(db, 'chats', msgId)); 
+    await deleteDoc(doc(db, 'chats', msgId));
     setActiveMessageMenu(null);
     showToast("Message deleted.", "info");
   };
@@ -1717,93 +1732,142 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const handleTouchStart = (msg) => { longPressTimerRef.current = setTimeout(() => { setActiveMessageMenu(msg); }, 500); };
   const handleTouchEnd = () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
 
+  const timeAgo = (ts) => {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h`;
+    return `${Math.floor(hours / 24)}d`;
+  };
+
+  const initialOf = (name) => (name || '#').replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase() || '#';
+  const activeChannelObj = channels.find(c => c.id === chatChannel);
+
   return (
-    <section className="flex flex-col sm:grid sm:grid-cols-4 border-2 border-[#EADFC9] rounded-2xl h-[70vh] sm:h-[450px] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans">
-      <div className="sm:col-span-1 bg-[#FFFDF9] p-2.5 border-b sm:border-b-0 sm:border-r text-xs border-[#EADFC9]/50 flex flex-col min-h-0 shrink-0">
-        <div className="overflow-x-auto sm:overflow-y-auto custom-scrollbar flex sm:block whitespace-nowrap sm:whitespace-normal gap-1.5 sm:gap-2 flex-1">
-          {channels.map(ch => (
-            <div key={ch.id} className="relative group inline-block sm:block w-auto sm:w-full">
-              <button onClick={() => setChatChannel(ch.id)} className={`w-full text-left px-3 sm:px-2.5 py-2 rounded-xl text-[11px] font-bold transition border sm:border-0 ${chatChannel === ch.id ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'border-slate-100 hover:bg-slate-50'}`}>{ch.name}</button>
-              {isAdmin && ch.id !== 'general' && <button onClick={(e) => removeChannel(ch.id, e)} className="absolute right-1 top-1/2 -translate-y-1/2 sm:opacity-0 sm:group-hover:opacity-100 text-rose-500 font-bold bg-white rounded-full px-1 py-0.5 border shadow-sm text-[8px]">✕</button>}
-            </div>
-          ))}
-        </div>
-        {isAdmin && (
-          <form onSubmit={handleAddChannel} className="mt-2 pt-2 border-t border-[#EADFC9]/50 flex gap-1.5 sm:mt-auto shrink-0">
-            <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="New Channel" className="flex-1 px-2 py-1 border rounded-lg text-[10px]" required />
-            <button type="submit" className="bg-slate-800 text-white px-2 py-1 rounded-lg font-bold text-xs">+</button>
-          </form>
-        )}
-      </div>
-      <div className="sm:col-span-3 flex flex-col flex-1 min-h-0 bg-white rounded-2xl border border-slate-100 shadow-sm relative">
-              <div 
-                ref={(el) => {
-                  if (el) {
-                    // Automatically pins the conversation view screen directly to the bottom
-                    el.scrollTop = el.scrollHeight;
-                  }
-                }}
-                className="flex-1 overflow-y-auto p-3.5 space-y-3 scroll-smooth"
-              >
-                {(chats || [])
-  .filter((c) => c.projectId === chatChannel)
-  .map((m) => (
-    <div key={m.id} className={`flex flex-col ${m.senderUid === userProfile?.id ? 'items-end' : 'items-start'}`}>
-      <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-xs ${m.senderUid === userProfile?.id ? 'bg-[#C5A03A] text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
-        <div className="flex justify-between items-center gap-4 mb-0.5 opacity-75">
-          <span className="text-[9px] font-bold">{m.senderName}</span>
-          <span className="text-[8px] font-mono">{new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-        </div>
-        <p className="break-words leading-relaxed">{m.text}</p>
-      </div>
-    </div>
-  ))}
-              </div>
-
-              <form 
-                onSubmit={async (e) => {
-                  // Fire your original data commit logic function
-                  await commit(e);
-                  
-                  // Clear the chat field element bar instantly so it doesn't get stuck typing
-                  const textualInput = e.target.querySelector('input[type="text"]');
-                  if (textualInput) {
-                    textualInput.value = '';
-                  }
-                }} 
-                className="p-3 bg-slate-50 border-t border-slate-100 rounded-b-2xl flex gap-2"
-              >
-                <input type="text" placeholder="Message..." className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-full text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required />
-                <button type="submit" className="bg-[#C5A03A] text-white text-xs font-bold px-4 rounded-full transition active:scale-95">Send</button>
-              </form>
-            </div>
-
-        {activeMessageMenu && (
-          <div className="absolute inset-0 z-50 bg-black/35 flex items-center justify-center p-4 animate-fadeIn" onClick={() => { setActiveMessageMenu(null); setEditingMessageId(null); }}>
-            <div className="w-full max-w-xs bg-white border-2 border-[#EADFC9] rounded-[1.5rem] p-4 shadow-skeuo-lg text-slate-800 space-y-2 text-center" onClick={(e) => e.stopPropagation()}>
-              <h5 className="font-serif font-bold text-xs text-slate-400 pb-1.5 border-b uppercase">Message Options</h5>
-              {editingMessageId !== activeMessageMenu.id ? (
-                <div className="flex flex-col gap-1.5">
-                  <button onClick={() => copyMessageText(activeMessageMenu.text)} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs">📋 Copy Commentary</button>
-                  <button onClick={(e) => { e.stopPropagation(); onInspectUser(activeMessageMenu.senderUid); setActiveMessageMenu(null); }} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs">👤 Inspect Sender Profile</button>
-                  {(isAdmin || activeMessageMenu.senderUid === userProfile?.id) && (
-                    <>
-                      <button onClick={() => { setEditingMessageId(activeMessageMenu.id); setEditingMessageText(activeMessageMenu.text); }} className="w-full py-2 hover:bg-amber-50 text-amber-600 font-bold rounded-xl text-xs">✎ Edit Message</button>
-                      <button onClick={() => deleteMessage(activeMessageMenu.id)} className="w-full py-2 hover:bg-rose-50 text-rose-600 font-bold rounded-xl text-xs">🗑 Un-send / Delete</button>
-                    </>
-                  )}
+    <section className="border-2 border-[#EADFC9] rounded-2xl h-[75vh] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans flex flex-col">
+      {viewMode === 'list' ? (
+        <>
+          <div className="p-4 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0">
+            <h3 className="font-serif font-bold text-slate-800 text-sm">💬 Messages</h3>
+            <button onClick={() => setShowNewGroupModal(true)} className="bg-[#C5A03A] text-white text-xs font-bold px-3 py-1.5 rounded-full shadow hover:bg-[#b08d32] transition">+ New Group</button>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {channelPreviews.map(ch => (
+              <div key={ch.id} onClick={() => openChannel(ch.id)} className="flex items-center gap-3 p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm">
+                  {initialOf(ch.name)}
                 </div>
-              ) : (
-                <div className="space-y-2 pt-2">
-                  <textarea value={editingMessageText} onChange={e => setEditingMessageText(e.target.value)} className="w-full p-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" rows={3} />
-                            </div>
-      )}   
-</div>
-</div>              
-    )}
-  </section>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-sm text-slate-800 truncate">{ch.name}</span>
+                    {ch.lastTime && <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">{timeAgo(ch.lastTime)}</span>}
+                  </div>
+                  <p className="text-xs text-slate-500 truncate mt-0.5">{ch.lastSender ? `${ch.lastSender}: ` : ''}{ch.lastMessage}</p>
+                </div>
+                {isAdmin && ch.id !== 'general' && (
+                  <button onClick={(e) => removeChannel(ch.id, e)} className="text-rose-400 hover:text-rose-600 text-xs font-bold p-1 shrink-0">✕</button>
+                )}
+              </div>
+            ))}
+            {channelPreviews.length === 0 && <div className="text-center text-slate-400 py-16 text-xs italic">No conversations yet.</div>}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center gap-3 shrink-0">
+            <button onClick={() => setViewMode('list')} className="p-1.5 hover:bg-slate-100 rounded-full transition">
+              <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </button>
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-bold text-sm shrink-0">
+              {initialOf(activeChannelObj?.name)}
+            </div>
+            <span className="font-serif font-bold text-slate-800 text-sm truncate">{activeChannelObj?.name}</span>
+          </div>
+
+          <div
+            ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}
+            className="flex-1 overflow-y-auto p-3.5 space-y-3 scroll-smooth min-h-0"
+          >
+            {(chats || [])
+              .filter((c) => c.projectId === chatChannel)
+              .map((m) => (
+                <div
+                  key={m.id}
+                  onTouchStart={() => handleTouchStart(m)}
+                  onTouchEnd={handleTouchEnd}
+                  onContextMenu={(e) => { e.preventDefault(); setActiveMessageMenu(m); }}
+                  className={`flex flex-col ${m.senderUid === userProfile?.id ? 'items-end' : 'items-start'}`}
+                >
+                  <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-xs ${m.senderUid === userProfile?.id ? 'bg-[#C5A03A] text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
+                    {m.senderUid !== userProfile?.id && <span className="text-[9px] font-bold block mb-0.5 opacity-75">{m.senderName}</span>}
+                    <p className="break-words leading-relaxed">{m.text}</p>
+                    <span className="text-[8px] font-mono block mt-0.5 opacity-60 text-right">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+              ))}
+          </div>
+
+          <form
+            onSubmit={async (e) => {
+              await commit(e);
+              const textualInput = e.target.querySelector('input[type="text"]');
+              if (textualInput) textualInput.value = '';
+            }}
+            className="p-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0"
+          >
+            <input type="text" placeholder="Message..." value={inputText} onChange={(e) => setInputText(e.target.value)} className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-full text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required />
+            <button type="submit" className="bg-[#C5A03A] text-white text-xs font-bold px-4 rounded-full transition active:scale-95">Send</button>
+          </form>
+        </>
+      )}
+
+      {showNewGroupModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowNewGroupModal(false)}>
+          <form onSubmit={handleCreateGroup} onClick={(e) => e.stopPropagation()} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
+            <h4 className="font-serif font-bold text-slate-800 text-sm">Create New Group</h4>
+            <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="Group name..." className="w-full px-3 py-2 border rounded-lg text-xs" required autoFocus />
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowNewGroupModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
+              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl">Create</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {activeMessageMenu && (
+        <div className="absolute inset-0 z-50 bg-black/35 flex items-center justify-center p-4 animate-fadeIn" onClick={() => { setActiveMessageMenu(null); setEditingMessageId(null); }}>
+          <div className="w-full max-w-xs bg-white border-2 border-[#EADFC9] rounded-[1.5rem] p-4 shadow-skeuo-lg text-slate-800 space-y-2 text-center" onClick={(e) => e.stopPropagation()}>
+            <h5 className="font-serif font-bold text-xs text-slate-400 pb-1.5 border-b uppercase">Message Options</h5>
+            {editingMessageId !== activeMessageMenu.id ? (
+              <div className="flex flex-col gap-1.5">
+                <button onClick={() => copyMessageText(activeMessageMenu.text)} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs">📋 Copy Commentary</button>
+                <button onClick={(e) => { e.stopPropagation(); onInspectUser(activeMessageMenu.senderUid); setActiveMessageMenu(null); }} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs">👤 Inspect Sender Profile</button>
+                {(isAdmin || activeMessageMenu.senderUid === userProfile?.id) && (
+                  <>
+                    <button onClick={() => { setEditingMessageId(activeMessageMenu.id); setEditingMessageText(activeMessageMenu.text); }} className="w-full py-2 hover:bg-amber-50 text-amber-600 font-bold rounded-xl text-xs">✎ Edit Message</button>
+                    <button onClick={() => deleteMessage(activeMessageMenu.id)} className="w-full py-2 hover:bg-rose-50 text-rose-600 font-bold rounded-xl text-xs">🗑 Un-send / Delete</button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2 pt-2">
+                <textarea value={editingMessageText} onChange={e => setEditingMessageText(e.target.value)} className="w-full p-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" rows={3} />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => { setEditingMessageId(null); setEditingMessageText(''); }} className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs">Cancel</button>
+                  <button onClick={saveEditedMessage} className="px-3 py-1 bg-[#C5A03A] text-white font-bold rounded-lg text-xs">Save</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
-}            
+        }
+
 // --- INSTA FEED ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
   const [postTitle, setPostTitle] = useState('');
