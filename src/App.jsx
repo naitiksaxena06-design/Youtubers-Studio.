@@ -1658,6 +1658,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'chat'
 
   const longPressTimerRef = useRef(null);
+  const messagesEndRef = useRef(null);
   const channels = siteSettings.chatChannels || [{ id: 'general', name: '🌍 Studio Room' }];
 
   const openChannel = (id) => { setChatChannel(id); setViewMode('chat'); };
@@ -1787,10 +1788,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
             <span className="font-serif font-bold text-slate-800 text-sm truncate">{activeChannelObj?.name}</span>
           </div>
 
-          <div
-            ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}
-            className="flex-1 overflow-y-auto p-3.5 space-y-3 scroll-smooth min-h-0"
-          >
+          <div className="flex-1 overflow-y-auto p-3.5 space-y-3 scroll-smooth min-h-0">
             {(chats || [])
               .filter((c) => c.projectId === chatChannel)
               .map((m) => (
@@ -1808,8 +1806,9 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
                   </div>
                 </div>
               ))}
-          </div>
-
+<div ref={messagesEndRef} />
+</div>
+      
           <form
             onSubmit={async (e) => {
               await commit(e);
