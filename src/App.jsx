@@ -1706,14 +1706,17 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const commit = async (e) => {
     e.preventDefault();
     if (!inputText.trim() || !db || !db.app) return;
-    const text = inputText;
+    const text = inputText.trim();
+    
+    // IMMEDIATELY clear the text input for snappy UI feedback
+    setInputText(''); 
+    
     try {
       const chatDocRef = await addDoc(collection(db, 'chats'), {
         projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
       });
       // Pass the specific chatId into the notification's meta data so we can track it later
       pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, 'chat', { channelId: chatChannel, chatId: chatDocRef.id }, userProfile?.name || 'Guest Creator', 'all');
-      setInputText('');
     } catch (err) {}
   };
 
