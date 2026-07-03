@@ -1747,18 +1747,18 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
                 className="flex-1 overflow-y-auto p-3.5 space-y-3 scroll-smooth"
               >
                 {(chats || [])
-                  .filter((c) => c.projectId === activeProject?.id || c.channelId === activeChannel?.id)
-                  .map((m) => (
-                    <div key={m.id} className={`flex flex-col ${m.author === userProfile?.name ? 'items-end' : 'items-start'}`}>
-                      <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-xs ${m.author === userProfile?.name ? 'bg-[#C5A03A] text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
-                        <div className="flex justify-between items-center gap-4 mb-0.5 opacity-75">
-                          <span className="text-[9px] font-bold">{m.author}</span>
-                          <span className="text-[8px] font-mono">{new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                        </div>
-                        <p className="break-words leading-relaxed">{m.text}</p>
-                      </div>
-                    </div>
-                  ))}
+  .filter((c) => c.projectId === chatChannel)
+  .map((m) => (
+    <div key={m.id} className={`flex flex-col ${m.senderUid === userProfile?.id ? 'items-end' : 'items-start'}`}>
+      <div className={`px-4 py-2 rounded-2xl max-w-[75%] text-xs ${m.senderUid === userProfile?.id ? 'bg-[#C5A03A] text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none'}`}>
+        <div className="flex justify-between items-center gap-4 mb-0.5 opacity-75">
+          <span className="text-[9px] font-bold">{m.senderName}</span>
+          <span className="text-[8px] font-mono">{new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+        </div>
+        <p className="break-words leading-relaxed">{m.text}</p>
+      </div>
+    </div>
+  ))}
               </div>
 
               <form 
