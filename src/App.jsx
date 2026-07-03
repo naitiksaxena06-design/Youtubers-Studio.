@@ -8,7 +8,7 @@ import {
 import { 
   getFirestore, doc as fbDoc, setDoc, updateDoc, deleteDoc, getDoc,
   collection as fbCollection, addDoc, onSnapshot, query, orderBy, limit as fbLimit,
-  arrayUnion 
+  arrayUnion, where, getDocs
 } from 'firebase/firestore';
 
 // --- SAFE FIREBASE INITIALIZATION ---
@@ -51,6 +51,19 @@ const doc = (dbRefOrCol, path, ...segments) => {
   return fbDoc(dbRefOrCol, path, ...segments);
 };
 
+// --- GLOBAL TIME FORMATTERS (AM/PM Enforcement) ---
+const formatTimeAMPM = (timestamp) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+};
+
+const formatDateTimeAMPM = (timestamp) => {
+  if (!timestamp) return '';
+  const d = new Date(timestamp);
+  return d.toLocaleDateString('en-US') + ' • ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+};
+
+
 // --- STYLING INJECTION ---
 const injectArtStyleStyles = () => {
   if (document.getElementById('studio-aurum-styles')) return;
@@ -68,6 +81,11 @@ const injectArtStyleStyles = () => {
     .shadow-skeuo-md { box-shadow: 0 10px 25px -5px rgba(135, 112, 58, 0.15), 0 8px 10px -6px rgba(135, 112, 58, 0.1); }
     .shadow-skeuo-lg { box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15); }
     .shadow-skeuo-3d { box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9); }
+    
+    /* Hard CSS rule to hide native HTML5 media controls that overlap with our UI */
+    video::-webkit-media-controls { display: none !important; }
+    video::-webkit-media-controls-enclosure { display: none !important; }
+
     @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
   `;
@@ -145,13 +163,13 @@ const resolvePlayableVideo = (url) => {
     return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`, thumbnail: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` };
   }
   
-  const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
+    const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
     return { 
       type: 'iframe-stream', 
       src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, 
-      thumbnail: null 
+      thumbnail: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w600` 
     };
   }
 
@@ -181,6 +199,45 @@ const WatercolorOverlay = () => (
   <div className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }} />
 );
 
+
+function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
+  const [items, setItems] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!enabled || !db) { setItems([]); setLoaded(false); return; }
+    try {
+      let q = collection(db, name);
+      if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
+      const unsub = onSnapshot(q, (snap) => {
+        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoaded(true); setError(null);
+      }, (err) => { setLoaded(true); setError(err.message); });
+      return () => unsub();
+    } catch (e) { setError(e.message); setLoaded(true); }
+  }, [name, orderField, limitN, enabled]);
+  return [items, loaded, error];
+}
+
+function useFirestoreDoc(path, fallback, enabled = false) {
+  const [data, setData] = useState(fallback);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || !db) { setData(fallback); setLoaded(false); return; }
+    try {
+      const ref = doc(db, path);
+      const unsub = onSnapshot(ref, (snap) => {
+        if (snap.exists()) setData({ ...fallback, ...snap.data() }); else setData(fallback);
+        setLoaded(true);
+      }, () => setLoaded(true));
+      return () => unsub();
+    } catch (e) { setLoaded(true); }
+  }, [path, enabled]);
+  return [data, loaded];
+}
+
 export default function App() {
   const [loadingLibraries, setLoadingLibraries] = useState(true);
   const [threeReady, setThreeReady] = useState(false);
@@ -197,7 +254,7 @@ export default function App() {
 
   const showToast = useCallback((message, type = 'info') => {
     setCustomToast({ message, type });
-    setTimeout(() => setCustomToast(null), 1000); 
+    setTimeout(() => setCustomToast(null), 1500); 
   }, []);
 
   const ensureProfileDocRef = useRef(() => {});
@@ -217,7 +274,7 @@ export default function App() {
   const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES }, isAuthReady);
   const categories = categoriesDoc.list || DEFAULT_CATEGORIES;
   const [posts] = useFirestoreCollection('posts', 'createdAt', null, isAuthReady);
-  const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 100, isAuthReady);
+  const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50, isAuthReady);
   const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG, isAuthReady);
   const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] }, isAuthReady);
   const [projects] = useFirestoreCollection('projects', 'createdAt', null, isAuthReady);
@@ -241,6 +298,28 @@ export default function App() {
     const roleLower = (userProfile.role || '').toLowerCase();
     return roleLower === 'roasting waiter' || roleLower === 'waiter';
   }, [userProfile]);
+
+  // Clear unread alerts when visiting notifications page
+  useEffect(() => {
+    if (currentPage === 'notifications' && db && userProfile) {
+      try { updateDoc(doc(db, 'profiles', userProfile.id), { lastSeenNotifAt: Date.now() }); } catch (e) {}
+    }
+  }, [currentPage, userProfile]);
+
+  useEffect(() => {
+    const pruneOldNotifications = async () => {
+      try {
+        if (!db || !db.app || !isAdmin) return;
+        const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        const notificationsRef = fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications');
+        const oldAlertsQuery = query(notificationsRef, where('timestamp', '<', oneWeekAgo));
+        const snapshot = await getDocs(oldAlertsQuery);
+        const batchPromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
+        await Promise.all(batchPromises);
+      } catch (err) {}
+    };
+    pruneOldNotifications();
+  }, [db, isAdmin]);
 
   const isProfileIncomplete = useMemo(() => {
     if (!authUser || !userProfile) return false;
@@ -271,7 +350,7 @@ export default function App() {
     }
   }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
 
-  // --- BACKGROUND TIME-BASED AUTO-SWEEPER ---
+  // --- BACKGROUND TIME-BASED AUTO-SWEEPER (Safe & Calibrated Active Firestore Deletion) ---
   useEffect(() => {
     if (!isAuthReady || !userProfile || !db || !db.app) return;
     const runSweep = async () => {
@@ -279,7 +358,7 @@ export default function App() {
       const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
       const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
       const oneDayAgo = now - 24 * 60 * 60 * 1000;
-      const safetyBaseline = 1735689600000;
+      const safetyBaseline = 1735689600000; 
 
       const isDataOlderThan = (timestamp, threshold) => {
         if (!timestamp || typeof timestamp !== 'number' || timestamp < safetyBaseline) return false;
@@ -296,6 +375,67 @@ export default function App() {
     const delayTimer = setTimeout(() => { runSweep(); }, 15000);
     return () => clearTimeout(delayTimer);
   }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts, projects]);
+
+  useEffect(() => { if (notifsError && isAuthReady && !isRoastingWaiter) { showToast(`Notifications temporarily on standby.`, 'info'); } }, [notifsError, isAuthReady, isRoastingWaiter]);
+
+  const visibleNotifications = useMemo(() => (notifications || []).filter(n => {
+    if (!n || n.actor === 'System' || n.actor === userProfile?.name) return false; 
+    const audience = n.audience || 'all';
+    return audience === 'all' || (audience === 'admin' && isAdmin);
+  }), [notifications, isAdmin, userProfile]);
+
+  const unreadMap = useMemo(() => {
+    if (isRoastingWaiter) return { vault: false, projects: false, scripts: false, posts: false, overall: 0 };
+    const lastSeen = userProfile?.lastSeenNotifAt || 0;
+    const unread = visibleNotifications.filter(n => n.timestamp > lastSeen);
+    return {
+      vault: unread.some(n => { const msg = String(n.message).toLowerCase(); return msg.includes('video asset') || msg.includes('commented on video'); }),
+      projects: unread.some(n => String(n.message).toLowerCase().includes('concept whiteboard')),
+      scripts: unread.some(n => String(n.message).toLowerCase().includes('script topic')),
+      posts: unread.some(n => String(n.message).toLowerCase().includes('showroom draft')),
+      overall: unread.length
+    };
+  }, [visibleNotifications, userProfile, isRoastingWaiter]);
+
+  const seenNotifIdsRef = useRef(new Set());
+  const firstNotifLoadRef = useRef(true);
+  
+  useEffect(() => {
+    if (!userProfile || isRoastingWaiter || userProfile.status !== 'approved') return;
+    if (firstNotifLoadRef.current) {
+      (notifications || []).forEach(n => n && seenNotifIdsRef.current.add(n.id));
+      firstNotifLoadRef.current = false;
+      return;
+    }
+    (notifications || []).forEach(n => {
+      if (!n || !n.message || seenNotifIdsRef.current.has(n.id) || n.actor === 'System') return;
+      seenNotifIdsRef.current.add(n.id);
+      if (n.actor === userProfile.name) return;
+      
+      const msg = String(n.message).toLowerCase();
+      if (currentPage === 'vault' && (msg.includes('video asset') || msg.includes('commented on video'))) return;
+      if (currentPage === 'projects' && msg.includes('concept whiteboard')) return;
+      if (currentPage === 'scripts' && msg.includes('script topic')) return;
+      if (currentPage === 'posts' && msg.includes('showroom draft')) return;
+      if (currentPage === 'chat' && !msg.startsWith('"')) return;
+
+      const audience = n.audience || 'all';
+      const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
+      if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try { 
+          const options = {
+            body: n.message,
+            icon: siteSettings.logoUrl || undefined,
+            badge: siteSettings.logoUrl || undefined,
+            tag: n.id,
+            renotify: true,
+            requireInteraction: true 
+          };
+          new Notification('Youtubers Studio', options); 
+        } catch (e) { console.error("Native push dispatch failure", e); }
+      }
+    });
+  }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, isRoastingWaiter]);
 
   const pushNotification = useCallback(async (message, actorName = 'Crew Member', audience = 'all') => {
     if (isRoastingWaiter || !db || !db.app || userProfile?.status !== 'approved') return;
@@ -433,9 +573,25 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
-          <button onClick={() => handleNavigationChange('notifications')} className="relative p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-          </button>
+          {typeof Notification !== "undefined" && Notification.permission !== "granted" && (
+            <button 
+              onClick={async () => {
+                const permission = await Notification.requestPermission();
+                if (permission === "granted") {
+                  new Notification("Youtubers Studio", { body: "Alerts synced! 🎉" });
+                }
+              }}
+              className="text-[10px] bg-amber-500/20 text-amber-700 px-2.5 py-1 rounded-md font-bold"
+            >
+              🔔 Enable Phone Alerts
+            </button>
+          )}
+          {userProfile && userProfile.status === 'approved' && !isRoastingWaiter && (
+            <button onClick={() => handleNavigationChange('notifications')} className="relative p-2.5 hover:bg-[#C5A03A]/10 rounded-full transition text-[#C5A03A] shadow-inner border border-[#EADFC9]/50 bg-white/50">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+              {unreadMap.overall > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">{unreadMap.overall > 9 ? '9+' : unreadMap.overall}</span>}
+            </button>
+          )}
           {userProfile ? (
             <div className="flex items-center space-x-2">
               <div className="hidden sm:flex flex-col text-right"><p className="text-xs font-bold text-slate-800 leading-none">{userProfile?.name}</p><span className="text-[8px] text-[#C5A03A] uppercase tracking-widest font-mono font-bold mt-1">{userProfile?.role}</span></div>
@@ -454,6 +610,7 @@ export default function App() {
               {(!userProfile || (userProfile.status === 'approved' && !isRoastingWaiter && !isProfileIncomplete)) && (
                 <>
                   <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'home' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏠</span><span>Home Hub</span></button>
+                  <button onClick={() => handleNavigationChange('notifications')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'notifications' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🔔</span><span>Updates Log</span>{unreadMap.overall > 0 && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}</button>
                   <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'crew' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎬</span><span>Crew Roster</span></button>
                   <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'categories-view' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🏷️</span><span>Categories</span></button>
                   <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all relative ${currentPage === 'vault' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🎞️</span><span>Video Vault</span>{unreadMap.vault && <span className="absolute right-4 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>}</button>
@@ -464,7 +621,6 @@ export default function App() {
                 </>
               )}
               {userProfile && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'profile' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>👤</span><span>My Profile {isProfileIncomplete && '⚠️'}</span></button>}
-              {userProfile && <button onClick={() => handleNavigationChange('notifications')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'notifications' ? 'bg-[#C5A03A]/10 text-[#C5A03A]' : 'text-slate-600 hover:bg-slate-50'}`}><span>🔔</span><span>Notifications Log</span></button>}
               {isAdmin && !isRoastingWaiter && !isProfileIncomplete && (
                 <div className="pt-4 border-t border-[#EADFC9]/50 mt-4 space-y-1"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 block mb-1 font-sans">Admin Controls</span><button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-3 px-4 py-2 rounded-xl text-left text-xs font-bold transition-all ${currentPage === 'admin' ? 'bg-rose-50 text-rose-600' : 'text-slate-500 hover:bg-rose-50/40'}`}><span>👥</span><span>Manage Roster</span></button></div>
               )}
@@ -476,6 +632,7 @@ export default function App() {
       {/* --- MAIN PAGE CONTENT --- */}
       <main className="relative z-20 max-w-7xl mx-auto px-0 sm:px-4 py-6 studio-page-wrap animate-fadeIn">
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} onNavigate={setCurrentPage} onInspectUser={setInspectUser} userProfile={userProfile} />}
+        {currentPage === 'notifications' && <NotificationsFeed notifications={visibleNotifications} onNavigate={setCurrentPage} setActiveVideo={setActiveVideo} videos={videos} onInspectUser={setInspectUser} />}
         {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} handleNavigationChange={handleNavigationChange} handleSignOut={handleSignOut} />}
         {currentPage === 'rejected-status' && <RejectedScreen handleSignOut={handleSignOut} />}
         {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
@@ -484,9 +641,8 @@ export default function App() {
         {currentPage === 'vault' && <VideoVault videos={videos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} activeVideo={activeVideo} setActiveVideo={setActiveVideo} onInspectUser={setInspectUser} />}
         {currentPage === 'projects' && <div className="px-4 sm:px-0"><ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} /></div>}
         {currentPage === 'scripts' && <div className="px-4 sm:px-0"><ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} /></div>}
-        {currentPage === 'chat' && <div className="px-4 sm:px-0"><WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} onInspectUser={setInspectUser} profiles={profiles} /></div>}
+        {currentPage === 'chat' && <div className="px-4 sm:px-0"><WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} onInspectUser={setInspectUser} /></div>}
         {currentPage === 'posts' && <div className="px-4 sm:px-0"><PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
-        {currentPage === 'notifications' && <div className="px-4 sm:px-0"><NotificationsPage notifications={notifications} userProfile={userProfile} isAdmin={isAdmin} /></div>}
         
         {currentPage === 'profile' && (
           !userProfile ? <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md"><p className="text-slate-600 font-medium">Preparing sandbox profile card...</p></div> : 
@@ -648,7 +804,7 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'YouTube Subscribers', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
+          { label: 'YouTube Subscribers', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${formatTimeAMPM(ytConfig.lastSyncedAt)}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
           { label: 'Latest Video Views', value: ytConfig?.latestVideoViews || '—', icon: '📺', change: ytConfig?.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
           { label: 'Vault Records', value: `${videos?.length || 0} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
           { label: 'Active Ideas', value: `${projects?.length || 0} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
@@ -667,11 +823,67 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
             <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-1.5 animate-fadeIn">
               <span className="font-bold text-slate-800 font-sans cursor-pointer hover:underline" onClick={() => onInspectUser(notif.authorUid)}>{notif.actor}:{' '}</span>
               <span className="text-slate-600 font-sans">{notif.message}</span>
-              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</p>
+              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{formatTimeAMPM(notif.timestamp)}</p>
             </div>
           ))}
           {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No updates mapped to log yet.</p>}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// --- NOTIFICATIONS PAGE ---
+function NotificationsFeed({ notifications, onNavigate, setActiveVideo, videos, onInspectUser }) {
+  const handleNotificationClick = (notif) => {
+    const msg = (notif.message || '').toLowerCase();
+    
+    if (msg.includes('video asset') || msg.includes('commented on video')) {
+      onNavigate('vault');
+      const match = videos.find(v => msg.includes(v.title.toLowerCase()));
+      if (match) setActiveVideo(match);
+    } else if (msg.includes('concept whiteboard') || msg.includes('task')) {
+      onNavigate('projects');
+    } else if (msg.includes('script topic')) {
+      onNavigate('scripts');
+    } else if (msg.includes('showroom draft') || msg.includes('showroom feed')) {
+      onNavigate('posts');
+    } else if (msg.startsWith('"')) {
+      onNavigate('chat');
+    } else {
+      onNavigate('home');
+    }
+  };
+
+  const sortedNotifs = useMemo(() => {
+    return [...notifications].sort((a, b) => b.timestamp - a.timestamp);
+  }, [notifications]);
+
+  return (
+    <section className="bg-white border-2 border-[#EADFC9] p-4 sm:p-6 rounded-2xl shadow-skeuo-md font-sans max-w-4xl mx-auto min-h-[75vh] flex flex-col">
+      <div className="flex items-center justify-between border-b pb-4 mb-4">
+        <h2 className="font-serif text-lg font-bold text-slate-800 flex items-center gap-2">🔔 Studio Updates Log</h2>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
+        {sortedNotifs.map((n) => (
+          <div key={n.id} onClick={() => handleNotificationClick(n)} className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl hover:border-[#C5A03A]/50 hover:bg-[#C5A03A]/5 cursor-pointer transition">
+             <div className="mt-1 w-2 h-2 bg-[#C5A03A] rounded-full shrink-0 shadow-sm" />
+             <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 leading-snug">{n.message}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] text-slate-500 hover:underline" onClick={(e) => { e.stopPropagation(); onInspectUser(n.authorUid); }}>{n.actor}</span>
+                  <span className="text-slate-300 text-[10px]">•</span>
+                  <span className="text-[10px] font-mono text-slate-400">{formatDateTimeAMPM(n.timestamp)}</span>
+                </div>
+             </div>
+          </div>
+        ))}
+        {sortedNotifs.length === 0 && (
+          <div className="text-center py-20 text-slate-400 text-sm italic">
+            You are completely caught up! No recent studio alerts.
+          </div>
+        )}
       </div>
     </section>
   );
@@ -784,6 +996,7 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [videoRatio, setVideoRatio] = useState(16 / 9);
   const [zoomScale, setZoomScale] = useState(1); 
@@ -890,6 +1103,7 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
         <video 
           ref={videoRef} 
           src={hlsUrl} 
+          controls={false} /* Explicitly disable native controls */
           style={{ transform: `scale(${zoomScale})`, transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
           className="w-full h-full object-contain cursor-pointer" 
           onLoadedMetadata={handleLoadedMetadata} 
@@ -941,7 +1155,7 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
               <button onClick={() => skip10(10)} className="active:text-amber-400 text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded">⏩ 10s</button>
             </div>
 
-            <div className="flex items-center justify-between text-white text-[10px] sm:text-xs font-bold font-sans">
+            <div className="flex items-center gap-2">
               <button onClick={cycleZoomScale} className="text-[9px] font-mono bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition">
                 🔍 {zoomScale === 1 ? 'Fit' : `${zoomScale}x`}
               </button>
@@ -1000,11 +1214,11 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     const newComment = { id: 'c_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
     await addDoc(fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { 
-      message: `${userProfile.name} commented on video: "${activeVideo.title}"`, 
-      actor: userProfile.name, 
-      timestamp: Date.now(), 
-      audience: "admin" 
-    });
+  message: `${userProfile.name} commented on video: "${activeVideo.title}"`, 
+  actor: userProfile.name, 
+  timestamp: Date.now(), 
+  audience: "admin" 
+});
 
     e.target.commentInput.value = '';
     const freshDoc = await getDoc(doc(db, 'videos', videoId));
@@ -1032,6 +1246,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
           <span className="font-serif font-bold text-slate-800">Return to Vault</span>
         </div>
 
+                {/* NEW: Dynamic Context Control Bar for External Links */}
         {embed.type === 'iframe-stream' && (
           <div className="px-4 py-2 bg-amber-500/10 border-b border-[#EADFC9]/60 flex items-center justify-between text-xs gap-2">
             <span className="text-amber-800 font-semibold font-sans">🔄 External Stream Grid Layout Optimization</span>
@@ -1075,7 +1290,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
         <div className="p-5 border-b border-slate-100">
           <h1 className="text-xl font-black text-slate-900 leading-tight mb-2 font-serif">{activeVideo.title}</h1>
           <div className="flex justify-between items-center text-xs text-slate-500">
-            <span className="font-mono">{new Date(activeVideo.createdAt).toLocaleDateString()}</span>
+            <span className="font-mono">{formatDateTimeAMPM(activeVideo.createdAt)}</span>
             <span className="bg-rose-50 text-rose-600 font-bold px-2 py-0.5 rounded border border-rose-100 flex items-center gap-1 shadow-sm">⏳ {timeLeft}</span>
           </div>
           
@@ -1105,7 +1320,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="font-bold text-slate-800 hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(comment.authorUid)}>{comment.authorName}</span>
-                    <span className="text-[9px] text-slate-400 font-mono">{new Date(comment.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</span>
+                    <span className="text-[9px] text-slate-400 font-mono">{formatTimeAMPM(comment.timestamp)}</span>
                   </div>
                   <span className="text-slate-600 break-words leading-relaxed">{comment.text}</span>
                 </div>
@@ -1130,25 +1345,33 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {videos.map((vid) => {
-          const timeLeft = getExpiry7(vid.createdAt);
-          const templateBgStyle = vid.title.toLowerCase().includes('edit') 
-            ? 'from-blue-900 via-indigo-950 to-slate-950' 
-            : 'from-amber-900 via-zinc-900 to-stone-950';
+  const embed = resolvePlayableVideo(vid.hlsUrl);
+  const timeLeft = getExpiry7(vid.createdAt);
+  
+  // Create an automated dynamic thumbnail background preview matching asset attributes
+  const templateBgStyle = vid.title.toLowerCase().includes('edit') 
+    ? 'from-blue-900 via-indigo-950 to-slate-950' 
+    : 'from-amber-900 via-zinc-900 to-stone-950';
 
-          return (
-            <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
-              <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
-                <div className={`absolute inset-0 bg-gradient-to-br ${templateBgStyle} group-hover:scale-105 transition-transform duration-500 flex flex-col items-center justify-center p-4 text-center select-none border-b border-white/5`}>
-                  <span className="text-3xl mb-1.5 filter drop-shadow animate-pulse-slow">🎞️</span>
-                  <span className="text-xs font-serif font-black tracking-wide text-amber-400 uppercase line-clamp-2 px-2 max-w-full drop-shadow-md">{vid.title}</span>
-                  <div className="mt-2 flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-full border border-white/10">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
-                    <span className="text-[8px] font-mono tracking-widest text-slate-300 font-bold uppercase">Ready to Stream</span>
-                  </div>
-                </div>
-                <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
-                <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
-              </div>
+  return (
+    <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
+      <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
+        {embed.thumbnail ? (
+          <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
+        ) : (
+          /* Enforce structural automated visible template block layout layout */
+          <div className={`absolute inset-0 bg-gradient-to-br ${templateBgStyle} group-hover:scale-105 transition-transform duration-500 flex flex-col items-center justify-center p-4 text-center select-none border-b border-white/5`}>
+            <span className="text-3xl mb-1.5 filter drop-shadow animate-pulse-slow">🎞️</span>
+            <span className="text-xs font-serif font-black tracking-wide text-amber-400 uppercase line-clamp-2 px-2 max-w-full drop-shadow-md">{vid.title}</span>
+            <div className="mt-2 flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-full border border-white/10">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+              <span className="text-[8px] font-mono tracking-widest text-slate-300 font-bold uppercase">Ready to Stream</span>
+            </div>
+          </div>
+        )}
+        <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
+        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
+      </div>
 
               <div className="p-3 flex gap-3 bg-white flex-1">
                 <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-0.5">{renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(vid.uploaderUid); })}</div>
@@ -1404,7 +1627,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 }
 
 // --- CHATROOM ---
-function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast, onInspectUser, profiles }) {
+function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast, onInspectUser }) {
   const [inputText, setInputText] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
@@ -1413,32 +1636,57 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [viewMode, setViewMode] = useState('list');
 
+  const longPressTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const scrollContainerRef = useRef(null);
   const channels = siteSettings.chatChannels || [{ id: 'general', name: '🌍 Studio Room' }];
 
   const openChannel = (id) => { setChatChannel(id); setViewMode('chat'); };
 
-  const activeChannelChats = useMemo(() => {
+  // Insta-style grouping logic and auto-scroll
+  const channelChats = useMemo(() => {
     return (chats || [])
-      .filter((c) => c.projectId === chatChannel)
-      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      .filter(c => c.projectId === chatChannel)
+      .sort((a, b) => a.createdAt - b.createdAt); // oldest to newest
   }, [chats, chatChannel]);
 
-  // --- AUTO SCROLL ENGINE ---
   useEffect(() => {
     if (viewMode === 'chat' && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [activeChannelChats, viewMode]);
+  }, [channelChats, viewMode]);
 
   const channelPreviews = useMemo(() => {
     return channels.map(ch => {
-      const channelChats = (chats || []).filter(c => c.projectId === ch.id).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      const last = channelChats[0];
+      const allThisChannel = (chats || []).filter(c => c.projectId === ch.id).sort((a, b) => b.createdAt - a.createdAt);
+      const last = allThisChannel[0];
       return { ...ch, lastMessage: last?.text || 'No messages yet', lastSender: last?.senderName || '', lastTime: last?.createdAt || null };
     }).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   }, [channels, chats]);
+
+  // Group messages together if they are from the same person and sent within 5 minutes
+  const groupedChats = useMemo(() => {
+    const groups = [];
+    let currentGroup = [];
+    
+    channelChats.forEach((msg) => {
+      if (currentGroup.length === 0) {
+        currentGroup.push(msg);
+      } else {
+        const lastMsg = currentGroup[currentGroup.length - 1];
+        const isSameSender = msg.senderUid === lastMsg.senderUid;
+        const isCloseTime = (msg.createdAt - lastMsg.createdAt) < (5 * 60 * 1000); 
+
+        if (isSameSender && isCloseTime) {
+          currentGroup.push(msg);
+        } else {
+          groups.push([...currentGroup]);
+          currentGroup = [msg];
+        }
+      }
+    });
+    if (currentGroup.length > 0) groups.push(currentGroup);
+    return groups;
+  }, [channelChats]);
 
   const commit = async (e) => {
     e.preventDefault();
@@ -1499,6 +1747,9 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     setActiveMessageMenu(null);
   };
 
+  const handleTouchStart = (msg) => { longPressTimerRef.current = setTimeout(() => { setActiveMessageMenu(msg); }, 500); };
+  const handleTouchEnd = () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
+
   const timeAgo = (ts) => {
     if (!ts) return '';
     const diff = Date.now() - ts;
@@ -1514,7 +1765,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const activeChannelObj = channels.find(c => c.id === chatChannel);
 
   return (
-    <div className="border-2 border-[#EADFC9] rounded-2xl h-[78vh] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans flex flex-col relative">
+    <section className="border-2 border-[#EADFC9] rounded-2xl h-[75vh] bg-white overflow-hidden shadow-skeuo-md animate-fadeIn font-sans flex flex-col">
       {viewMode === 'list' ? (
         <>
           <div className="p-4 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0">
@@ -1543,86 +1794,95 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
           </div>
         </>
       ) : (
-        <div className="flex flex-col h-full relative">
-          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center gap-3 shrink-0 bg-white z-10">
+        <>
+          <div className="p-3 border-b border-[#EADFC9]/50 flex items-center gap-3 shrink-0 bg-white z-10 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
             <button onClick={() => setViewMode('list')} className="p-1.5 hover:bg-slate-100 rounded-full transition">
               <svg className="w-5 h-5 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             </button>
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-bold text-sm shrink-0">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm">
               {initialOf(activeChannelObj?.name)}
             </div>
             <span className="font-serif font-bold text-slate-800 text-sm truncate">{activeChannelObj?.name}</span>
           </div>
 
-          {/* --- INSTA-STYLE SCROLLABLE BUBBLES CONTAINER --- */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar min-h-0 bg-white pb-20">
-            {activeChannelChats.map((m, idx) => {
-              const isMe = m.senderUid === userProfile?.id;
-              const prevMsg = activeChannelChats[idx - 1];
-              const isConsecutive = prevMsg && prevMsg.senderUid === m.senderUid;
-              const showTimestamp = !prevMsg || (m.createdAt - prevMsg.createdAt > 15 * 60 * 1000);
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 custom-scrollbar bg-[#FCFBF8]">
+            {groupedChats.map((group, gIdx) => {
+               const isMe = group[0].senderUid === userProfile?.id;
+               const senderName = group[0].senderName;
 
-              return (
-                <div key={m.id} className="w-full flex flex-col">
-                  {showTimestamp && (
-                    <div className="w-full text-center my-3 select-none">
-                      <span className="text-[10px] text-slate-400 font-medium tracking-wide">
-                        {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                      </span>
-                    </div>
-                  )}
-                  
-                  <div className={`flex w-full items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} ${isConsecutive ? 'mt-0.5' : 'mt-2.5'}`}>
-                    {!isMe && (
-                      <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 shadow-xs">
-                        {!isConsecutive && renderAvatar(profiles.find(p => p.id === m.senderUid)?.photoURL, "w-full h-full object-cover", () => onInspectUser(m.senderUid))}
-                      </div>
-                    )}
-                    
-                    <div 
-                      onContextMenu={(e) => { e.preventDefault(); setActiveMessageMenu(m); }}
-                      className={`relative group px-3 py-1.5 text-xs max-w-[70%] rounded-2xl transition shadow-sm border ${
-                        isMe 
-                          ? 'bg-[#C5A03A] text-white border-[#b08d30] rounded-br-sm' 
-                          : 'bg-slate-100 text-slate-800 border-slate-200 rounded-bl-sm'
-                      }`}
-                    >
-                      {!isMe && !isConsecutive && (
-                        <span className="text-[9px] font-bold text-[#C5A03A] block mb-0.5 tracking-wide">
-                          {m.senderName}
-                        </span>
-                      )}
-                      <p className="break-words whitespace-pre-wrap leading-relaxed">{m.text}</p>
-                    </div>
-                  </div>
-                </div>
-              );
+               return (
+                 <div key={gIdx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                   {/* Name tag logic: Only show for others, not yourself */}
+                   {!isMe && <span className="text-[10px] text-slate-500 font-bold mb-1 ml-1">{senderName}</span>}
+
+                   <div className={`flex flex-col gap-0.5 max-w-[75%]`}>
+                      {group.map((m, i) => {
+                         const isFirst = i === 0;
+                         const isLast = i === group.length - 1;
+                         
+                         // Insta-style dynamic curved corners
+                         let corners = 'rounded-2xl';
+                         if (isMe) {
+                            if (group.length > 1) {
+                               if (isFirst) corners = 'rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl rounded-br-sm';
+                               else if (isLast) corners = 'rounded-tl-2xl rounded-tr-sm rounded-bl-2xl rounded-br-2xl';
+                               else corners = 'rounded-tl-2xl rounded-tr-sm rounded-bl-2xl rounded-br-sm';
+                            } else {
+                                corners = 'rounded-2xl rounded-br-sm';
+                            }
+                         } else {
+                             if (group.length > 1) {
+                               if (isFirst) corners = 'rounded-tr-2xl rounded-tl-2xl rounded-br-2xl rounded-bl-sm';
+                               else if (isLast) corners = 'rounded-tr-2xl rounded-tl-sm rounded-br-2xl rounded-bl-2xl';
+                               else corners = 'rounded-tr-2xl rounded-tl-sm rounded-br-2xl rounded-bl-sm';
+                            } else {
+                                corners = 'rounded-2xl rounded-bl-sm';
+                            }
+                         }
+
+                         return (
+                            <div
+                              key={m.id}
+                              className={`relative px-3 py-1.5 text-xs sm:text-sm ${corners} shadow-sm ${isMe ? 'bg-gradient-to-br from-[#d4b04c] to-[#bb9632] text-white border border-[#ab892c]' : 'bg-white text-slate-800 border border-slate-200'}`}
+                              onTouchStart={() => handleTouchStart(m)}
+                              onTouchEnd={handleTouchEnd}
+                              onContextMenu={(e) => { e.preventDefault(); setActiveMessageMenu(m); }}
+                            >
+                               <p className="break-words leading-snug">{m.text}</p>
+                            </div>
+                         );
+                      })}
+                   </div>
+                   {/* Clean timestamp placed neatly at the bottom of the group */}
+                   <span className="text-[9px] text-slate-400 mt-1 mx-1 font-mono tracking-wide">{formatTimeAMPM(group[group.length - 1].createdAt)}</span>
+                 </div>
+               );
             })}
-            <div ref={messagesEndRef} />
+            <div ref={messagesEndRef} className="h-1" />
           </div>
-      
-          {/* --- PILL INPUT SYSTEM FIXED STICKY FOOTER --- */}
-          <div className="absolute bottom-0 left-0 right-0 p-3 bg-white/90 backdrop-blur-md border-t border-slate-100 z-20">
-            <form
-              onSubmit={async (e) => {
-                await commit(e);
-              }}
-              className="flex items-center gap-2 max-w-4xl mx-auto bg-slate-50 border border-slate-200 rounded-full px-4 py-1.5 shadow-inner"
-            >
+          
+          <form
+            onSubmit={commit}
+            className="p-3 bg-white border-t border-slate-100 shrink-0 shadow-[0_-4px_15px_rgba(0,0,0,0.03)] z-10"
+          >
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-full pl-4 pr-1 py-1 focus-within:border-[#C5A03A] focus-within:ring-1 focus-within:ring-[#C5A03A]/20 transition-all">
               <input 
                 type="text" 
                 placeholder="Message..." 
                 value={inputText} 
                 onChange={(e) => setInputText(e.target.value)} 
-                className="flex-1 bg-transparent border-none text-xs focus:outline-none focus:ring-0 text-slate-800 py-1" 
+                className="flex-1 bg-transparent text-xs text-slate-800 focus:outline-none" 
                 required 
               />
-              <button type="submit" className="bg-[#C5A03A] hover:bg-[#b08d32] text-white text-xs font-bold px-4 py-1.5 rounded-full transition-all active:scale-95 shadow-md shrink-0">
+              <button 
+                type="submit" 
+                className="bg-[#C5A03A] text-white text-xs font-bold px-4 py-2 rounded-full transition hover:bg-[#b08d32] active:scale-95 shadow-sm"
+              >
                 Send
               </button>
-            </form>
-          </div>
-        </div>
+            </div>
+          </form>
+        </>
       )}
 
       {showNewGroupModal && (
@@ -1639,7 +1899,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       )}
 
       {activeMessageMenu && (
-        <div className="fixed inset-0 z-[99999] bg-black/35 flex items-center justify-center p-4 animate-fadeIn" onClick={() => { setActiveMessageMenu(null); setEditingMessageId(null); }}>
+        <div className="absolute inset-0 z-50 bg-black/35 flex items-center justify-center p-4 animate-fadeIn" onClick={() => { setActiveMessageMenu(null); setEditingMessageId(null); }}>
           <div className="w-full max-w-xs bg-white border-2 border-[#EADFC9] rounded-[1.5rem] p-4 shadow-skeuo-lg text-slate-800 space-y-2 text-center" onClick={(e) => e.stopPropagation()}>
             <h5 className="font-serif font-bold text-xs text-slate-400 pb-1.5 border-b uppercase">Message Options</h5>
             {editingMessageId !== activeMessageMenu.id ? (
@@ -1665,60 +1925,9 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// --- DEDICATED NOTIFICATIONS PAGE ROUTE ---
-function NotificationsPage({ notifications, userProfile, isAdmin }) {
-  const visibleLogs = useMemo(() => {
-    return (notifications || []).filter(n => {
-      if (!n || n.actor === 'System' || n.actor === userProfile?.name) return false;
-      const audience = n.audience || 'all';
-      return audience === 'all' || (audience === 'admin' && isAdmin);
-    });
-  }, [notifications, isAdmin, userProfile]);
-
-  return (
-    <section className="bg-white border-2 border-[#EADFC9] rounded-2xl p-6 shadow-skeuo-md animate-fadeIn max-w-4xl mx-auto font-sans min-h-[70vh]">
-      <div className="flex items-center justify-between border-b border-[#EADFC9]/50 pb-4 mb-6">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🔔</span>
-          <h2 className="font-serif text-xl font-bold text-slate-800">Studio Activity Logs</h2>
-        </div>
-        <span className="text-xs bg-[#C5A03A]/10 text-[#C5A03A] px-3 py-1 rounded-full font-bold">
-          {visibleLogs.length} Total Logs Tracked
-        </span>
-      </div>
-
-      <div className="space-y-3">
-        {visibleLogs.map((log) => (
-          <div className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 hover:bg-slate-50/80 transition duration-200 shadow-xs" key={log.id}>
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#C5A03A] to-amber-500 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
-              {log.actor?.charAt(0).toUpperCase() || '🔑'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-slate-800 font-medium text-xs leading-relaxed">
-                <span className="font-black text-slate-900 mr-1.5">{log.actor}</span>
-                {log.message}
-              </p>
-              <span className="text-[10px] text-slate-400 font-mono tracking-wider block mt-1.5">
-                📅 {new Date(log.timestamp).toLocaleDateString()} at {new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}
-              </span>
-            </div>
-          </div>
-        ))}
-
-        {visibleLogs.length === 0 && (
-          <div className="text-center py-24 border-2 border-dashed border-[#EADFC9]/60 rounded-xl bg-slate-50/50">
-            <span className="text-4xl block mb-2 filter drop-shadow opacity-70">📭</span>
-            <p className="text-xs text-slate-400 font-medium italic">No new external timeline triggers logged.</p>
-          </div>
-        )}
-      </div>
     </section>
   );
-}
+        }
 
 // --- INSTA FEED ---
 function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
@@ -1755,14 +1964,14 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     if (expandedPost?.id === post.id) { setExpandedPost({ ...expandedPost, likedBy: newLikedBy, likes: newLikedBy.length }); }
   };
 
-  const handleAddPostComment = async (e, postId) => {
+const handleAddPostComment = async (e, postId) => {
     e.preventDefault();
     if (!db || !db.app) return;
     const commentVal = e.target.commentInputText.value.trim();
     if (!commentVal) return;
     const newComment = { id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal, timestamp: Date.now() };
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion(newComment) });
-    await addDoc(fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { 
+       await addDoc(fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { 
       message: `${userProfile?.name || 'Someone'} commented on Instagram draft post! 📸`, 
       actor: userProfile?.name || 'System', 
       timestamp: Date.now(), 
@@ -1807,7 +2016,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                 <div className="w-10 h-10 rounded-full border p-0.5">{renderAvatar(expandedPost.authorAvatar, "w-full h-full object-cover rounded-full", () => { setExpandedPost(null); onInspectUser(expandedPost.authorUid); })}</div>
                 <div>
                   <p className="font-bold text-sm text-slate-800 cursor-pointer hover:underline" onClick={() => { setExpandedPost(null); onInspectUser(expandedPost.authorUid); }}>{expandedPost.authorName}</p>
-                  <p className="text-[10px] text-slate-400">{new Date(expandedPost.createdAt).toLocaleString([], {hour12: true})}</p>
+                  <p className="text-[10px] text-slate-400">{formatDateTimeAMPM(expandedPost.createdAt)}</p>
                 </div>
               </div>
               {isAdmin && <button onClick={() => { removePost(expandedPost.id); setExpandedPost(null); }} className="text-rose-500 hover:bg-rose-50 px-2 py-1 rounded text-xs font-bold transition border border-rose-100">Delete</button>}
@@ -1820,7 +2029,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
               <div className="space-y-4">
                 <h4 className="font-bold text-xs text-slate-400 uppercase tracking-widest mb-4 border-b pb-2">Discussion</h4>
                 {(expandedPost.comments || []).map((c, i) => (
-                  <div className="flex justify-between items-start group text-sm p-3 bg-slate-50 rounded-xl border border-slate-100" key={i}>
+                  <div key={i} className="flex justify-between items-start group text-sm p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="flex flex-col gap-1 min-w-0 pr-2">
                       <span className="font-bold text-slate-800 cursor-pointer hover:underline text-xs" onClick={() => { setExpandedPost(null); onInspectUser(c.authorUid); }}>{c.authorName}</span>
                       <span className="text-slate-600 leading-relaxed text-xs">{c.text}</span>
@@ -1860,13 +2069,13 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
         {posts.map(post => {
           const amLiked = post.likedBy?.includes(userProfile?.id);
           return (
-            <div className="break-inside-avoid bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn mb-6" key={post.id}>
+            <div key={post.id} className="break-inside-avoid bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn mb-6">
               <div className="p-3.5 flex items-center justify-between border-b border-slate-50">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(post.authorAvatar, "w-full h-full object-cover", () => onInspectUser(post.authorUid))}</div>
                   <div className="min-w-0">
                     <h4 className="text-xs font-black text-slate-800 truncate hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(post.authorUid)}>{post.authorName}</h4>
-                    <span className="text-[8px] text-slate-400 font-mono block">{new Date(post.createdAt).toLocaleDateString()}</span>
+                    <span className="text-[8px] text-slate-400 font-mono block">{formatDateTimeAMPM(post.createdAt)}</span>
                   </div>
                 </div>
                 {isAdmin && <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete</button>}
@@ -1894,7 +2103,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
                 
                 <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1">
                   {(post.comments || []).slice(0, 2).map((c, i) => (
-                    <div className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5" key={i}>
+                    <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
                       <div className="min-w-0 pr-2 truncate"><span className="font-bold text-slate-800 mr-1.5 hover:underline cursor-pointer" onClick={() => onInspectUser(c.authorUid)}>{c.authorName}</span><span className="text-slate-600">{c.text}</span></div>
                     </div>
                   ))}
@@ -2117,7 +2326,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
               {profiles.map(p => {
                 const isEditing = editingUserId === p.id;
                 return (
-                  <tr className="border-t font-sans animate-fadeIn" key={p.id}>
+                  <tr key={p.id} className="border-t font-sans animate-fadeIn">
                     <td className="py-2">
                       <div className="flex items-center space-x-2">
                         <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(p.photoURL)}</div>
