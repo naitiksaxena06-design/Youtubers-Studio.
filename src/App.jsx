@@ -181,44 +181,6 @@ const WatercolorOverlay = () => (
   <div className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }} />
 );
 
-function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
-  const [items, setItems] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!enabled || !db) { setItems([]); setLoaded(false); return; }
-    try {
-      let q = collection(db, name);
-      if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
-      const unsub = onSnapshot(q, (snap) => {
-        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setLoaded(true); setError(null);
-      }, (err) => { setLoaded(true); setError(err.message); });
-      return () => unsub();
-    } catch (e) { setError(e.message); setLoaded(true); }
-  }, [name, orderField, limitN, enabled]);
-  return [items, loaded, error];
-}
-
-function useFirestoreDoc(path, fallback, enabled = false) {
-  const [data, setData] = useState(fallback);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!enabled || !db) { setData(fallback); setLoaded(false); return; }
-    try {
-      const ref = doc(db, path);
-      const unsub = onSnapshot(ref, (snap) => {
-        if (snap.exists()) setData({ ...fallback, ...snap.data() }); else setData(fallback);
-        setLoaded(true);
-      }, () => setLoaded(true));
-      return () => unsub();
-    } catch (e) { setLoaded(true); }
-  }, [path, enabled]);
-  return [data, loaded];
-}
-
 export default function App() {
   const [loadingLibraries, setLoadingLibraries] = useState(true);
   const [threeReady, setThreeReady] = useState(false);
@@ -671,6 +633,50 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
   );
 }
 
+// --- HOMEPAGE HUB ---
+function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications, onNavigate, onInspectUser, userProfile }) {
+  const studioUpdates = useMemo(() => {
+    return (notifications || []).filter(n => n && n.message && !String(n.message).startsWith('"') && n.actor !== 'System' && n.actor !== userProfile?.name);
+  }, [notifications, userProfile]);
+
+  return (
+    <section className="space-y-8 py-2 animate-fadeIn font-sans px-4 sm:px-0">
+      <div className="text-center py-2">
+        <h1 className="font-serif text-2xl sm:text-3xl md:text-5xl font-black text-slate-800 uppercase tracking-tight leading-tight">{siteSettings?.logoText || 'YOUTUBERS STUDIO'}</h1>
+        <p className="text-slate-500 font-serif italic text-xs sm:text-sm mt-1">Creator timeline commander & segmented asset warehouse.</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: 'YouTube Subscribers', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${new Date(ytConfig.lastSyncedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-[#C5A03A]/10 text-[#C5A03A] font-bold px-2 py-1 rounded border border-[#C5A03A]/20 hover:bg-[#C5A03A]/20 transition mt-2 block font-sans">🔄 Fetch Live</button>) : null },
+          { label: 'Latest Video Views', value: ytConfig?.latestVideoViews || '—', icon: '📺', change: ytConfig?.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
+          { label: 'Vault Records', value: `${videos?.length || 0} Masters`, icon: '🎞️', change: 'Shared studio storage', action: null },
+          { label: 'Active Ideas', value: `${projects?.length || 0} Boards`, icon: '📌', change: 'Real-time whiteboard', action: null },
+        ].map((stat, idx) => (
+          <div key={idx} className="bg-white/80 border-b-[5px] border-r border-l border-t border-[#EADFC9] rounded-2xl p-4 shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all flex flex-col justify-between h-36">
+            <div><div className="flex justify-between items-center text-slate-400 mb-1"><span className="text-[9px] uppercase font-bold tracking-wider font-sans">{stat.label}</span><span className="text-base">{stat.icon}</span></div><p className="text-lg md:text-xl font-black text-slate-800 font-sans leading-none">{stat.value}</p></div>
+            <div className="mt-1 font-sans"><span className="text-[9px] text-[#C5A03A] font-semibold block truncate leading-tight">{stat.change}</span>{stat.action}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans">
+        <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-2 mb-3 font-serif"><h3 className="font-serif text-sm font-bold text-[#C5A03A]">📢 Studio Updates</h3><span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans border border-emerald-200">Recent Activity</span></div>
+        <div className="space-y-2.5 max-h-48 overflow-y-auto custom-scrollbar font-sans pr-1">
+          {studioUpdates.map(notif => (
+            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-1.5 animate-fadeIn">
+              <span className="font-bold text-slate-800 font-sans cursor-pointer hover:underline" onClick={() => onInspectUser(notif.authorUid)}>{notif.actor}:{' '}</span>
+              <span className="text-slate-600 font-sans">{notif.message}</span>
+              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{new Date(notif.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: true})}</p>
+            </div>
+          ))}
+          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No updates mapped to log yet.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // --- CREW DIRECTORY SECTION ---
 function CrewSection({ profiles, userProfile, showToast, isAdmin, onInspectUser }) {
   const [focusIdx, setFocusIdx] = useState(0);
@@ -935,7 +941,7 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
               <button onClick={() => skip10(10)} className="active:text-amber-400 text-[9px] font-mono bg-white/10 px-2 py-0.5 rounded">⏩ 10s</button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between text-white text-[10px] sm:text-xs font-bold font-sans">
               <button onClick={cycleZoomScale} className="text-[9px] font-mono bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition">
                 🔍 {zoomScale === 1 ? 'Fit' : `${zoomScale}x`}
               </button>
@@ -1416,7 +1422,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const activeChannelChats = useMemo(() => {
     return (chats || [])
       .filter((c) => c.projectId === chatChannel)
-      .sort((a, b) => (a.createdAt || 0) - (a.createdAt || 0));
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [chats, chatChannel]);
 
   // --- AUTO SCROLL ENGINE ---
