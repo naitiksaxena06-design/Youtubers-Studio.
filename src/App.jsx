@@ -1708,10 +1708,11 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     if (!inputText.trim() || !db || !db.app) return;
     const text = inputText;
     try {
-      await addDoc(collection(db, 'chats'), {
+      const chatDocRef = await addDoc(collection(db, 'chats'), {
         projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
       });
-      pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, 'chat', { channelId: chatChannel }, userProfile?.name || 'Guest Creator', 'all');
+      // Pass the specific chatId into the notification's meta data so we can track it later
+      pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, 'chat', { channelId: chatChannel, chatId: chatDocRef.id }, userProfile?.name || 'Guest Creator', 'all');
       setInputText('');
     } catch (err) {}
   };
@@ -1740,8 +1741,37 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   const deleteMessage = async (msgId) => {
     if (!db || !db.app) return;
+    
+    // Grab the text before deleting to check older notifications
+    const msgToDelete = chats.find(c => c.id === msgId);
+    
     await deleteDoc(doc(db, 'chats', msgId));
     setActiveMessageMenu(null);
+    
+    // Automatically sweep out the associated notification
+    try {
+      const notifsRef = collection(db, 'notifications');
+      const q = query(notifsRef, where('type', '==', 'chat'));
+      const snap = await getDocs(q);
+      
+      const toDelete = snap.docs.filter(d => {
+        const data = d.data();
+        // Modern match: track by precise ID
+        if (data.meta && data.meta.chatId === msgId) return true;
+        
+        // Backward compatibility match for older messages
+        if (msgToDelete && data.actor === msgToDelete.senderName) {
+          const truncated = msgToDelete.text.length > 50 ? msgToDelete.text.slice(0, 50) + '…' : msgToDelete.text;
+          if (data.message === `"${truncated}"`) return true;
+        }
+        return false;
+      });
+      
+      await Promise.all(toDelete.map(d => deleteDoc(d.ref)));
+    } catch (err) {
+      console.error("Cleanup error:", err);
+    }
+    
     showToast("Message deleted.", "info");
   };
 
