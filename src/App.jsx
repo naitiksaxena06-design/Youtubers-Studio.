@@ -1735,8 +1735,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
           </form>
         )}
       </div>
-      
-                  <div className="sm:col-span-3 flex flex-col h-[70vh] bg-white rounded-2xl border border-slate-100 shadow-sm relative">
+      <div className="sm:col-span-3 flex flex-col h-full bg-white rounded-2xl border border-slate-100 shadow-sm relative">
               <div 
                 ref={(el) => {
                   if (el) {
