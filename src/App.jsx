@@ -162,14 +162,13 @@ const resolvePlayableVideo = (url) => {
     return { type: 'youtube', src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&controls=1&rel=0&modestbranding=1&playsinline=1`, thumbnail: `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg` };
   }
   
-  // FIX: Force Google Drive links to export as direct raw MP4 streams so they play in OUR custom player, 
-  // bypassing Google's native double-controls iframe completely.
-  const driveRegex = /drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9-_]+)/;
+  const driveRegex = /drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/;
   const driveMatch = cleaned.match(driveRegex);
   if (driveMatch) {
     return { 
-      type: 'direct', 
-      src: `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`, 
+      type: 'iframe-stream', 
+      src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, 
+      // This grabs the exact first second/thumbnail frame from Google's servers
       thumbnail: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w600` 
     };
   }
@@ -259,24 +258,6 @@ export default function App() {
   }, []);
 
   const ensureProfileDocRef = useRef(() => {});
-
-  // FIX: Force native mobile browsers to register a Service Worker so Push Notifications don't get silently blocked.
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      const swScript = `
-        self.addEventListener('push', function(e) {});
-        self.addEventListener('notificationclick', function(e) {
-          e.notification.close();
-          e.waitUntil(clients.matchAll({ type: 'window' }).then(clientsArr => {
-            if (clientsArr.length) { clientsArr[0].focus(); } else { clients.openWindow('/'); }
-          }));
-        });
-      `;
-      const blob = new Blob([swScript], { type: 'application/javascript' });
-      const swUrl = URL.createObjectURL(blob);
-      navigator.serviceWorker.register(swUrl).catch(e => console.warn('Background SW reg bypassed:', e));
-    }
-  }, []);
 
   useEffect(() => {
     if (!auth || !auth.app) { setAuthLoading(false); return; }
@@ -453,10 +434,18 @@ export default function App() {
             renotify: true,
             requireInteraction: true 
           };
-          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-             navigator.serviceWorker.ready.then(reg => reg.showNotification('Youtubers Studio', options));
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration().then(reg => {
+              if (reg && reg.showNotification) {
+                reg.showNotification('Youtubers Studio', options);
+              } else {
+                new Notification('Youtubers Studio', options);
+              }
+            }).catch(() => {
+              new Notification('Youtubers Studio', options);
+            });
           } else {
-             new Notification('Youtubers Studio', options);
+            new Notification('Youtubers Studio', options);
           }
         } catch (e) { console.error("Native push dispatch failure", e); }
       }
