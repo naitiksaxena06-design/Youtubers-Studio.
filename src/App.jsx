@@ -268,6 +268,25 @@ export default function App() {
 
   useEffect(() => {
     if (!auth || !auth.app) { setAuthLoading(false); return; }
+
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          try {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } catch (tokenErr) {
+            console.warn("Custom token mismatched (using custom Firebase project). Falling back to anonymous...", tokenErr);
+            await signInAnonymously(auth);
+          }
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth init failed:", err);
+      }
+    };
+    initAuth();
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUser(user);
       if (user && !user.isAnonymous) { try { await ensureProfileDocRef.current(user); } catch (e) {} }
@@ -1242,6 +1261,10 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     if (!db || !db.app) return;
     const commentText = e.target.commentInput.value.trim();
     if (!commentText) return;
+    
+    e.target.commentInput.value = '';
+    document.activeElement?.blur(); // Dismiss mobile keyboard
+    
     const newComment = { id: 'c_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
     pushNotification(`${userProfile.name} commented on video: "${activeVideo.title}"`, 'video', {}, userProfile.name, 'admin');
@@ -1446,6 +1469,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
     e.preventDefault();
     if (!newConcept.trim()) return;
     if (!db || !db.app) return;
+    document.activeElement?.blur(); // Dismiss mobile keyboard
     try {
       await addDoc(collection(db, 'projects'), { title: newConcept, creatorName: userProfile.name, createdAt: Date.now() });
       pushNotification(`Created whiteboard: "${newConcept}"`, 'project', {}, userProfile.name);
@@ -1458,6 +1482,7 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
   const addTask = async (e) => {
     e.preventDefault();
     if (!taskTitle.trim() || !db || !db.app) return;
+    document.activeElement?.blur(); // Dismiss mobile keyboard
     try {
       await addDoc(collection(db, 'tasks'), { projectId: selectedProject.id, title: taskTitle, status: 'To Do' });
       setTaskTitle('');
@@ -1554,6 +1579,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     e.preventDefault();
     const clean = newTopicTitle.trim();
     if (!clean || !db || !db.app) return;
+    document.activeElement?.blur(); // Dismiss mobile keyboard
     try {
       const ref = await addDoc(collection(db, 'scripts'), { title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now() });
       pushNotification(`Started script: "${clean}"`, 'script', {}, userProfile.name);
@@ -1565,9 +1591,9 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     if (!selectedScript || !canEditSelected || !db || !db.app) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, 'scripts', selectedScript.id), { content: draftText, updatedAt: Date.now(), lastEditedBy: userProfile.name });
+      await updateDoc(doc(db, 'scripts', selectedScript.id), { content: draftText, updatedAt: Date.now(), lastEditedBy: userProfile?.name || 'Unknown' });
       setIsEditingBody(false); showToast('Script saved!', 'success');
-    } catch (err) { showToast('Save failed.', 'warning'); } finally { setSaving(false); }
+    } catch (err) { console.error("Script save error:", err); showToast('Save failed.', 'warning'); } finally { setSaving(false); }
   };
 
   const removeTopic = async (id, e) => {
@@ -1719,6 +1745,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     
     // IMMEDIATELY clear the text input for snappy UI feedback
     setInputText(''); 
+    document.activeElement?.blur(); // Dismiss mobile keyboard
     
     try {
       const chatDocRef = await addDoc(collection(db, 'chats'), {
@@ -1733,6 +1760,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     e.preventDefault();
     const clean = newChannelName.trim();
     if (!clean || !db || !db.app) return;
+    document.activeElement?.blur(); // Dismiss mobile keyboard
     try {
       const newId = 'ch_' + Date.now();
       await setDoc(doc(db, 'meta/settings'), { chatChannels: [...channels, { id: newId, name: clean }] }, { merge: true });
@@ -2026,6 +2054,10 @@ const handleAddPostComment = async (e, postId) => {
     if (!db || !db.app) return;
     const commentVal = e.target.commentInputText.value.trim();
     if (!commentVal) return;
+    
+    e.target.commentInputText.value = '';
+    document.activeElement?.blur(); // Dismiss mobile keyboard
+    
     const newComment = { id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal, timestamp: Date.now() };
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion(newComment) });
     pushNotification(`${userProfile?.name || 'Someone'} commented on Instagram draft post! 📸`, 'post', {}, userProfile?.name || 'System', 'admin');
