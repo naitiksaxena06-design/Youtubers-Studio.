@@ -185,12 +185,6 @@ const resolvePlayableVideo = (url) => {
   return { type: 'iframe-stream', src: cleaned, thumbnail: null };
 };
 
-const dismissKeyboard = () => {
-  if (typeof document !== 'undefined' && document.activeElement && typeof document.activeElement.blur === 'function') {
-    document.activeElement.blur();
-  }
-};
-
 const renderAvatar = (photoURL, className = "w-full h-full object-cover", onClick = null) => {
   if (!photoURL || typeof photoURL !== 'string') {
     return <div onClick={onClick} className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans cursor-pointer">?</div>;
@@ -274,31 +268,11 @@ export default function App() {
 
   useEffect(() => {
     if (!auth || !auth.app) { setAuthLoading(false); return; }
-
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setAuthUser(user);
-        if (!user.isAnonymous) {
-          try { await ensureProfileDocRef.current(user); } catch (e) {}
-        }
-        setAuthLoading(false);
-      } else {
-        try {
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
-        } catch (err) {
-          console.warn("Token mismatch (expected with custom Firebase project). Falling back to anonymous auth.");
-          await signInAnonymously(auth).catch((e) => {
-            console.error("Anon auth failed:", e);
-            setAuthLoading(false);
-          });
-        }
-      }
-    });
-
+      setAuthUser(user);
+      if (user && !user.isAnonymous) { try { await ensureProfileDocRef.current(user); } catch (e) {} }
+      setAuthLoading(false);
+    }, () => { setAuthLoading(false); });
     return () => unsub();
   }, []);
 
@@ -803,7 +777,6 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
 
   const handleEmailAuthSubmit = async (e) => {
     e.preventDefault(); const cleanEmail = email.trim(); const cleanPassword = password.trim();
-    dismissKeyboard();
     if (!cleanEmail || !cleanPassword) return; if (!auth || !auth.app) { showToast('Authentication mock active in offline state.', 'info'); setShowSignInModal(false); return; }
     setLoading(true);
     try {
@@ -1238,7 +1211,6 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
   const startUpload = async (e) => {
     e.preventDefault();
-    dismissKeyboard();
     if (!videoTitle.trim() || !videoUrlInput.trim() || !db || !db.app) return;
     
     try {
@@ -1267,13 +1239,9 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
   const handlePostVideoComment = async (e, videoId) => {
     e.preventDefault();
-    dismissKeyboard();
     if (!db || !db.app) return;
     const commentText = e.target.commentInput.value.trim();
     if (!commentText) return;
-    
-    e.target.commentInput.value = '';
-    
     const newComment = { id: 'c_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
     pushNotification(`${userProfile.name} commented on video: "${activeVideo.title}"`, 'video', {}, userProfile.name, 'admin');
@@ -1452,11 +1420,11 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
             </div>
             <div>
               <label className="block text-[9px] font-bold text-slate-500 uppercase">Video Showcase Label</label>
-              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" placeholder="e.g. Director Cut Segment V2" required />
+              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" placeholder="e.g. Director Cut Segment V2" required />
             </div>
             <div>
               <label className="block text-[9px] font-bold text-slate-500 uppercase">External Asset URL</label>
-              <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" placeholder="https://..." required />
+              <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" placeholder="https://..." required />
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <button type="button" onClick={() => setShowUploadModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold transition hover:bg-slate-200">Cancel</button>
@@ -1476,7 +1444,6 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 
   const createConcept = async (e) => {
     e.preventDefault();
-    dismissKeyboard();
     if (!newConcept.trim()) return;
     if (!db || !db.app) return;
     try {
@@ -1490,7 +1457,6 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 
   const addTask = async (e) => {
     e.preventDefault();
-    dismissKeyboard();
     if (!taskTitle.trim() || !db || !db.app) return;
     try {
       await addDoc(collection(db, 'tasks'), { projectId: selectedProject.id, title: taskTitle, status: 'To Do' });
@@ -1577,62 +1543,56 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [draftText, setDraftText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [isEditingBody, setIsEditingBody] = useState(false);
 
   const selectedScript = useMemo(() => (scripts || []).find(s => s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
-  
-  // Load script content when a new script is selected. 
-  // We ONLY depend on the ID to prevent wiping out text if the database syncs mid-typing!
-  useEffect(() => { 
-    if (selectedScript) {
-      setDraftText(selectedScript.content || ''); 
-    } else {
-      setDraftText('');
+
+  useEffect(() => {
+    if (selectedScript && !isEditingBody) {
+      setDraftText(selectedScript.content || '');
     }
-  }, [selectedScriptId]); 
-  
-  const canEditSelected = selectedScript && userProfile && (isAdmin || selectedScript.authorUid === userProfile.id);
+  }, [selectedScript, isEditingBody]);
+
+  const canEditSelected = selectedScript && userProfile; // Everyone can edit!
+
+  // Real-time auto-save effect
+  useEffect(() => {
+    if (!isEditingBody || !selectedScript || !canEditSelected || !db || !db.app) return;
+    if (draftText === selectedScript.content) return; // Only save if changed
+
+    const timer = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await updateDoc(doc(db, 'scripts', selectedScript.id), {
+          content: draftText,
+          updatedAt: Date.now(),
+          lastEditedBy: userProfile.name
+        });
+      } catch (err) {
+        console.error("Auto-save error", err);
+      } finally {
+        setSaving(false);
+      }
+    }, 800); // 800ms typing debounce
+
+    return () => clearTimeout(timer);
+  }, [draftText, isEditingBody, selectedScript, canEditSelected, userProfile]);
 
   const createTopic = async (e) => {
     e.preventDefault();
-    dismissKeyboard();
     const clean = newTopicTitle.trim();
     if (!clean || !db || !db.app) return;
     try {
-      const ref = await addDoc(collection(db, 'scripts'), { 
-        title: clean, 
-        content: '', 
-        authorUid: userProfile.id, 
-        authorName: userProfile.name, 
-        createdAt: Date.now(), 
-        updatedAt: Date.now() 
-      });
+      const ref = await addDoc(collection(db, 'scripts'), { title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now() });
       pushNotification(`Started script: "${clean}"`, 'script', {}, userProfile.name);
-      setNewTopicTitle(''); 
-      setShowNewTopicModal(false); 
-      setSelectedScriptId(ref.id); 
+      setNewTopicTitle('');
+      setShowNewTopicModal(false);
+      setSelectedScriptId(ref.id);
+      setIsEditingBody(true); // Open instantly
       setDraftText('');
-      showToast('Topic created! Start writing.', 'success');
+      showToast('Topic created!', 'success');
     } catch(err) {
       showToast('Failed to create topic.', 'warning');
-    }
-  };
-
-  const saveScriptBody = async () => {
-    dismissKeyboard();
-    if (!selectedScript || !canEditSelected || !db || !db.app) return;
-    setSaving(true);
-    try {
-      await updateDoc(doc(db, 'scripts', selectedScript.id), { 
-        content: draftText, 
-        updatedAt: Date.now(), 
-        lastEditedBy: userProfile?.name || 'Unknown' 
-      });
-      showToast('Script saved securely!', 'success');
-    } catch (err) { 
-      console.error("Script save error:", err); 
-      showToast('Save failed.', 'warning'); 
-    } finally { 
-      setSaving(false); 
     }
   };
 
@@ -1640,7 +1600,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     if (e) e.stopPropagation();
     if (!db || !db.app) return;
     await deleteDoc(doc(db, 'scripts', id));
-    if (selectedScriptId === id) setSelectedScriptId(null);
+    if (selectedScriptId === id) { setSelectedScriptId(null); setIsEditingBody(false); }
     showToast('Script topic deleted.', 'info');
   };
 
@@ -1654,7 +1614,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
         <div className="lg:col-span-1 bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-3 rounded-xl shadow-skeuo-md space-y-1.5 max-h-[400px] overflow-y-auto custom-scrollbar animate-fadeIn">
           {scripts.map(s => (
-            <div key={s.id} onClick={() => setSelectedScriptId(s.id)} className={`p-2.5 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
+            <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-2.5 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
                 <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName} • ⏳ {getExpiry30(s.createdAt)}</span>
@@ -1662,15 +1622,14 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
               {(isAdmin || s.authorUid === userProfile?.id) && <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>}
             </div>
           ))}
-          {scripts.length === 0 && <div className="text-[10px] text-slate-400 text-center py-6 italic">No scripts created yet.</div>}
         </div>
 
-        <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn flex flex-col min-h-[300px]">
+        <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn">
           {!selectedScript ? (
-            <div className="flex-1 flex items-center justify-center text-slate-400 italic text-xs">Select a topic on the left to read or write its script.</div>
+            <div className="text-center text-slate-400 py-20 italic text-xs">Select a topic on the left to read or write its script.</div>
           ) : (
-            <div className="flex flex-col h-full">
-              <div className="flex justify-between items-start border-b pb-2 mb-3">
+            <div className="space-y-4">
+              <div className="flex justify-between items-start border-b pb-2">
                 <div>
                   <h3 className="font-serif text-base font-bold text-slate-800">{selectedScript.title}</h3>
                   <div className="flex items-center gap-2 mt-1">
@@ -1678,26 +1637,25 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                     <span className="bg-rose-50 text-rose-600 text-[8px] px-1.5 py-0.5 rounded border border-rose-100 font-bold">⏳ {getExpiry30(selectedScript.createdAt)}</span>
                   </div>
                 </div>
-                {isAdmin && <button onClick={(e) => removeTopic(selectedScript.id, e)} className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-100 shrink-0">🗑 Delete</button>}
+                <div className="flex gap-2">
+                  {canEditSelected && !isEditingBody && <button onClick={() => setIsEditingBody(true)} className="text-[9px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition">✎ Write Script</button>}
+                  {isEditingBody && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-mono text-slate-400">{saving ? '⏳ Saving...' : '✅ Saved'}</span>
+                      <button onClick={() => setIsEditingBody(false)} className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-200 transition">Done</button>
+                    </div>
+                  )}
+                  {isAdmin && <button onClick={(e) => removeTopic(selectedScript.id, e)} className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-100 transition">🗑 Delete</button>}
+                </div>
               </div>
               
-              {canEditSelected ? (
-                <div className="flex flex-col flex-1">
-                  <textarea 
-                    value={draftText} 
-                    onChange={(e) => setDraftText(e.target.value)} 
-                    placeholder="Write your script here... It stays open and saves instantly when you click Save." 
-                    className="flex-1 w-full min-h-[250px] px-4 py-3 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs focus:ring-1 focus:ring-[#C5A03A] focus:outline-none font-sans leading-relaxed resize-y mb-3 shadow-inner" 
-                  />
-                  <div className="flex justify-end shrink-0">
-                    <button onClick={saveScriptBody} disabled={saving} className="px-6 py-2 bg-[#C5A03A] hover:bg-[#ab892c] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[3px] disabled:opacity-50 transition shadow-sm">
-                      {saving ? 'Saving...' : '💾 Save Script'}
-                    </button>
-                  </div>
+              {isEditingBody ? (
+                <div className="space-y-3 animate-fadeIn">
+                  <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={14} placeholder="Write the script here... (Auto-saves as you type)" className="w-full px-4 py-3 bg-slate-50 border border-[#EADFC9] rounded-xl text-sm focus:ring-2 focus:ring-[#C5A03A]/50 focus:border-[#C5A03A] focus:outline-none font-sans leading-relaxed custom-scrollbar shadow-inner resize-y" autoFocus />
                 </div>
               ) : (
-                <div className="whitespace-pre-wrap text-xs text-slate-700 leading-relaxed font-sans flex-1">
-                  {selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet.</span>}
+                <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed min-h-[150px] font-sans">
+                  {selectedScript.content ? selectedScript.content : <span className="italic text-slate-400">No script written yet. Click "Write Script" to begin!</span>}
                 </div>
               )}
             </div>
@@ -1706,13 +1664,13 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
       </div>
 
       {showNewTopicModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={createTopic} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
-            <h4 className="font-serif font-bold text-slate-800 text-xs">New Script Topic</h4>
-            <input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-lg text-xs mt-1 font-sans focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" required autoFocus />
+            <h4 className="font-serif font-bold text-slate-800 text-sm">New Script Topic</h4>
+            <input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border rounded-lg text-sm mt-1 font-sans focus:outline-none focus:ring-2 focus:ring-[#C5A03A]/50" required autoFocus />
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowNewTopicModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition">Cancel</button>
-              <button type="submit" className="px-5 py-2 bg-[#C5A03A] hover:bg-[#ab892c] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:translate-y-[2px] active:border-b-0 transition shadow">Create Topic</button>
+              <button type="button" onClick={() => setShowNewTopicModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold">Cancel</button>
+              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[2px] transition">Create Topic</button>
             </div>
           </form>
         </div>
@@ -1784,7 +1742,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   const commit = async (e) => {
     e.preventDefault();
-    dismissKeyboard();
     if (!inputText.trim() || !db || !db.app) return;
     const text = inputText.trim();
     
@@ -1802,7 +1759,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();
-    dismissKeyboard();
     const clean = newChannelName.trim();
     if (!clean || !db || !db.app) return;
     try {
@@ -2070,7 +2026,6 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
   const publishPost = async (e) => {
     e.preventDefault();
-    dismissKeyboard();
     const file = fileInputRef.current?.files[0];
     if (!postTitle.trim() || !file || !db || !db.app) return;
     setPublishing(true);
@@ -2096,13 +2051,9 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
 const handleAddPostComment = async (e, postId) => {
     e.preventDefault();
-    dismissKeyboard();
     if (!db || !db.app) return;
     const commentVal = e.target.commentInputText.value.trim();
     if (!commentVal) return;
-    
-    e.target.commentInputText.value = '';
-    
     const newComment = { id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal, timestamp: Date.now() };
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion(newComment) });
     pushNotification(`${userProfile?.name || 'Someone'} commented on Instagram draft post! 📸`, 'post', {}, userProfile?.name || 'System', 'admin');
@@ -2280,7 +2231,6 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
   const saveProfileSettings = async (e) => {
     e.preventDefault(); 
-    dismissKeyboard();
     if (!fullName.trim() || !db || !db.app) return; 
     setSaving(true);
     try {
@@ -2296,7 +2246,6 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
   const handleRegisterCategory = async (e) => {
     e.preventDefault(); 
-    dismissKeyboard();
     const refined = newCatInp.trim(); 
     if (!refined || !db || !db.app) return;
     if (categories.some(c => c.toLowerCase() === refined.toLowerCase())) { showToast('Category tag already exists.', 'warning'); return; }
