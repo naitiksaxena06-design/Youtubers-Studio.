@@ -185,6 +185,12 @@ const resolvePlayableVideo = (url) => {
   return { type: 'iframe-stream', src: cleaned, thumbnail: null };
 };
 
+const dismissKeyboard = () => {
+  if (typeof document !== 'undefined' && document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+};
+
 const renderAvatar = (photoURL, className = "w-full h-full object-cover", onClick = null) => {
   if (!photoURL || typeof photoURL !== 'string') {
     return <div onClick={onClick} className="bg-slate-200 w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans cursor-pointer">?</div>;
@@ -269,29 +275,30 @@ export default function App() {
   useEffect(() => {
     if (!auth || !auth.app) { setAuthLoading(false); return; }
 
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          try {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setAuthUser(user);
+        if (!user.isAnonymous) {
+          try { await ensureProfileDocRef.current(user); } catch (e) {}
+        }
+        setAuthLoading(false);
+      } else {
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await signInWithCustomToken(auth, __initial_auth_token);
-          } catch (tokenErr) {
-            console.warn("Custom token mismatched (using custom Firebase project). Falling back to anonymous...", tokenErr);
+          } else {
             await signInAnonymously(auth);
           }
-        } else {
-          await signInAnonymously(auth);
+        } catch (err) {
+          console.warn("Token mismatch (expected with custom Firebase project). Falling back to anonymous auth.");
+          await signInAnonymously(auth).catch((e) => {
+            console.error("Anon auth failed:", e);
+            setAuthLoading(false);
+          });
         }
-      } catch (err) {
-        console.error("Auth init failed:", err);
       }
-    };
-    initAuth();
+    });
 
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      setAuthUser(user);
-      if (user && !user.isAnonymous) { try { await ensureProfileDocRef.current(user); } catch (e) {} }
-      setAuthLoading(false);
-    }, () => { setAuthLoading(false); });
     return () => unsub();
   }, []);
 
@@ -796,6 +803,7 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
 
   const handleEmailAuthSubmit = async (e) => {
     e.preventDefault(); const cleanEmail = email.trim(); const cleanPassword = password.trim();
+    dismissKeyboard();
     if (!cleanEmail || !cleanPassword) return; if (!auth || !auth.app) { showToast('Authentication mock active in offline state.', 'info'); setShowSignInModal(false); return; }
     setLoading(true);
     try {
@@ -1230,6 +1238,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
   const startUpload = async (e) => {
     e.preventDefault();
+    dismissKeyboard();
     if (!videoTitle.trim() || !videoUrlInput.trim() || !db || !db.app) return;
     
     try {
@@ -1258,12 +1267,12 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
   const handlePostVideoComment = async (e, videoId) => {
     e.preventDefault();
+    dismissKeyboard();
     if (!db || !db.app) return;
     const commentText = e.target.commentInput.value.trim();
     if (!commentText) return;
     
     e.target.commentInput.value = '';
-    document.activeElement?.blur(); // Dismiss mobile keyboard
     
     const newComment = { id: 'c_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentText, timestamp: Date.now() };
     await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
@@ -1467,9 +1476,9 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 
   const createConcept = async (e) => {
     e.preventDefault();
+    dismissKeyboard();
     if (!newConcept.trim()) return;
     if (!db || !db.app) return;
-    document.activeElement?.blur(); // Dismiss mobile keyboard
     try {
       await addDoc(collection(db, 'projects'), { title: newConcept, creatorName: userProfile.name, createdAt: Date.now() });
       pushNotification(`Created whiteboard: "${newConcept}"`, 'project', {}, userProfile.name);
@@ -1481,8 +1490,8 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
 
   const addTask = async (e) => {
     e.preventDefault();
+    dismissKeyboard();
     if (!taskTitle.trim() || !db || !db.app) return;
-    document.activeElement?.blur(); // Dismiss mobile keyboard
     try {
       await addDoc(collection(db, 'tasks'), { projectId: selectedProject.id, title: taskTitle, status: 'To Do' });
       setTaskTitle('');
@@ -1577,9 +1586,9 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
 
   const createTopic = async (e) => {
     e.preventDefault();
+    dismissKeyboard();
     const clean = newTopicTitle.trim();
     if (!clean || !db || !db.app) return;
-    document.activeElement?.blur(); // Dismiss mobile keyboard
     try {
       const ref = await addDoc(collection(db, 'scripts'), { title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now() });
       pushNotification(`Started script: "${clean}"`, 'script', {}, userProfile.name);
@@ -1588,6 +1597,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
   };
 
   const saveScriptBody = async () => {
+    dismissKeyboard();
     if (!selectedScript || !canEditSelected || !db || !db.app) return;
     setSaving(true);
     try {
@@ -1740,12 +1750,12 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   const commit = async (e) => {
     e.preventDefault();
+    dismissKeyboard();
     if (!inputText.trim() || !db || !db.app) return;
     const text = inputText.trim();
     
     // IMMEDIATELY clear the text input for snappy UI feedback
     setInputText(''); 
-    document.activeElement?.blur(); // Dismiss mobile keyboard
     
     try {
       const chatDocRef = await addDoc(collection(db, 'chats'), {
@@ -1758,9 +1768,9 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();
+    dismissKeyboard();
     const clean = newChannelName.trim();
     if (!clean || !db || !db.app) return;
-    document.activeElement?.blur(); // Dismiss mobile keyboard
     try {
       const newId = 'ch_' + Date.now();
       await setDoc(doc(db, 'meta/settings'), { chatChannels: [...channels, { id: newId, name: clean }] }, { merge: true });
@@ -2026,6 +2036,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
   const publishPost = async (e) => {
     e.preventDefault();
+    dismissKeyboard();
     const file = fileInputRef.current?.files[0];
     if (!postTitle.trim() || !file || !db || !db.app) return;
     setPublishing(true);
@@ -2051,12 +2062,12 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
 
 const handleAddPostComment = async (e, postId) => {
     e.preventDefault();
+    dismissKeyboard();
     if (!db || !db.app) return;
     const commentVal = e.target.commentInputText.value.trim();
     if (!commentVal) return;
     
     e.target.commentInputText.value = '';
-    document.activeElement?.blur(); // Dismiss mobile keyboard
     
     const newComment = { id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal, timestamp: Date.now() };
     await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion(newComment) });
@@ -2235,6 +2246,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
   const saveProfileSettings = async (e) => {
     e.preventDefault(); 
+    dismissKeyboard();
     if (!fullName.trim() || !db || !db.app) return; 
     setSaving(true);
     try {
@@ -2250,6 +2262,7 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
 
   const handleRegisterCategory = async (e) => {
     e.preventDefault(); 
+    dismissKeyboard();
     const refined = newCatInp.trim(); 
     if (!refined || !db || !db.app) return;
     if (categories.some(c => c.toLowerCase() === refined.toLowerCase())) { showToast('Category tag already exists.', 'warning'); return; }
