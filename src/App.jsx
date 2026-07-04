@@ -199,6 +199,7 @@ const WatercolorOverlay = () => (
   <div className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }} />
 );
 
+// FIX 1: Safely fetch data WITHOUT backend-breaking compound indexes, manually sorting/limiting in memory to ensure data ALWAYS loads!
 function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -207,10 +208,16 @@ function useFirestoreCollection(name, orderField = null, limitN = null, enabled 
   useEffect(() => {
     if (!enabled || !db) { setItems([]); setLoaded(false); return; }
     try {
-      let q = collection(db, name);
-      if (orderField) q = query(collection(db, name), orderBy(orderField, 'desc'), ...(limitN ? [fbLimit(limitN)] : []));
+      const q = collection(db, name); // ALWAYS use simple query
       const unsub = onSnapshot(q, (snap) => {
-        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (orderField) {
+          docs.sort((a, b) => (b[orderField] || 0) - (a[orderField] || 0));
+        }
+        if (limitN) {
+          docs = docs.slice(0, limitN);
+        }
+        setItems(docs);
         setLoaded(true); setError(null);
       }, (err) => { setLoaded(true); setError(err.message); });
       return () => unsub();
@@ -306,15 +313,17 @@ export default function App() {
     }
   }, [currentPage, userProfile]);
 
+  // Safe manual prune function to obey strict backend limits while keeping alerts clean
   useEffect(() => {
     const pruneOldNotifications = async () => {
       try {
         if (!db || !db.app || !isAdmin) return;
         const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
         const notificationsRef = fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications');
-        const oldAlertsQuery = query(notificationsRef, where('timestamp', '<', oneWeekAgo));
-        const snapshot = await getDocs(oldAlertsQuery);
-        const batchPromises = snapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
+        const snapshot = await getDocs(notificationsRef);
+        const batchPromises = snapshot.docs
+           .filter(docSnap => (docSnap.data().timestamp || 0) < oneWeekAgo)
+           .map(docSnap => deleteDoc(docSnap.ref));
         await Promise.all(batchPromises);
       } catch (err) {}
     };
@@ -2328,9 +2337,10 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
     try { await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); showToast('Logo text saved!', 'success'); } catch (err) { showToast('Error saving logo text.', 'warning'); }
   };
 
+  // FIX 2: Added `status: 'approved'` directly into these state promotion commands to fix the pending screen lockout bug.
   const approve = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { status: 'approved' }); };
-  const promote = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'admin' }); };
-  const makeWaiter = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'roasting waiter' }); };
+  const promote = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'admin', status: 'approved' }); };
+  const makeWaiter = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'roasting waiter', status: 'approved' }); };
   const demote = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'member' }); };
   const remove = (uid) => { if (db && db.app) deleteDoc(doc(db, 'profiles', uid)); };
 
