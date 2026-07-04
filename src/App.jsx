@@ -51,7 +51,7 @@ const doc = (dbRefOrCol, path, ...segments) => {
   return fbDoc(dbRefOrCol, path, ...segments);
 };
 
-// --- GLOBAL TIME FORMATTERS (AM/PM Enforcement) ---
+// --- GLOBAL TIME FORMATTERS ---
 const formatTimeAMPM = (timestamp) => {
   if (!timestamp) return '';
   return new Date(timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -81,7 +81,6 @@ const injectArtStyleStyles = () => {
     .shadow-skeuo-lg { box-shadow: 0 25px 50px -12px rgba(135, 112, 58, 0.22), 0 12px 18px -8px rgba(135, 112, 58, 0.15); }
     .shadow-skeuo-3d { box-shadow: 0 20px 40px rgba(135, 112, 58, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.9); }
     
-    /* Hard CSS rule to hide native HTML5 media controls that overlap with our UI */
     video::-webkit-media-controls { display: none !important; }
     video::-webkit-media-controls-enclosure { display: none !important; }
 
@@ -103,7 +102,7 @@ const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
 const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
 const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
 
-// --- 7-DAY EXPIRATION VISUAL TIMER ---
+// --- VISUAL EXPIRY TIMERS ---
 const getExpiry7 = (createdAt) => {
   if (!createdAt) return 'Unknown';
   const expiryTime = createdAt + (7 * 24 * 60 * 60 * 1000); 
@@ -115,7 +114,6 @@ const getExpiry7 = (createdAt) => {
   return `${hours}h ${Math.floor((diff / (1000 * 60)) % 60)}m`;
 };
 
-// --- 30-DAY EXPIRATION VISUAL TIMER ---
 const getExpiry30 = (createdAt) => {
   if (!createdAt) return 'Unknown';
   const expiryTime = createdAt + (30 * 24 * 60 * 60 * 1000); 
@@ -126,6 +124,60 @@ const getExpiry30 = (createdAt) => {
   if (days > 0) return `${days}d ${hours}h`;
   return `${hours}h ${Math.floor((diff / (1000 * 60)) % 60)}m`;
 };
+
+// --- CUSTOM TOUCH & HOLD HELPER COMPONENT ---
+// This completely replaces standard clicking/buttons for deleting items. 
+const LongPressable = ({ onLongPress, children, className, onClick, style }) => {
+  const timerRef = useRef(null);
+  const isLongPressRef = useRef(false);
+
+  const start = () => {
+    isLongPressRef.current = false;
+    timerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      onLongPress();
+    }, 600); // Trigger after 600ms hold
+  };
+
+  const stop = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const handleClick = (e) => {
+    if (isLongPressRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (onClick) onClick(e);
+  };
+
+  return (
+    <div
+      className={className}
+      style={{ ...style, WebkitTouchCallout: 'none', userSelect: 'none' }}
+      onClick={handleClick}
+      onMouseDown={start} onMouseUp={stop} onMouseLeave={stop}
+      onTouchStart={start} onTouchEnd={stop}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }} // Block native context menus
+    >
+      {children}
+    </div>
+  );
+};
+
+// --- GENERIC CONFIRMATION MODAL FOR LONG PRESS ACTIONS ---
+function LongPressMenu({ title, onConfirm, onCancel, confirmText = "Delete" }) {
+  return (
+    <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn" onClick={onCancel}>
+      <div className="bg-white border-2 border-[#EADFC9] p-5 rounded-2xl w-full max-w-xs shadow-skeuo-lg text-center" onClick={e => e.stopPropagation()}>
+        <p className="font-serif font-bold text-slate-800 mb-4">{title}</p>
+        <button onClick={onConfirm} className="w-full py-2 bg-rose-500 text-white font-bold rounded-xl shadow-sm mb-2 hover:bg-rose-600 border-b-[3px] border-rose-700 active:border-b-0 active:translate-y-[3px] transition-all">{confirmText}</button>
+        <button onClick={onCancel} className="w-full py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">Cancel</button>
+      </div>
+    </div>
+  );
+}
 
 const compressAndConvertImage = (file, maxDim = 150) => {
   return new Promise((resolve, reject) => {
@@ -168,7 +220,6 @@ const resolvePlayableVideo = (url) => {
     return { 
       type: 'iframe-stream', 
       src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`, 
-      // This grabs the exact first second/thumbnail frame from Google's servers
       thumbnail: `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w600` 
     };
   }
@@ -199,7 +250,6 @@ const WatercolorOverlay = () => (
   <div className="absolute inset-0 pointer-events-none opacity-[0.15] mix-blend-multiply z-10" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='watercolor-noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='4' result='noise'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%23fff' surfaceScale='3'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23watercolor-noise)'/%3E%3C/svg%3E")` }} />
 );
 
-// FIX 1: Safely fetch data WITHOUT backend-breaking compound indexes, manually sorting/limiting in memory to ensure data ALWAYS loads!
 function useFirestoreCollection(name, orderField = null, limitN = null, enabled = false) {
   const [items, setItems] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -208,7 +258,7 @@ function useFirestoreCollection(name, orderField = null, limitN = null, enabled 
   useEffect(() => {
     if (!enabled || !db) { setItems([]); setLoaded(false); return; }
     try {
-      const q = collection(db, name); // ALWAYS use simple query
+      const q = collection(db, name); 
       const unsub = onSnapshot(q, (snap) => {
         let docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (orderField) {
@@ -306,14 +356,12 @@ export default function App() {
     return roleLower === 'roasting waiter' || roleLower === 'waiter';
   }, [userProfile]);
 
-  // Clear unread alerts when visiting notifications page
   useEffect(() => {
     if (currentPage === 'notifications' && db && userProfile) {
       try { updateDoc(doc(db, 'profiles', userProfile.id), { lastSeenNotifAt: Date.now() }); } catch (e) {}
     }
   }, [currentPage, userProfile]);
 
-  // Safe manual prune function to obey strict backend limits while keeping alerts clean
   useEffect(() => {
     const pruneOldNotifications = async () => {
       try {
@@ -359,28 +407,29 @@ export default function App() {
     }
   }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
 
-  // --- BACKGROUND TIME-BASED AUTO-SWEEPER (Safe & Calibrated Active Firestore Deletion) ---
+  // --- FIXED: BULLETPROOF BACKGROUND AUTO-SWEEPER ---
   useEffect(() => {
     if (!isAuthReady || !userProfile || !db || !db.app) return;
     const runSweep = async () => {
       const now = Date.now();
-      const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-      const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
-      const oneDayAgo = now - 24 * 60 * 60 * 1000;
-      const safetyBaseline = 1735689600000; 
+      const sweepSeven = 7 * 24 * 60 * 60 * 1000;
+      const sweepThirty = 30 * 24 * 60 * 60 * 1000;
+      const sweepOne = 24 * 60 * 60 * 1000;
 
-      const isDataOlderThan = (timestamp, threshold) => {
-        if (!timestamp || typeof timestamp !== 'number' || timestamp < safetyBaseline) return false;
-        return timestamp < threshold;
+      // New Math Logic: Completely safe calculation based on explicit ms difference, ignoring future dates or missing fields.
+      const isOlder = (timestamp, maxAgeMs) => {
+        if (!timestamp || typeof timestamp !== 'number' || timestamp > now) return false;
+        return (now - timestamp) > maxAgeMs;
       };
 
-      chats.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDaysAgo)) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
-      posts.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDaysAgo)) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
-      videos.forEach(async (item) => { if (isDataOlderThan(item.createdAt, sevenDaysAgo)) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
-      projects.forEach(async (item) => { if (isDataOlderThan(item.createdAt, thirtyDaysAgo)) { try { await deleteDoc(doc(db, 'projects', item.id)); } catch (e) {} } });
-      scripts.forEach(async (item) => { if (isDataOlderThan(item.createdAt, thirtyDaysAgo)) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
-      notifications.forEach(async (item) => { if (isDataOlderThan(item.timestamp, oneDayAgo)) { try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {} } });
+      chats.forEach(async (item) => { if (isOlder(item.createdAt, sweepSeven)) { try { await deleteDoc(doc(db, 'chats', item.id)); } catch (e) {} } });
+      posts.forEach(async (item) => { if (isOlder(item.createdAt, sweepSeven)) { try { await deleteDoc(doc(db, 'posts', item.id)); } catch (e) {} } });
+      videos.forEach(async (item) => { if (isOlder(item.createdAt, sweepSeven)) { try { await deleteDoc(doc(db, 'videos', item.id)); } catch (e) {} } });
+      projects.forEach(async (item) => { if (isOlder(item.createdAt, sweepThirty)) { try { await deleteDoc(doc(db, 'projects', item.id)); } catch (e) {} } });
+      scripts.forEach(async (item) => { if (isOlder(item.createdAt, sweepThirty)) { try { await deleteDoc(doc(db, 'scripts', item.id)); } catch (e) {} } });
+      notifications.forEach(async (item) => { if (isOlder(item.timestamp, sweepOne)) { try { await deleteDoc(doc(db, 'notifications', item.id)); } catch (e) {} } });
     };
+    
     const delayTimer = setTimeout(() => { runSweep(); }, 15000);
     return () => clearTimeout(delayTimer);
   }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts, projects]);
@@ -421,7 +470,6 @@ export default function App() {
       if (!n || !n.message || seenNotifIdsRef.current.has(n.id)) return;
       seenNotifIdsRef.current.add(n.id);
       
-      // Strict ignore filter: If you are looking right at the page where the notification comes from, SUPPRESS it!
       if (n.actor === userProfile.name) return;
       if (currentPage === 'vault' && n.type === 'video') return;
       if (currentPage === 'projects' && n.type === 'project') return;
@@ -480,7 +528,6 @@ export default function App() {
       };
       await setDoc(ref, newProfile);
       if (!isOwner) {
-        // Send admin notification explicitly about waiting list roster!
         await addDoc(collection(db, 'notifications'), { 
           message: `New crew application from ${newProfile.name}. Awaiting approval on roster list.`, 
           type: 'system', actor: 'System', timestamp: Date.now(), audience: "admin" 
@@ -662,18 +709,18 @@ export default function App() {
 
       {/* --- MAIN PAGE CONTENT --- */}
       <main className="relative z-20 max-w-7xl mx-auto px-0 sm:px-4 py-6 studio-page-wrap animate-fadeIn">
-        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} onNavigate={setCurrentPage} onInspectUser={setInspectUser} userProfile={userProfile} />}
+        {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} onNavigate={setCurrentPage} onInspectUser={setInspectUser} userProfile={userProfile} setSelectedProject={setSelectedProject} />}
         {currentPage === 'notifications' && <NotificationsFeed notifications={visibleNotifications} onNavigate={setCurrentPage} setActiveVideo={setActiveVideo} videos={videos} onInspectUser={setInspectUser} />}
         {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} handleNavigationChange={handleNavigationChange} handleSignOut={handleSignOut} />}
         {currentPage === 'rejected-status' && <RejectedScreen handleSignOut={handleSignOut} />}
         {currentPage === 'crew' && <div className="px-4 sm:px-0"><CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
         {currentPage === 'categories-view' && <div className="px-4 sm:px-0"><CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} onInspectUser={setInspectUser} /></div>}
         
-        {currentPage === 'vault' && <VideoVault videos={videos} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} activeVideo={activeVideo} setActiveVideo={setActiveVideo} onInspectUser={setInspectUser} />}
-        {currentPage === 'projects' && <div className="px-4 sm:px-0"><ProjectBoard projects={projects} tasks={tasks} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} /></div>}
-        {currentPage === 'scripts' && <div className="px-4 sm:px-0"><ScriptsWorkspace scripts={scripts} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} /></div>}
+        {currentPage === 'vault' && <VideoVault videos={videos} projects={projects} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} activeVideo={activeVideo} setActiveVideo={setActiveVideo} onInspectUser={setInspectUser} />}
+        {currentPage === 'projects' && <div className="px-4 sm:px-0"><ProjectBoard projects={projects} tasks={tasks} videos={videos} scripts={scripts} posts={posts} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} /></div>}
+        {currentPage === 'scripts' && <div className="px-4 sm:px-0"><ScriptsWorkspace scripts={scripts} projects={projects} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} /></div>}
         {currentPage === 'chat' && <div className="px-4 sm:px-0"><WhiteboardChat chats={chats} userProfile={userProfile} chatChannel={chatChannel} setChatChannel={setChatChannel} pushNotification={pushNotification} siteSettings={siteSettings} isAdmin={isAdmin} showToast={showToast} onInspectUser={setInspectUser} viewMode={chatViewMode} setViewMode={setChatViewMode} /></div>}
-        {currentPage === 'posts' && <div className="px-4 sm:px-0"><PostsWorkspace posts={posts} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
+        {currentPage === 'posts' && <div className="px-4 sm:px-0"><PostsWorkspace posts={posts} projects={projects} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} onInspectUser={setInspectUser} /></div>}
         
         {currentPage === 'profile' && (
           !userProfile ? <div className="bg-white border-2 border-[#EADFC9] p-8 rounded-2xl text-center max-w-md mx-auto shadow-skeuo-md"><p className="text-slate-600 font-medium">Preparing sandbox profile card...</p></div> : 
@@ -821,7 +868,7 @@ function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
 }
 
 // --- HOMEPAGE HUB ---
-function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications, onNavigate, onInspectUser, userProfile }) {
+function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications, onNavigate, onInspectUser, userProfile, setSelectedProject }) {
   const studioUpdates = useMemo(() => {
     return (notifications || []).filter(n => n && n.message && !String(n.message).startsWith('"') && n.actor !== 'System' && n.actor !== userProfile?.name);
   }, [notifications, userProfile]);
@@ -847,17 +894,35 @@ function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeS
         ))}
       </div>
 
-      <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans">
-        <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-2 mb-3 font-serif"><h3 className="font-serif text-sm font-bold text-[#C5A03A]">📢 Studio Updates</h3><span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans border border-emerald-200">Recent Activity</span></div>
-        <div className="space-y-2.5 max-h-48 overflow-y-auto custom-scrollbar font-sans pr-1">
-          {studioUpdates.map(notif => (
-            <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-1.5 animate-fadeIn">
-              <span className="font-bold text-slate-800 font-sans cursor-pointer hover:underline" onClick={() => onInspectUser(notif.authorUid)}>{notif.actor}:{' '}</span>
-              <span className="text-slate-600 font-sans">{notif.message}</span>
-              <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{formatTimeAMPM(notif.timestamp)}</p>
-            </div>
-          ))}
-          {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No updates mapped to log yet.</p>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans">
+          <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-2 mb-3 font-serif"><h3 className="font-serif text-sm font-bold text-[#C5A03A]">📢 Studio Updates</h3><span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans border border-emerald-200">Recent Activity</span></div>
+          <div className="space-y-2.5 max-h-48 overflow-y-auto custom-scrollbar font-sans pr-1">
+            {studioUpdates.map(notif => (
+              <div key={notif.id} className="text-[11px] leading-relaxed border-b border-dashed border-slate-100 pb-1.5 animate-fadeIn">
+                <span className="font-bold text-slate-800 font-sans cursor-pointer hover:underline" onClick={() => onInspectUser(notif.authorUid)}>{notif.actor}:{' '}</span>
+                <span className="text-slate-600 font-sans">{notif.message}</span>
+                <p className="text-[8px] text-slate-400 mt-0.5 font-mono">{formatTimeAMPM(notif.timestamp)}</p>
+              </div>
+            ))}
+            {studioUpdates.length === 0 && <p className="text-xs text-slate-400 italic">No updates mapped to log yet.</p>}
+          </div>
+        </div>
+
+        <div className="bg-white/80 border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md font-sans">
+          <div className="flex items-center justify-between border-b border-[#EADFC9]/30 pb-2 mb-3 font-serif">
+            <h3 className="font-serif text-sm font-bold text-[#C5A03A]">📌 Pinned Project Boards</h3>
+            <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full font-sans border border-amber-200">Latest Active</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+            {projects.slice(0, 6).map(p => (
+              <div key={p.id} onClick={() => { setSelectedProject(p); onNavigate('projects'); }} className="bg-amber-50/50 border border-[#EADFC9] p-3 rounded-xl cursor-pointer hover:bg-amber-50 transition shadow-sm group">
+                <p className="text-xs font-bold text-slate-800 truncate group-hover:text-[#C5A03A]">{p.title}</p>
+                <p className="text-[9px] text-slate-400 mt-1">⏳ {getExpiry30(p.createdAt)}</p>
+              </div>
+            ))}
+            {projects.length === 0 && <p className="text-xs text-slate-400 italic col-span-2">No project boards pinned yet.</p>}
+          </div>
         </div>
       </div>
     </section>
@@ -873,11 +938,11 @@ function NotificationsFeed({ notifications, onNavigate, setActiveVideo, videos, 
       onNavigate('vault');
       const match = videos.find(v => msg.includes(v.title.toLowerCase()));
       if (match) setActiveVideo(match);
-    } else if (msg.includes('concept whiteboard') || msg.includes('task')) {
+    } else if (msg.includes('concept whiteboard') || msg.includes('task') || msg.includes('project')) {
       onNavigate('projects');
     } else if (msg.includes('script topic')) {
       onNavigate('scripts');
-    } else if (msg.includes('showroom draft') || msg.includes('showroom feed')) {
+    } else if (msg.includes('showroom draft') || msg.includes('showroom feed') || msg.includes('instagram')) {
       onNavigate('posts');
     } else if (msg.startsWith('"')) {
       onNavigate('chat');
@@ -923,11 +988,14 @@ function NotificationsFeed({ notifications, onNavigate, setActiveVideo, videos, 
 // --- CREW DIRECTORY SECTION ---
 function CrewSection({ profiles, userProfile, showToast, isAdmin, onInspectUser }) {
   const [focusIdx, setFocusIdx] = useState(0);
+  const [memberToDelete, setMemberToDelete] = useState(null);
+  
   const approvedProfiles = useMemo(() => (profiles || []).filter(p => p.status === 'approved'), [profiles]);
 
-  const removeMember = async (uid) => {
-    if (!db || !db.app) return;
-    try { await deleteDoc(doc(db, 'profiles', uid)); showToast('Crew member removed.', 'success'); } catch (err) { showToast('Failed to remove.', 'warning'); }
+  const removeMember = async () => {
+    if (!memberToDelete || !db || !db.app) return;
+    try { await deleteDoc(doc(db, 'profiles', memberToDelete.id)); showToast('Crew member removed.', 'success'); } catch (err) { showToast('Failed to remove.', 'warning'); }
+    setMemberToDelete(null);
   };
 
   if (approvedProfiles.length === 0) return <div className="text-center text-slate-400 py-20">No approved crew members yet.</div>;
@@ -946,19 +1014,31 @@ function CrewSection({ profiles, userProfile, showToast, isAdmin, onInspectUser 
         <h4 className="font-serif font-bold text-sm border-b pb-2 mb-3 text-slate-700">Production Team Members</h4>
         <div className="space-y-2 font-sans">
           {profiles.map((p, i) => (
-            <div key={p.id} className="flex justify-between items-center p-2.5 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50">
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm cursor-pointer shrink-0">{renderAvatar(p.photoURL, "w-full h-full object-cover rounded-full", () => onInspectUser(p.id))}</div>
-                <div className="cursor-pointer min-w-0" onClick={() => setFocusIdx(approvedProfiles.indexOf(p) !== -1 ? approvedProfiles.indexOf(p) : 0)}>
+            <LongPressable 
+              key={p.id} 
+              onLongPress={() => { if (isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL) setMemberToDelete(p); }}
+              className="flex justify-between items-center p-2.5 border rounded-xl hover:border-[#C5A03A]/40 transition bg-slate-50/50 cursor-pointer"
+            >
+              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-white shadow-sm shrink-0">{renderAvatar(p.photoURL, "w-full h-full object-cover rounded-full", () => onInspectUser(p.id))}</div>
+                <div className="cursor-pointer min-w-0 flex-1" onClick={() => setFocusIdx(approvedProfiles.indexOf(p) !== -1 ? approvedProfiles.indexOf(p) : 0)}>
                   <p className="text-xs font-bold text-slate-800 truncate hover:text-[#C5A03A]" onClick={() => onInspectUser(p.id)}>{p.name}</p>
                   <span className="text-[9px] font-mono text-slate-400 block truncate">{p.email} • {p.role} • {p.workCategory}</span>
                 </div>
               </div>
-              {isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL && <button onClick={() => removeMember(p.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-[9px] font-bold px-2.5 py-1 rounded-full hover:bg-rose-100 font-sans whitespace-nowrap">Remove</button>}
-            </div>
+            </LongPressable>
           ))}
         </div>
       </div>
+      
+      {memberToDelete && (
+        <LongPressMenu 
+          title={`Remove ${memberToDelete.name} from the crew?`} 
+          onConfirm={removeMember} 
+          onCancel={() => setMemberToDelete(null)} 
+          confirmText="Remove Member" 
+        />
+      )}
     </section>
   );
 }
@@ -1204,10 +1284,13 @@ function CustomVideoPlayer({ hlsUrl, videoTitle }) {
 }
 
 // --- VIDEO VAULT FEED & INTEGRATION ---
-function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification, activeVideo, setActiveVideo, onInspectUser }) {
+function VideoVault({ videos, projects, userProfile, showToast, isAdmin, pushNotification, activeVideo, setActiveVideo, onInspectUser }) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoUrlInput, setVideoUrlInput] = useState('');
+  const [relatedProjectId, setRelatedProjectId] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState(null);
+  const [videoToDelete, setVideoToDelete] = useState(null);
 
   const startUpload = async (e) => {
     e.preventDefault();
@@ -1217,6 +1300,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
       await addDoc(collection(db, 'videos'), {
         title: videoTitle.trim(),
         hlsUrl: videoUrlInput.trim(),
+        relatedProjectId: relatedProjectId,
         uploaderUid: userProfile.id,
         uploaderName: userProfile.name,
         uploaderAvatar: userProfile.photoURL || '',
@@ -1225,15 +1309,16 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
         createdAt: Date.now(),
       });
       pushNotification(`Added video link: "${videoTitle}"`, 'video', {}, userProfile.name);
-      setVideoTitle(''); setVideoUrlInput(''); setShowUploadModal(false);
+      setVideoTitle(''); setVideoUrlInput(''); setRelatedProjectId(''); setShowUploadModal(false);
       showToast('Video link registered successfully!', 'success');
     } catch (err) { showToast('Upload authorization failure.', 'warning'); }
   };
 
-  const removeVideo = async (id) => {
-    if (!db || !db.app) return;
-    await deleteDoc(doc(db, 'videos', id));
-    setActiveVideo(null);
+  const removeVideo = async () => {
+    if (!videoToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'videos', videoToDelete));
+    if (activeVideo?.id === videoToDelete) setActiveVideo(null);
+    setVideoToDelete(null);
     showToast('Video removed from Vault.', 'info');
   };
 
@@ -1252,12 +1337,14 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     showToast('Feedback published!', 'success');
   };
 
-  const deleteVideoComment = async (videoId, currentComments, commentId) => {
-    if (!db || !db.app) return;
+  const deleteVideoComment = async () => {
+    if (!commentToDelete || !db || !db.app) return;
+    const { videoId, commentId, currentComments } = commentToDelete;
     const updatedComments = currentComments.filter(c => c.id !== commentId);
     await updateDoc(doc(db, 'videos', videoId), { comments: updatedComments });
     const freshDoc = await getDoc(doc(db, 'videos', videoId));
     if (freshDoc.exists()) setActiveVideo({ id: freshDoc.id, ...freshDoc.data() });
+    setCommentToDelete(null);
     showToast('Comment deleted.', 'info');
   };
 
@@ -1326,7 +1413,7 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
               <p className="text-[10px] text-slate-400 font-mono">{activeVideo.size}</p>
             </div>
             {(isAdmin || activeVideo.uploaderUid === userProfile?.id) && (
-              <button onClick={() => removeVideo(activeVideo.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-rose-100 transition shadow-sm">🗑️ Delete Record</button>
+              <button onClick={() => setVideoToDelete(activeVideo.id)} className="bg-rose-50 text-rose-600 border border-rose-200 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-rose-100 transition shadow-sm">🗑️ Delete Record</button>
             )}
           </div>
         </div>
@@ -1341,22 +1428,40 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 
           <div className="space-y-3 pb-8">
             {(activeVideo.comments || []).map((comment) => (
-              <div key={comment.id} className="text-xs flex items-start gap-3 bg-white p-4 rounded-xl border border-slate-100 shadow-sm transition hover:shadow-md">
+              <LongPressable
+                key={comment.id}
+                onLongPress={() => { if (isAdmin || comment.authorName === userProfile?.name) setCommentToDelete({ videoId: activeVideo.id, currentComments: activeVideo.comments, commentId: comment.id }); }}
+                className="text-xs flex items-start gap-3 bg-white p-4 rounded-xl border border-slate-100 shadow-sm transition hover:shadow-md cursor-pointer"
+              >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-bold text-slate-800 hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(comment.authorUid)}>{comment.authorName}</span>
+                    <span className="font-bold text-slate-800 hover:text-[#C5A03A] cursor-pointer" onClick={(e) => { e.stopPropagation(); onInspectUser(comment.authorUid); }}>{comment.authorName}</span>
                     <span className="text-[9px] text-slate-400 font-mono">{formatTimeAMPM(comment.timestamp)}</span>
                   </div>
                   <span className="text-slate-600 break-words leading-relaxed">{comment.text}</span>
                 </div>
-                {(isAdmin || comment.authorName === userProfile?.name) && (
-                  <button onClick={() => deleteVideoComment(activeVideo.id, activeVideo.comments, comment.id)} className="text-slate-300 hover:bg-rose-50 hover:text-rose-500 rounded p-1 text-sm leading-none shrink-0 transition">✕</button>
-                )}
-              </div>
+              </LongPressable>
             ))}
             {(!activeVideo.comments || activeVideo.comments.length === 0) && <div className="text-xs text-slate-400 text-center py-10 italic border-2 border-dashed border-[#EADFC9] rounded-xl bg-white/50">Be the first to leave a feedback note on this video.</div>}
           </div>
         </div>
+        
+        {commentToDelete && (
+          <LongPressMenu 
+            title="Delete this comment?" 
+            onConfirm={deleteVideoComment} 
+            onCancel={() => setCommentToDelete(null)} 
+            confirmText="Delete Comment" 
+          />
+        )}
+        {videoToDelete && (
+          <LongPressMenu 
+            title={`Delete "${activeVideo.title}"?`} 
+            onConfirm={removeVideo} 
+            onCancel={() => setVideoToDelete(null)} 
+            confirmText="Delete Video" 
+          />
+        )}
       </section>
     );
   }
@@ -1365,38 +1470,36 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
     <section className="py-2 animate-fadeIn space-y-6 font-sans px-4 sm:px-0">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-sm gap-4">
         <h2 className="font-serif text-lg font-bold text-slate-800">🎞️ Premium Video Vault Feed</h2>
-        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap">➕ Link Dual Asset</button>
+        <button onClick={() => setShowUploadModal(true)} className="bg-red-600 text-white font-bold text-[10px] sm:text-xs px-4 py-2 rounded-full shadow hover:bg-red-700 transition font-sans whitespace-nowrap border-b-[3px] border-red-800 active:translate-y-[2px] active:border-b-0">➕ Link Dual Asset</button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {videos.map((vid) => {
-  const embed = resolvePlayableVideo(vid.hlsUrl);
-  const timeLeft = getExpiry7(vid.createdAt);
-  
-  // Create an automated dynamic thumbnail background preview matching asset attributes
-  const templateBgStyle = vid.title.toLowerCase().includes('edit') 
-    ? 'from-blue-900 via-indigo-950 to-slate-950' 
-    : 'from-amber-900 via-zinc-900 to-stone-950';
+          const embed = resolvePlayableVideo(vid.hlsUrl);
+          const timeLeft = getExpiry7(vid.createdAt);
+          
+          const templateBgStyle = vid.title.toLowerCase().includes('edit') 
+            ? 'from-blue-900 via-indigo-950 to-slate-950' 
+            : 'from-amber-900 via-zinc-900 to-stone-950';
 
-  return (
-    <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
-      <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
-        {embed.thumbnail ? (
-          <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
-        ) : (
-          /* Enforce structural automated visible template block layout layout */
-          <div className={`absolute inset-0 bg-gradient-to-br ${templateBgStyle} group-hover:scale-105 transition-transform duration-500 flex flex-col items-center justify-center p-4 text-center select-none border-b border-white/5`}>
-            <span className="text-3xl mb-1.5 filter drop-shadow animate-pulse-slow">🎞️</span>
-            <span className="text-xs font-serif font-black tracking-wide text-amber-400 uppercase line-clamp-2 px-2 max-w-full drop-shadow-md">{vid.title}</span>
-            <div className="mt-2 flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-full border border-white/10">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
-              <span className="text-[8px] font-mono tracking-widest text-slate-300 font-bold uppercase">Ready to Stream</span>
-            </div>
-          </div>
-        )}
-        <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
-        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
-      </div>
+          return (
+            <div key={vid.id} onClick={() => setActiveVideo(vid)} className="bg-white border-b-[4px] border border-[#EADFC9] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-1 transition-all cursor-pointer group flex flex-col">
+              <div className="w-full aspect-video bg-slate-900 relative flex items-center justify-center overflow-hidden">
+                {embed.thumbnail ? (
+                  <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80 group-hover:opacity-100" />
+                ) : (
+                  <div className={`absolute inset-0 bg-gradient-to-br ${templateBgStyle} group-hover:scale-105 transition-transform duration-500 flex flex-col items-center justify-center p-4 text-center select-none border-b border-white/5`}>
+                    <span className="text-3xl mb-1.5 filter drop-shadow animate-pulse-slow">🎞️</span>
+                    <span className="text-xs font-serif font-black tracking-wide text-amber-400 uppercase line-clamp-2 px-2 max-w-full drop-shadow-md">{vid.title}</span>
+                    <div className="mt-2 flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded-full border border-white/10">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                      <span className="text-[8px] font-mono tracking-widest text-slate-300 font-bold uppercase">Ready to Stream</span>
+                    </div>
+                  </div>
+                )}
+                <div className="relative z-10 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center border border-white/20 group-hover:bg-[#C5A03A]/90 group-hover:scale-110 transition-all duration-300 shadow-lg"><div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[12px] border-l-white border-b-[8px] border-b-transparent ml-1"></div></div>
+                <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[9px] font-bold px-2 py-1 rounded backdrop-blur-md">⏳ {timeLeft}</div>
+              </div>
 
               <div className="p-3 flex gap-3 bg-white flex-1">
                 <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-slate-100 border border-slate-200 mt-0.5">{renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(vid.uploaderUid); })}</div>
@@ -1426,6 +1529,13 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
               <label className="block text-[9px] font-bold text-slate-500 uppercase">External Asset URL</label>
               <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" placeholder="https://..." required />
             </div>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Related Project Board (Optional)</label>
+              <select value={relatedProjectId} onChange={e => setRelatedProjectId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]">
+                <option value="">-- Standalone Video --</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            </div>
             <div className="flex gap-2 justify-end pt-2">
               <button type="button" onClick={() => setShowUploadModal(false)} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold transition hover:bg-slate-200">Cancel</button>
               <button type="submit" className="px-5 py-2 bg-red-600 text-white font-bold text-xs rounded-xl border-b-[4px] border-red-800 hover:bg-red-500 active:border-b-0 active:translate-y-[4px] transition shadow">Track Asset Link</button>
@@ -1438,14 +1548,16 @@ function VideoVault({ videos, userProfile, showToast, isAdmin, pushNotification,
 }
 
 // --- PROJECT BOARD ---
-function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin }) {
+function ProjectBoard({ projects, tasks, videos, scripts, posts, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin }) {
   const [newConcept, setNewConcept] = useState('');
   const [taskTitle, setTaskTitle] = useState('');
+  const [boardTab, setBoardTab] = useState('progress');
+  const [projectToDelete, setProjectToDelete] = useState(null);
+  const [taskToDelete, setTaskToDelete] = useState(null);
 
   const createConcept = async (e) => {
     e.preventDefault();
-    if (!newConcept.trim()) return;
-    if (!db || !db.app) return;
+    if (!newConcept.trim() || !db || !db.app) return;
     try {
       await addDoc(collection(db, 'projects'), { title: newConcept, creatorName: userProfile.name, createdAt: Date.now() });
       pushNotification(`Created whiteboard: "${newConcept}"`, 'project', {}, userProfile.name);
@@ -1454,6 +1566,11 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
   };
 
   const activeTasks = useMemo(() => (tasks || []).filter(t => t.projectId === selectedProject?.id), [tasks, selectedProject]);
+  
+  // Resolve related assets explicitly
+  const projectVideos = useMemo(() => (videos || []).filter(v => v.relatedProjectId === selectedProject?.id), [videos, selectedProject]);
+  const projectScripts = useMemo(() => (scripts || []).filter(s => s.relatedProjectId === selectedProject?.id), [scripts, selectedProject]);
+  const projectPosts = useMemo(() => (posts || []).filter(p => p.relatedProjectId === selectedProject?.id), [posts, selectedProject]);
 
   const addTask = async (e) => {
     e.preventDefault();
@@ -1464,17 +1581,18 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
     } catch(err) {}
   };
 
-  const removeProject = async (pId, e) => {
-    if (e) e.stopPropagation(); 
-    if (!db || !db.app) return;
-    await deleteDoc(doc(db, 'projects', pId));
-    if (selectedProject?.id === pId) setSelectedProject(null); 
+  const removeProject = async () => {
+    if (!projectToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'projects', projectToDelete));
+    if (selectedProject?.id === projectToDelete) setSelectedProject(null); 
+    setProjectToDelete(null);
     showToast('Project deleted', 'info');
   };
 
-  const removeTask = async (tId) => { 
-    if (!db || !db.app) return;
-    await deleteDoc(doc(db, 'tasks', tId)); 
+  const removeTask = async () => { 
+    if (!taskToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'tasks', taskToDelete)); 
+    setTaskToDelete(null);
     showToast('Task card removed.', 'info');
   };
 
@@ -1496,12 +1614,16 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
           
           <div className="p-6 border-[12px] border-[#8b5a2b]/25 shadow-[inset_0_4px_12px_rgba(0,0,0,0.15)] rounded-[2rem] grid grid-cols-1 md:grid-cols-3 gap-5 animate-fadeIn" style={{ backgroundColor: '#deb887', backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
             {projects.map((p) => (
-              <div key={p.id} onClick={() => setSelectedProject(p)} className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl cursor-pointer shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all relative">
+              <LongPressable 
+                key={p.id} 
+                onClick={() => setSelectedProject(p)} 
+                onLongPress={() => { if (isAdmin) setProjectToDelete(p.id); }}
+                className="bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl cursor-pointer shadow-skeuo-md hover:-translate-y-0.5 hover:shadow-skeuo-3d transition-all relative"
+              >
                 <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-xl drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] animate-bounce">📌</span>
-                {isAdmin && <button onClick={(e) => removeProject(p.id, e)} className="absolute top-1.5 right-1.5 text-rose-500 font-bold bg-rose-50 border border-rose-150 rounded-full w-5 h-5 flex items-center justify-center text-[9px] hover:bg-rose-200 transition z-10">✕</button>}
                 <div className="font-serif font-bold text-slate-800 pt-2 text-center line-clamp-2 text-xs">{p.title}</div>
                 <div className="text-[9px] text-slate-400 text-center mt-2 font-mono">⏳ {getExpiry30(p.createdAt)}</div>
-              </div>
+              </LongPressable>
             ))}
           </div>
         </div>
@@ -1509,41 +1631,89 @@ function ProjectBoard({ projects, tasks, userProfile, showToast, selectedProject
         <div className="space-y-4 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn font-sans">
           <div className="flex justify-between items-center border-b pb-2">
             <button onClick={() => setSelectedProject(null)} className="text-[11px] font-bold text-[#C5A03A] hover:underline transition">◀ Back to Cork Board</button>
-            {isAdmin && <button onClick={(e) => removeProject(selectedProject.id, e)} className="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg font-bold hover:bg-rose-100 transition">🗑 Delete Entire Whiteboard</button>}
           </div>
+          
           <h3 className="font-serif text-lg font-bold text-slate-800">{selectedProject.title}</h3>
           <p className="text-[9px] text-rose-500 font-bold">⏳ {getExpiry30(selectedProject.createdAt)}</p>
           
-          <div className="divide-y text-xs border-t mt-2">
-            {activeTasks.map((t) => (
-              <div key={t.id} className="py-2.5 flex justify-between items-center group">
-                <span className="font-semibold text-slate-700">{t.title}</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => toggleTaskStatus(t)} className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</button>
-                  {isAdmin && <button onClick={() => removeTask(t.id)} className="text-rose-500 hover:text-rose-700 text-xs font-bold px-1.5 border rounded" title="Delete Task card">✕</button>}
-                </div>
-              </div>
-            ))}
+          <div className="flex gap-4 border-b mt-4">
+            <button onClick={() => setBoardTab('progress')} className={`pb-2 text-xs font-bold transition-colors ${boardTab === 'progress' ? 'border-b-[3px] border-[#C5A03A] text-[#C5A03A]' : 'text-slate-400 hover:text-slate-600'}`}>Checklist / Progress</button>
+            <button onClick={() => setBoardTab('resources')} className={`pb-2 text-xs font-bold transition-colors flex gap-1 items-center ${boardTab === 'resources' ? 'border-b-[3px] border-[#C5A03A] text-[#C5A03A]' : 'text-slate-400 hover:text-slate-600'}`}>
+              Resources
+              {(projectVideos.length + projectScripts.length + projectPosts.length) > 0 && (
+                <span className="bg-[#C5A03A]/20 text-[#C5A03A] text-[9px] px-1.5 py-0.5 rounded-full">{projectVideos.length + projectScripts.length + projectPosts.length}</span>
+              )}
+            </button>
           </div>
-          
-          <form onSubmit={addTask} className="flex gap-2 max-w-sm pt-3">
-            <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add specific work item..." className="flex-1 px-3 py-1.5 border border-[#EADFC9] rounded-xl text-xs" required />
-            <button type="submit" className="px-3.5 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Item</button>
-          </form>
+
+          {boardTab === 'progress' ? (
+            <>
+              <div className="divide-y text-xs border-t mt-2">
+                {activeTasks.map((t) => (
+                  <LongPressable 
+                    key={t.id} 
+                    onLongPress={() => { if (isAdmin) setTaskToDelete(t.id); }}
+                    className="py-2.5 flex justify-between items-center group cursor-pointer hover:bg-slate-50 px-2 rounded-lg transition"
+                  >
+                    <span className="font-semibold text-slate-700">{t.title}</span>
+                    <button onClick={(e) => { e.stopPropagation(); toggleTaskStatus(t); }} className={`text-[9px] px-2 py-0.5 rounded-full font-bold shadow-inner ${t.status === 'To Do' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'}`}>{t.status}</button>
+                  </LongPressable>
+                ))}
+              </div>
+              
+              <form onSubmit={addTask} className="flex gap-2 max-w-sm pt-3">
+                <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Add specific work item..." className="flex-1 px-3 py-1.5 border border-[#EADFC9] rounded-xl text-xs" required />
+                <button type="submit" className="px-3.5 bg-slate-800 text-white text-xs rounded-xl font-bold font-sans">Add Item</button>
+              </form>
+            </>
+          ) : (
+            <div className="space-y-3 pt-2">
+              {projectVideos.map(v => (
+                <div key={v.id} className="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-[#C5A03A]/30 transition shadow-sm">
+                  <span className="text-[10px] bg-rose-100 text-rose-600 px-2 py-1 rounded font-bold mr-3 uppercase tracking-wider shrink-0">🎞️ Video</span>
+                  <span className="font-bold text-sm text-slate-700 flex-1 truncate">{v.title}</span>
+                </div>
+              ))}
+              {projectScripts.map(s => (
+                <div key={s.id} className="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-[#C5A03A]/30 transition shadow-sm">
+                  <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-1 rounded font-bold mr-3 uppercase tracking-wider shrink-0">📝 Script</span>
+                  <span className="font-bold text-sm text-slate-700 flex-1 truncate">{s.title}</span>
+                </div>
+              ))}
+              {projectPosts.map(p => (
+                <div key={p.id} className="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-[#C5A03A]/30 transition shadow-sm">
+                  <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-1 rounded font-bold mr-3 uppercase tracking-wider shrink-0">📸 Post</span>
+                  <span className="font-bold text-sm text-slate-700 flex-1 truncate">{p.title}</span>
+                </div>
+              ))}
+              {(!projectVideos.length && !projectScripts.length && !projectPosts.length) && (
+                <div className="text-center text-slate-400 py-10 italic text-xs">No resources linked to this board yet.</div>
+              )}
+            </div>
+          )}
         </div>
+      )}
+      
+      {projectToDelete && (
+        <LongPressMenu title="Delete this Project Board entirely?" onConfirm={removeProject} onCancel={() => setProjectToDelete(null)} confirmText="Delete Board" />
+      )}
+      {taskToDelete && (
+        <LongPressMenu title="Delete this Task card?" onConfirm={removeTask} onCancel={() => setTaskToDelete(null)} confirmText="Delete Task" />
       )}
     </section>
   );
 }
 
 // --- SCRIPTS WORKSPACE ---
-function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotification }) {
+function ScriptsWorkspace({ scripts, projects, userProfile, isAdmin, showToast, pushNotification }) {
   const [selectedScriptId, setSelectedScriptId] = useState(null);
   const [showNewTopicModal, setShowNewTopicModal] = useState(false);
   const [newTopicTitle, setNewTopicTitle] = useState('');
+  const [relatedProjectId, setRelatedProjectId] = useState('');
   const [draftText, setDraftText] = useState('');
   const [saving, setSaving] = useState(false);
   const [isEditingBody, setIsEditingBody] = useState(false);
+  const [topicToDelete, setTopicToDelete] = useState(null);
 
   const selectedScript = useMemo(() => (scripts || []).find(s => s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
 
@@ -1573,7 +1743,7 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
       } finally {
         setSaving(false);
       }
-    }, 800); // 800ms typing debounce
+    }, 800); 
 
     return () => clearTimeout(timer);
   }, [draftText, isEditingBody, selectedScript, canEditSelected, userProfile]);
@@ -1583,24 +1753,29 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     const clean = newTopicTitle.trim();
     if (!clean || !db || !db.app) return;
     try {
-      const ref = await addDoc(collection(db, 'scripts'), { title: clean, content: '', authorUid: userProfile.id, authorName: userProfile.name, createdAt: Date.now(), updatedAt: Date.now() });
+      const ref = await addDoc(collection(db, 'scripts'), { 
+        title: clean, 
+        content: '', 
+        relatedProjectId: relatedProjectId,
+        authorUid: userProfile.id, 
+        authorName: userProfile.name, 
+        createdAt: Date.now(), 
+        updatedAt: Date.now() 
+      });
       pushNotification(`Started script: "${clean}"`, 'script', {}, userProfile.name);
-      setNewTopicTitle('');
-      setShowNewTopicModal(false);
-      setSelectedScriptId(ref.id);
-      setIsEditingBody(true); // Open instantly
-      setDraftText('');
+      setNewTopicTitle(''); setRelatedProjectId(''); setShowNewTopicModal(false);
+      setSelectedScriptId(ref.id); setIsEditingBody(true); setDraftText('');
       showToast('Topic created!', 'success');
     } catch(err) {
       showToast('Failed to create topic.', 'warning');
     }
   };
 
-  const removeTopic = async (id, e) => {
-    if (e) e.stopPropagation();
-    if (!db || !db.app) return;
-    await deleteDoc(doc(db, 'scripts', id));
-    if (selectedScriptId === id) { setSelectedScriptId(null); setIsEditingBody(false); }
+  const removeTopic = async () => {
+    if (!topicToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'scripts', topicToDelete));
+    if (selectedScriptId === topicToDelete) { setSelectedScriptId(null); setIsEditingBody(false); }
+    setTopicToDelete(null);
     showToast('Script topic deleted.', 'info');
   };
 
@@ -1608,20 +1783,25 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
     <section className="py-2 animate-fadeIn font-sans space-y-4">
       <div className="flex justify-between items-center bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-4 rounded-xl shadow-skeuo-md font-sans animate-fadeIn">
         <h3 className="font-serif font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wider">📝 Script Topics</h3>
-        <button onClick={() => setShowNewTopicModal(true)} className="bg-[#C5A03A] text-white font-bold text-[10px] sm:text-xs px-4 py-1.5 rounded-full shadow hover:bg-[#b08d32] transition font-sans">+ New Topic</button>
+        <button onClick={() => setShowNewTopicModal(true)} className="bg-[#C5A03A] text-white font-bold text-[10px] sm:text-xs px-4 py-1.5 rounded-full shadow hover:bg-[#b08d32] transition font-sans border-b-[3px] border-[#9c7d2c] active:border-b-0 active:translate-y-[2px]">+ New Topic</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
         <div className="lg:col-span-1 bg-white border-b-[5px] border-r border-l border-t border-[#EADFC9] p-3 rounded-xl shadow-skeuo-md space-y-1.5 max-h-[400px] overflow-y-auto custom-scrollbar animate-fadeIn">
           {scripts.map(s => (
-            <div key={s.id} onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} className={`p-2.5 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30' : 'border-slate-100 hover:border-[#C5A03A]/40'}`}>
+            <LongPressable 
+              key={s.id} 
+              onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} 
+              onLongPress={() => { if (isAdmin || s.authorUid === userProfile?.id) setTopicToDelete(s.id); }}
+              className={`p-2.5 rounded-xl border cursor-pointer transition flex justify-between items-start gap-2 ${selectedScriptId === s.id ? 'border-[#C5A03A] bg-amber-50/30 shadow-sm' : 'border-slate-100 hover:border-[#C5A03A]/40 hover:bg-slate-50'}`}
+            >
               <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-800 truncate">{s.title}</p>
-                <span className="text-[9px] text-slate-400 font-mono block">By {s.authorName} • ⏳ {getExpiry30(s.createdAt)}</span>
+                <span className="text-[9px] text-slate-400 font-mono block mt-0.5">By {s.authorName} • ⏳ {getExpiry30(s.createdAt)}</span>
               </div>
-              {(isAdmin || s.authorUid === userProfile?.id) && <button onClick={(e) => removeTopic(s.id, e)} className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold shrink-0 p-1 rounded transition">✕</button>}
-            </div>
+            </LongPressable>
           ))}
+          {scripts.length === 0 && <div className="text-center text-slate-400 italic text-xs py-10">No script topics available.</div>}
         </div>
 
         <div className="lg:col-span-2 bg-white border-b-[6px] border-r border-l border-t border-[#EADFC9] p-5 rounded-2xl shadow-skeuo-md animate-fadeIn">
@@ -1638,14 +1818,13 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {canEditSelected && !isEditingBody && <button onClick={() => setIsEditingBody(true)} className="text-[9px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition">✎ Write Script</button>}
+                  {canEditSelected && !isEditingBody && <button onClick={() => setIsEditingBody(true)} className="text-[9px] font-bold text-[#C5A03A] bg-amber-50 border border-[#C5A03A]/30 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition shadow-sm">✎ Write Script</button>}
                   {isEditingBody && (
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] font-mono text-slate-400">{saving ? '⏳ Saving...' : '✅ Saved'}</span>
-                      <button onClick={() => setIsEditingBody(false)} className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-200 transition">Done</button>
+                      <button onClick={() => setIsEditingBody(false)} className="text-[9px] font-bold text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-200 transition shadow-sm">Done</button>
                     </div>
                   )}
-                  {isAdmin && <button onClick={(e) => removeTopic(selectedScript.id, e)} className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 hover:bg-rose-100 transition">🗑 Delete</button>}
                 </div>
               </div>
               
@@ -1667,13 +1846,27 @@ function ScriptsWorkspace({ scripts, userProfile, isAdmin, showToast, pushNotifi
         <div className="fixed inset-0 z-[99999] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={createTopic} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-4 font-sans shadow-skeuo-lg animate-fadeIn">
             <h4 className="font-serif font-bold text-slate-800 text-sm">New Script Topic</h4>
-            <input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border rounded-lg text-sm mt-1 font-sans focus:outline-none focus:ring-2 focus:ring-[#C5A03A]/50" required autoFocus />
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowNewTopicModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold">Cancel</button>
-              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[2px] transition">Create Topic</button>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Topic Title</label>
+              <input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Episode 12 Intro Hook" className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-[#C5A03A]/50" required autoFocus />
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Related Project Board (Optional)</label>
+              <select value={relatedProjectId} onChange={e => setRelatedProjectId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-[#C5A03A]/50">
+                <option value="">-- Standalone Script --</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button type="button" onClick={() => setShowNewTopicModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold transition hover:bg-slate-200">Cancel</button>
+              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[2px] transition shadow">Create Topic</button>
             </div>
           </form>
         </div>
+      )}
+      
+      {topicToDelete && (
+        <LongPressMenu title="Delete this Script Topic?" onConfirm={removeTopic} onCancel={() => setTopicToDelete(null)} confirmText="Delete Script" />
       )}
     </section>
   );
@@ -1687,18 +1880,17 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const [activeMessageMenu, setActiveMessageMenu] = useState(null);
   const [editingMessageText, setEditingMessageText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
+  const [channelToDelete, setChannelToDelete] = useState(null);
 
-  const longPressTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const channels = siteSettings.chatChannels || [{ id: 'general', name: '🌍 Studio Room' }];
 
   const openChannel = (id) => { setChatChannel(id); setViewMode('chat'); };
 
-  // Insta-style grouping logic and auto-scroll
   const channelChats = useMemo(() => {
     return (chats || [])
       .filter(c => c.projectId === chatChannel)
-      .sort((a, b) => a.createdAt - b.createdAt); // oldest to newest
+      .sort((a, b) => a.createdAt - b.createdAt); 
   }, [chats, chatChannel]);
 
   useEffect(() => {
@@ -1715,7 +1907,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     }).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
   }, [channels, chats]);
 
-  // Group messages together if they are from the same person and sent within 5 minutes
   const groupedChats = useMemo(() => {
     const groups = [];
     let currentGroup = [];
@@ -1745,14 +1936,12 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     if (!inputText.trim() || !db || !db.app) return;
     const text = inputText.trim();
     
-    // IMMEDIATELY clear the text input for snappy UI feedback
     setInputText(''); 
     
     try {
       const chatDocRef = await addDoc(collection(db, 'chats'), {
         projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
       });
-      // Pass the specific chatId into the notification's meta data so we can track it later
       pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, 'chat', { channelId: chatChannel, chatId: chatDocRef.id }, userProfile?.name || 'Guest Creator', 'all');
     } catch (err) {}
   };
@@ -1769,12 +1958,12 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     } catch (err) {}
   };
 
-  const removeChannel = async (id, e) => {
-    e.stopPropagation();
-    if (!db || !db.app) return;
+  const removeChannel = async () => {
+    if (!channelToDelete || !db || !db.app) return;
     try {
-      await setDoc(doc(db, 'meta/settings'), { chatChannels: channels.filter(c => c.id !== id) }, { merge: true });
-      if (chatChannel === id) { setChatChannel('general'); setViewMode('list'); }
+      await setDoc(doc(db, 'meta/settings'), { chatChannels: channels.filter(c => c.id !== channelToDelete) }, { merge: true });
+      if (chatChannel === channelToDelete) { setChatChannel('general'); setViewMode('list'); }
+      setChannelToDelete(null);
       showToast("Channel removed!", "info");
     } catch (err) {}
   };
@@ -1782,13 +1971,10 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
   const deleteMessage = async (msgId) => {
     if (!db || !db.app) return;
     
-    // Grab the text before deleting to check older notifications
     const msgToDelete = chats.find(c => c.id === msgId);
-    
     await deleteDoc(doc(db, 'chats', msgId));
     setActiveMessageMenu(null);
     
-    // Automatically sweep out the associated notification
     try {
       const notifsRef = collection(db, 'notifications');
       const q = query(notifsRef, where('type', '==', 'chat'));
@@ -1796,22 +1982,15 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
       
       const toDelete = snap.docs.filter(d => {
         const data = d.data();
-        // Modern match: track by precise ID
         if (data.meta && data.meta.chatId === msgId) return true;
-        
-        // Backward compatibility match for older messages
         if (msgToDelete && data.actor === msgToDelete.senderName) {
           const truncated = msgToDelete.text.length > 50 ? msgToDelete.text.slice(0, 50) + '…' : msgToDelete.text;
           if (data.message === `"${truncated}"`) return true;
         }
         return false;
       });
-      
       await Promise.all(toDelete.map(d => deleteDoc(d.ref)));
-    } catch (err) {
-      console.error("Cleanup error:", err);
-    }
-    
+    } catch (err) { console.error("Cleanup error:", err); }
     showToast("Message deleted.", "info");
   };
 
@@ -1831,9 +2010,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
     } catch (e) { showToast("Unable to access clipboard.", "warning"); }
     setActiveMessageMenu(null);
   };
-
-  const handleTouchStart = (msg) => { longPressTimerRef.current = setTimeout(() => { setActiveMessageMenu(msg); }, 500); };
-  const handleTouchEnd = () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
 
   const timeAgo = (ts) => {
     if (!ts) return '';
@@ -1855,11 +2031,16 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
         <>
           <div className="p-4 border-b border-[#EADFC9]/50 flex items-center justify-between shrink-0">
             <h3 className="font-serif font-bold text-slate-800 text-sm">💬 Messages</h3>
-            <button onClick={() => setShowNewGroupModal(true)} className="bg-[#C5A03A] text-white text-xs font-bold px-3 py-1.5 rounded-full shadow hover:bg-[#b08d32] transition">+ New Group</button>
+            <button onClick={() => setShowNewGroupModal(true)} className="bg-[#C5A03A] text-white text-xs font-bold px-3 py-1.5 rounded-full shadow hover:bg-[#b08d32] transition border-b-[3px] border-[#9c7d2c] active:border-b-0 active:translate-y-[2px]">+ New Group</button>
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {channelPreviews.map(ch => (
-              <div key={ch.id} onClick={() => openChannel(ch.id)} className="flex items-center gap-3 p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition">
+              <LongPressable 
+                key={ch.id} 
+                onClick={() => openChannel(ch.id)} 
+                onLongPress={() => { if (isAdmin && ch.id !== 'general') setChannelToDelete(ch.id); }}
+                className="flex items-center gap-3 p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition"
+              >
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#C5A03A] to-[#f43f5e] flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm">
                   {initialOf(ch.name)}
                 </div>
@@ -1870,10 +2051,7 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
                   </div>
                   <p className="text-xs text-slate-500 truncate mt-0.5">{ch.lastSender ? `${ch.lastSender}: ` : ''}{ch.lastMessage}</p>
                 </div>
-                {isAdmin && ch.id !== 'general' && (
-                  <button onClick={(e) => removeChannel(ch.id, e)} className="text-rose-400 hover:text-rose-600 text-xs font-bold p-1 shrink-0">✕</button>
-                )}
-              </div>
+              </LongPressable>
             ))}
             {channelPreviews.length === 0 && <div className="text-center text-slate-400 py-16 text-xs italic">No conversations yet.</div>}
           </div>
@@ -1897,7 +2075,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 
                return (
                  <div key={gIdx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                   {/* Name tag logic: Only show for others, not yourself */}
                    {!isMe && <span className="text-[10px] text-slate-500 font-bold mb-1 ml-1">{senderName}</span>}
 
                    <div className={`flex flex-col gap-0.5 max-w-[75%]`}>
@@ -1905,7 +2082,6 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
                          const isFirst = i === 0;
                          const isLast = i === group.length - 1;
                          
-                         // Insta-style dynamic curved corners
                          let corners = 'rounded-2xl';
                          if (isMe) {
                             if (group.length > 1) {
@@ -1926,19 +2102,16 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
                          }
 
                          return (
-                            <div
+                            <LongPressable
                               key={m.id}
-                              className={`relative px-3 py-1.5 text-xs sm:text-sm ${corners} shadow-sm ${isMe ? 'bg-gradient-to-br from-[#d4b04c] to-[#bb9632] text-white border border-[#ab892c]' : 'bg-white text-slate-800 border border-slate-200'}`}
-                              onTouchStart={() => handleTouchStart(m)}
-                              onTouchEnd={handleTouchEnd}
-                              onContextMenu={(e) => { e.preventDefault(); setActiveMessageMenu(m); }}
+                              onLongPress={() => setActiveMessageMenu(m)}
+                              className={`relative px-3 py-1.5 text-xs sm:text-sm ${corners} shadow-sm cursor-pointer ${isMe ? 'bg-gradient-to-br from-[#d4b04c] to-[#bb9632] text-white border border-[#ab892c]' : 'bg-white text-slate-800 border border-slate-200'}`}
                             >
                                <p className="break-words leading-snug">{m.text}</p>
-                            </div>
+                            </LongPressable>
                          );
                       })}
                    </div>
-                   {/* Clean timestamp placed neatly at the bottom of the group */}
                    <span className="text-[9px] text-slate-400 mt-1 mx-1 font-mono tracking-wide">{formatTimeAMPM(group[group.length - 1].createdAt)}</span>
                  </div>
                );
@@ -1977,10 +2150,14 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
             <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="Group name..." className="w-full px-3 py-2 border rounded-lg text-xs" required autoFocus />
             <div className="flex gap-2 justify-end">
               <button type="button" onClick={() => setShowNewGroupModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl">Create</button>
+              <button type="submit" className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[2px]">Create</button>
             </div>
           </form>
         </div>
+      )}
+
+      {channelToDelete && (
+        <LongPressMenu title="Delete this Chat Channel?" onConfirm={removeChannel} onCancel={() => setChannelToDelete(null)} confirmText="Delete Channel" />
       )}
 
       {activeMessageMenu && (
@@ -1989,12 +2166,12 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
             <h5 className="font-serif font-bold text-xs text-slate-400 pb-1.5 border-b uppercase">Message Options</h5>
             {editingMessageId !== activeMessageMenu.id ? (
               <div className="flex flex-col gap-1.5">
-                <button onClick={() => copyMessageText(activeMessageMenu.text)} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs">📋 Copy Commentary</button>
-                <button onClick={(e) => { e.stopPropagation(); onInspectUser(activeMessageMenu.senderUid); setActiveMessageMenu(null); }} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs">👤 Inspect Sender Profile</button>
+                <button onClick={() => copyMessageText(activeMessageMenu.text)} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition-colors">📋 Copy Commentary</button>
+                <button onClick={(e) => { e.stopPropagation(); onInspectUser(activeMessageMenu.senderUid); setActiveMessageMenu(null); }} className="w-full py-2 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition-colors">👤 Inspect Sender Profile</button>
                 {(isAdmin || activeMessageMenu.senderUid === userProfile?.id) && (
                   <>
-                    <button onClick={() => { setEditingMessageId(activeMessageMenu.id); setEditingMessageText(activeMessageMenu.text); }} className="w-full py-2 hover:bg-amber-50 text-amber-600 font-bold rounded-xl text-xs">✎ Edit Message</button>
-                    <button onClick={() => deleteMessage(activeMessageMenu.id)} className="w-full py-2 hover:bg-rose-50 text-rose-600 font-bold rounded-xl text-xs">🗑 Un-send / Delete</button>
+                    <button onClick={() => { setEditingMessageId(activeMessageMenu.id); setEditingMessageText(activeMessageMenu.text); }} className="w-full py-2 hover:bg-amber-50 text-amber-600 font-bold rounded-xl text-xs transition-colors">✎ Edit Message</button>
+                    <button onClick={() => deleteMessage(activeMessageMenu.id)} className="w-full py-2 hover:bg-rose-50 text-rose-600 font-bold rounded-xl text-xs transition-colors">🗑 Un-send / Delete</button>
                   </>
                 )}
               </div>
@@ -2002,8 +2179,8 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
               <div className="space-y-2 pt-2">
                 <textarea value={editingMessageText} onChange={e => setEditingMessageText(e.target.value)} className="w-full p-2 border rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-[#C5A03A]" rows={3} />
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => { setEditingMessageId(null); setEditingMessageText(''); }} className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs">Cancel</button>
-                  <button onClick={saveEditedMessage} className="px-3 py-1 bg-[#C5A03A] text-white font-bold rounded-lg text-xs">Save</button>
+                  <button onClick={() => { setEditingMessageId(null); setEditingMessageText(''); }} className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">Cancel</button>
+                  <button onClick={saveEditedMessage} className="px-3 py-1 bg-[#C5A03A] text-white font-bold rounded-lg text-xs border-b-[3px] border-[#9c7d2c] active:border-b-0 active:translate-y-[2px]">Save</button>
                 </div>
               </div>
             )}
@@ -2015,11 +2192,14 @@ function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushN
 }
 
 // --- INSTA FEED ---
-function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
+function PostsWorkspace({ posts, projects, userProfile, showToast, pushNotification, isAdmin, onInspectUser }) {
   const [postTitle, setPostTitle] = useState('');
   const [postText, setPostText] = useState('');
+  const [relatedProjectId, setRelatedProjectId] = useState('');
   const [showCreateModal, setShowCreatePostModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [commentToDelete, setCommentToDelete] = useState(null);
   const fileInputRef = useRef(null);
   
   const [expandedPost, setExpandedPost] = useState(null);
@@ -2033,11 +2213,12 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
       const compressedString = await compressAndConvertImage(file, 500);
       await addDoc(collection(db, 'posts'), {
         title: postTitle.trim(), description: postText.trim(), image: compressedString,
+        relatedProjectId: relatedProjectId,
         authorName: userProfile.name, authorAvatar: userProfile.photoURL, authorUid: userProfile.id,
         likes: 0, likedBy: [], comments: [], createdAt: Date.now(),
       });
       pushNotification(`Shared showroom post: "${postTitle}"`, 'post', {}, userProfile.name);
-      setPostTitle(''); setPostText(''); setShowCreatePostModal(false); showToast('Showcase uploaded to feed!', 'success');
+      setPostTitle(''); setPostText(''); setRelatedProjectId(''); setShowCreatePostModal(false); showToast('Showcase uploaded to feed!', 'success');
     } catch (err) { showToast('Upload failed — check size.', 'warning'); } finally { setPublishing(false); }
   };
 
@@ -2049,7 +2230,7 @@ function PostsWorkspace({ posts, userProfile, showToast, pushNotification, isAdm
     if (expandedPost?.id === post.id) { setExpandedPost({ ...expandedPost, likedBy: newLikedBy, likes: newLikedBy.length }); }
   };
 
-const handleAddPostComment = async (e, postId) => {
+  const handleAddPostComment = async (e, postId) => {
     e.preventDefault();
     if (!db || !db.app) return;
     const commentVal = e.target.commentInputText.value.trim();
@@ -2062,18 +2243,21 @@ const handleAddPostComment = async (e, postId) => {
     if (expandedPost?.id === postId) { setExpandedPost({ ...expandedPost, comments: [...(expandedPost.comments || []), newComment] }); }
   };
 
-  const removePost = async (postId) => { 
-    if (!db || !db.app) return;
-    await deleteDoc(doc(db, 'posts', postId)); 
-    if (expandedPost?.id === postId) setExpandedPost(null);
+  const removePost = async () => { 
+    if (!postToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'posts', postToDelete)); 
+    if (expandedPost?.id === postToDelete) setExpandedPost(null);
+    setPostToDelete(null);
     showToast("Post removed from feed.", "info"); 
   };
 
-  const removePostComment = async (postId, postComments, commentId) => {
-    if (!db || !db.app) return;
+  const removePostComment = async () => {
+    if (!commentToDelete || !db || !db.app) return;
+    const { postId, postComments, commentId } = commentToDelete;
     const updatedComments = postComments.filter(x => x.id !== commentId);
     await updateDoc(doc(db, 'posts', postId), { comments: updatedComments });
     if (expandedPost?.id === postId) { setExpandedPost({ ...expandedPost, comments: updatedComments }); }
+    setCommentToDelete(null);
     showToast("Comment removed.", "info");
   };
 
@@ -2099,23 +2283,30 @@ const handleAddPostComment = async (e, postId) => {
                   <p className="text-[10px] text-slate-400">{formatDateTimeAMPM(expandedPost.createdAt)}</p>
                 </div>
               </div>
-              {isAdmin && <button onClick={() => { removePost(expandedPost.id); setExpandedPost(null); }} className="text-rose-500 hover:bg-rose-50 px-2 py-1 rounded text-xs font-bold transition border border-rose-100">Delete</button>}
             </div>
             
             <div className="p-4 overflow-y-auto custom-scrollbar flex-1 border-b border-slate-100">
-              <h3 className="font-bold text-lg text-slate-800 mb-2 font-serif">{expandedPost.title}</h3>
-              {expandedPost.description && <p className="text-sm text-slate-600 mb-6 whitespace-pre-wrap">{expandedPost.description}</p>}
+              <LongPressable
+                onLongPress={() => { if (isAdmin || expandedPost.authorUid === userProfile?.id) setPostToDelete(expandedPost.id); }}
+                className="cursor-pointer hover:bg-slate-50 p-2 -mx-2 rounded-xl transition"
+              >
+                <h3 className="font-bold text-lg text-slate-800 mb-2 font-serif">{expandedPost.title}</h3>
+                {expandedPost.description && <p className="text-sm text-slate-600 mb-2 whitespace-pre-wrap">{expandedPost.description}</p>}
+              </LongPressable>
               
-              <div className="space-y-4">
+              <div className="space-y-4 mt-4 pt-4 border-t border-dashed border-slate-200">
                 <h4 className="font-bold text-xs text-slate-400 uppercase tracking-widest mb-4 border-b pb-2">Discussion</h4>
                 {(expandedPost.comments || []).map((c, i) => (
-                  <div key={i} className="flex justify-between items-start group text-sm p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <LongPressable 
+                    key={i} 
+                    onLongPress={() => { if (isAdmin || c.authorName === userProfile.name) setCommentToDelete({ postId: expandedPost.id, postComments: expandedPost.comments, commentId: c.id }); }}
+                    className="flex justify-between items-start group text-sm p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-[#C5A03A]/30 cursor-pointer transition"
+                  >
                     <div className="flex flex-col gap-1 min-w-0 pr-2">
-                      <span className="font-bold text-slate-800 cursor-pointer hover:underline text-xs" onClick={() => { setExpandedPost(null); onInspectUser(c.authorUid); }}>{c.authorName}</span>
+                      <span className="font-bold text-slate-800 cursor-pointer hover:underline text-xs" onClick={(e) => { e.stopPropagation(); setExpandedPost(null); onInspectUser(c.authorUid); }}>{c.authorName}</span>
                       <span className="text-slate-600 leading-relaxed text-xs">{c.text}</span>
                     </div>
-                    {(isAdmin || c.authorName === userProfile.name) && <button onClick={() => removePostComment(expandedPost.id, expandedPost.comments, c.id)} className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded font-bold text-[10px]">✕</button>}
-                  </div>
+                  </LongPressable>
                 ))}
                 {(!expandedPost.comments || expandedPost.comments.length === 0) && <p className="text-xs text-slate-400 text-center py-4">No comments yet.</p>}
               </div>
@@ -2129,11 +2320,18 @@ const handleAddPostComment = async (e, postId) => {
               <form onSubmit={(e) => handleAddPostComment(e, expandedPost.id)} className="flex gap-2">
                 <div className="w-8 h-8 rounded-full border p-0.5 bg-white hidden sm:block shrink-0">{renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}</div>
                 <input name="commentInputText" type="text" placeholder="Add a comment..." className="flex-1 px-3 py-2 bg-white border border-[#EADFC9] shadow-inner rounded-xl text-xs focus:outline-none focus:border-[#C5A03A]" required />
-                <button type="submit" className="bg-[#C5A03A] text-white rounded-xl font-bold px-4 text-xs shadow-sm">Post</button>
+                <button type="submit" className="bg-[#C5A03A] text-white rounded-xl font-bold px-4 text-xs shadow-sm border-b-[3px] border-[#9c7d2c] active:border-b-0 active:translate-y-[2px]">Post</button>
               </form>
             </div>
           </div>
         </div>
+
+        {postToDelete && (
+          <LongPressMenu title="Delete this whole Post?" onConfirm={removePost} onCancel={() => setPostToDelete(null)} confirmText="Delete Post" />
+        )}
+        {commentToDelete && (
+          <LongPressMenu title="Delete this comment?" onConfirm={removePostComment} onCancel={() => setCommentToDelete(null)} confirmText="Delete Comment" />
+        )}
       </section>
     );
   }
@@ -2149,34 +2347,37 @@ const handleAddPostComment = async (e, postId) => {
         {posts.map(post => {
           const amLiked = post.likedBy?.includes(userProfile?.id);
           return (
-            <div key={post.id} className="break-inside-avoid bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn mb-6">
+            <LongPressable 
+              key={post.id} 
+              onLongPress={() => { if (isAdmin || post.authorUid === userProfile?.id) setPostToDelete(post.id); }}
+              className="break-inside-avoid bg-white border-2 border-[#EADFC9] rounded-2xl overflow-hidden shadow-skeuo-md animate-fadeIn mb-6 cursor-pointer"
+            >
               <div className="p-3.5 flex items-center justify-between border-b border-slate-50">
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(post.authorAvatar, "w-full h-full object-cover", () => onInspectUser(post.authorUid))}</div>
+                  <div className="w-8 h-8 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(post.authorAvatar, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(post.authorUid); })}</div>
                   <div className="min-w-0">
-                    <h4 className="text-xs font-black text-slate-800 truncate hover:text-[#C5A03A] cursor-pointer" onClick={() => onInspectUser(post.authorUid)}>{post.authorName}</h4>
+                    <h4 className="text-xs font-black text-slate-800 truncate hover:text-[#C5A03A]" onClick={(e) => { e.stopPropagation(); onInspectUser(post.authorUid); }}>{post.authorName}</h4>
                     <span className="text-[8px] text-slate-400 font-mono block">{formatDateTimeAMPM(post.createdAt)}</span>
                   </div>
                 </div>
-                {isAdmin && <button onClick={() => removePost(post.id)} className="text-rose-500 hover:text-rose-700 text-[10px] font-bold bg-rose-50 border rounded px-2.5 py-1">Delete</button>}
               </div>
               
-              <div className="w-full bg-slate-100 relative cursor-pointer group" onClick={() => setExpandedPost(post)}>
+              <div className="w-full bg-slate-100 relative group" onClick={() => setExpandedPost(post)}>
                 <img src={post.image} alt={post.title} className="w-full h-auto object-contain animate-fadeIn" />
                 <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm"><span className="bg-white/90 text-slate-900 font-bold px-4 py-2 rounded-full text-xs shadow-lg">View Full Thread</span></div>
               </div>
               
-              <div className="p-3.5 space-y-2.5 border-t border-slate-50 font-sans">
+              <div className="p-3.5 space-y-2.5 border-t border-slate-50 font-sans" onClick={() => setExpandedPost(post)}>
                 <div className="flex items-center justify-between font-sans">
                   <div className="flex items-center space-x-2 font-sans">
-                    <button onClick={() => toggleLikePost(post)} className="text-lg transition-transform active:scale-150">{amLiked ? '❤️' : '🤍'}</button>
+                    <button onClick={(e) => { e.stopPropagation(); toggleLikePost(post); }} className="text-lg transition-transform active:scale-150">{amLiked ? '❤️' : '🤍'}</button>
                     <span className="text-xs font-bold text-slate-800">{post.likes || 0} likes</span>
                   </div>
                   <span className="bg-slate-100 text-slate-500 text-[9px] font-bold px-2 py-1 rounded">⏳ {getExpiry7(post.createdAt)}</span>
                 </div>
                 
                 <div className="text-xs">
-                  <span className="font-bold text-slate-800 mr-2 hover:underline cursor-pointer" onClick={() => onInspectUser(post.authorUid)}>{post.authorName}</span>
+                  <span className="font-bold text-slate-800 mr-2 hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); onInspectUser(post.authorUid); }}>{post.authorName}</span>
                   <span className="font-semibold text-slate-700">{post.title}</span>
                   {post.description && <p className="text-slate-500 mt-1 leading-relaxed font-sans line-clamp-2">{post.description}</p>}
                 </div>
@@ -2184,13 +2385,13 @@ const handleAddPostComment = async (e, postId) => {
                 <div className="pt-2 border-t border-[#EADFC9]/20 space-y-1">
                   {(post.comments || []).slice(0, 2).map((c, i) => (
                     <div key={i} className="text-[11px] leading-normal animate-fadeIn font-sans flex justify-between group py-0.5">
-                      <div className="min-w-0 pr-2 truncate"><span className="font-bold text-slate-800 mr-1.5 hover:underline cursor-pointer" onClick={() => onInspectUser(c.authorUid)}>{c.authorName}</span><span className="text-slate-600">{c.text}</span></div>
+                      <div className="min-w-0 pr-2 truncate"><span className="font-bold text-slate-800 mr-1.5 hover:underline cursor-pointer" onClick={(e) => { e.stopPropagation(); onInspectUser(c.authorUid); }}>{c.authorName}</span><span className="text-slate-600">{c.text}</span></div>
                     </div>
                   ))}
-                  {post.comments && post.comments.length > 2 && <p className="text-[10px] text-slate-400 cursor-pointer hover:underline" onClick={() => setExpandedPost(post)}>View all {post.comments.length} comments...</p>}
+                  {post.comments && post.comments.length > 2 && <p className="text-[10px] text-slate-400 cursor-pointer hover:underline">View all {post.comments.length} comments...</p>}
                 </div>
               </div>
-            </div>
+            </LongPressable>
           );
         })}
       </div>
@@ -2199,15 +2400,35 @@ const handleAddPostComment = async (e, postId) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fadeIn">
           <form onSubmit={publishPost} className="bg-white border-2 border-[#EADFC9] p-5 rounded-xl w-full max-w-sm space-y-3 font-sans shadow-skeuo-lg animate-fadeIn">
             <h4 className="font-serif font-bold text-slate-800 text-xs sm:text-sm">Create Showroom Post</h4>
-            <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="Title" className="w-full px-3 py-2 border rounded-xl focus:outline-none text-xs font-sans" required />
-            <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Context description..." className="w-full px-3 py-2 border rounded-xl focus:outline-none text-xs font-sans" rows="2" />
-            <input type="file" ref={fileInputRef} accept="image/*" className="w-full text-xs text-slate-500 font-sans" required />
-            <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowCreatePostModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs">Cancel</button>
-              <button type="submit" disabled={publishing} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] disabled:opacity-50">{publishing ? 'Publishing…' : 'Share Post'}</button>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Post Title</label>
+              <input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} placeholder="Title" className="w-full px-3 py-2 border border-[#EADFC9] rounded-xl focus:outline-none focus:ring-1 focus:ring-[#C5A03A] text-xs font-sans mt-1" required />
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Description</label>
+              <textarea value={postText} onChange={e => setPostText(e.target.value)} placeholder="Context description..." className="w-full px-3 py-2 border border-[#EADFC9] rounded-xl focus:outline-none focus:ring-1 focus:ring-[#C5A03A] text-xs font-sans mt-1" rows="2" />
+            </div>
+            <div>
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Related Project Board (Optional)</label>
+              <select value={relatedProjectId} onChange={e => setRelatedProjectId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-[#EADFC9] rounded-xl text-xs mt-1 focus:outline-none focus:ring-1 focus:ring-[#C5A03A]">
+                <option value="">-- Standalone Post --</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            </div>
+            <div className="pt-2">
+              <label className="block text-[9px] font-bold text-slate-500 uppercase">Upload Media</label>
+              <input type="file" ref={fileInputRef} accept="image/*" className="w-full text-xs text-slate-500 font-sans mt-1" required />
+            </div>
+            <div className="flex gap-2 justify-end pt-3 border-t">
+              <button type="button" onClick={() => setShowCreatePostModal(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold transition hover:bg-slate-200">Cancel</button>
+              <button type="submit" disabled={publishing} className="px-4 py-1.5 bg-[#C5A03A] text-white font-bold text-xs rounded-xl border-b-[4px] border-[#ab892c] active:border-b-[1px] active:translate-y-[2px] disabled:opacity-50 transition shadow">{publishing ? 'Publishing…' : 'Share Post'}</button>
             </div>
           </form>
         </div>
+      )}
+
+      {postToDelete && (
+        <LongPressMenu title="Delete this Post?" onConfirm={removePost} onCancel={() => setPostToDelete(null)} confirmText="Delete Post" />
       )}
     </section>
   );
@@ -2365,7 +2586,6 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
     try { await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); showToast('Logo text saved!', 'success'); } catch (err) { showToast('Error saving logo text.', 'warning'); }
   };
 
-  // FIX 2: Added `status: 'approved'` directly into these state promotion commands to fix the pending screen lockout bug.
   const approve = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { status: 'approved' }); };
   const promote = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'admin', status: 'approved' }); };
   const makeWaiter = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'roasting waiter', status: 'approved' }); };
@@ -2398,6 +2618,7 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
           <span>Roster Control & Applicants</span>
           {pendingCount > 0 && <span className="bg-rose-100 text-rose-600 text-[10px] px-2 py-0.5 rounded-full font-bold">{pendingCount} pending</span>}
         </h3>
+        <p className="text-[10px] text-slate-500 mb-2 italic mt-1">Hint: Long-press a user's row to trigger deletion protocols.</p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left font-sans min-w-[400px]">
             <thead>
@@ -2406,13 +2627,14 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
             <tbody>
               {profiles.map(p => {
                 const isEditing = editingUserId === p.id;
+                const isOwner = (p.email || '').toLowerCase() === ADMIN_EMAIL;
                 return (
                   <tr key={p.id} className="border-t font-sans animate-fadeIn">
                     <td className="py-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0">{renderAvatar(p.photoURL)}</div>
-                        <div className="flex flex-col font-sans"><span>{p.name}</span><span className="text-[9px] text-slate-400">{p.email}</span></div>
-                      </div>
+                      <LongPressable onLongPress={() => { if (!isOwner) remove(p.id); }} className="flex items-center space-x-2 cursor-pointer group">
+                        <div className="w-7 h-7 rounded-full overflow-hidden border p-0.5 flex items-center justify-center bg-slate-50 shrink-0 group-hover:border-rose-400 transition-colors">{renderAvatar(p.photoURL)}</div>
+                        <div className="flex flex-col font-sans group-hover:text-rose-600 transition-colors"><span>{p.name}</span><span className="text-[9px] text-slate-400 group-hover:text-rose-400">{p.email}</span></div>
+                      </LongPressable>
                       {isEditing && (
                         <div className="mt-2 p-2 bg-slate-50 border rounded-lg space-y-2 animate-fadeIn font-sans">
                           <span className="text-[8px] font-bold uppercase text-slate-400 block font-sans">Admin Photo Override</span>
@@ -2423,13 +2645,12 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                     </td>
                     <td className="py-2 uppercase font-mono text-[9px] font-semibold"><span className={p.status === 'pending' ? 'text-amber-600' : p.status === 'approved' ? 'text-emerald-600' : 'text-rose-600'}>{p.status}</span> • {p.role}</td>
                     <td className="py-2 text-right">
-                      {(p.email || '').toLowerCase() !== ADMIN_EMAIL ? (
+                      {!isOwner ? (
                         <div className="flex items-center justify-end gap-1 flex-wrap">
-                          <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 border rounded hover:bg-blue-100 text-[9px]">Edit PFP</button>
-                          {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 border rounded hover:bg-emerald-100 text-[9px]">Approve</button>}
-                          {p.role !== 'admin' && p.role !== 'owner' ? <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 border rounded hover:bg-amber-100 text-[9px]">Promote</button> : p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-purple-50 text-purple-700 px-2 py-0.5 border rounded hover:bg-purple-100 text-[9px]">Demote</button>}
-                          {p.role !== 'roasting waiter' && p.role !== 'owner' && <button onClick={() => makeWaiter(p.id)} className="bg-indigo-50 text-indigo-700 px-2 py-0.5 border rounded hover:bg-indigo-100 text-[9px]">Make Waiter</button>}
-                          <button onClick={() => remove(p.id)} className="bg-rose-50 text-rose-600 px-2 py-0.5 border rounded hover:bg-rose-100 text-[9px]">Remove</button>
+                          <button onClick={() => setEditingUserId(p.id)} className="bg-blue-50 text-blue-700 px-2 py-0.5 border rounded hover:bg-blue-100 text-[9px] font-bold">Edit PFP</button>
+                          {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-50 text-emerald-600 px-2 py-0.5 border rounded hover:bg-emerald-100 text-[9px] font-bold">Approve</button>}
+                          {p.role !== 'admin' && p.role !== 'owner' ? <button onClick={() => promote(p.id)} className="bg-amber-50 text-amber-700 px-2 py-0.5 border rounded hover:bg-amber-100 text-[9px] font-bold">Promote</button> : p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-purple-50 text-purple-700 px-2 py-0.5 border rounded hover:bg-purple-100 text-[9px] font-bold">Demote</button>}
+                          {p.role !== 'roasting waiter' && p.role !== 'owner' && <button onClick={() => makeWaiter(p.id)} className="bg-indigo-50 text-indigo-700 px-2 py-0.5 border rounded hover:bg-indigo-100 text-[9px] font-bold">Make Waiter</button>}
                         </div>
                       ) : <span className="text-slate-400 italic text-[10px]">Owner</span>}
                     </td>
