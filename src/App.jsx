@@ -55,6 +55,16 @@ const doc = (dbRefOrCol, path, ...segments) => {
   return fbDoc(dbRefOrCol, path, ...segments);
 };
 
+// --- PRESET AVATARS ---
+const PRESET_AVATARS = [
+  { id: 'coral', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#e11d48" opacity="0.3"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#e11d48"/><circle cx="60" cy="45" r="5" fill="#fbbf24"/></svg>` },
+  { id: 'gold', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#d97706" opacity="0.3"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#d97706" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#d97706"/></svg>` }
+];
+
+const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
+const DEFAULT_CATEGORIES = ['Director', 'VFX Artist', 'Cinematographer', 'Editor'];
+const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced', lastError: null, lastSyncedAt: null };
+
 // --- GLOBAL TIME FORMATTERS ---
 const formatTimeAMPM = (timestamp) => {
   if (!timestamp) return '';
@@ -67,216 +77,6 @@ const formatDateTimeAMPM = (timestamp) => {
   return d.toLocaleDateString('en-US') + ' • ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 };
 
-// --- NEXT-LEVEL STYLING INJECTION (DARK CINEMATIC STUDIO) ---
-const injectArtStyleStyles = () => {
-  if (document.getElementById('studio-aurum-styles')) return;
-  const styleBlock = document.createElement('style');
-  styleBlock.id = 'studio-aurum-styles';
-  styleBlock.innerHTML = `
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:ital,wght@0,700;0,900;1,700&family=Outfit:wght@300;400;600;800&family=Space+Mono:wght@400;700&display=swap');
-
-    :root {
-      --void-black: #030308;
-      --deep-indigo: #0b0820;
-      --cosmic-purple: #6a3fd8;
-      --plasma-orange: #ff8a3d;
-      --silver: #eef1f6;
-    }
-
-    body {
-      background-color: var(--void-black);
-      overflow-x: hidden;
-      color: var(--silver);
-      margin: 0;
-      padding: 0;
-      font-family: "Outfit", "Helvetica Neue", Arial, sans-serif;
-    }
-
-    .font-serif { font-family: 'Cinzel', serif; }
-    .font-sans { font-family: 'Outfit', sans-serif; }
-    .font-mono { font-family: 'Space Mono', monospace; }
-
-    .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(220, 38, 38, 0.5); border-radius: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(220, 38, 38, 0.8); }
-    
-    .three-art-background { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
-    .three-art-background canvas { display: block; width: 100% !important; height: 100% !important; }
-
-    /* NEXT LEVEL IMMERSIVE DARK GLASSMORPHISM */
-    .studio-glass {
-      background: rgba(15, 15, 20, 0.65);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 20px 40px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.1);
-      transform-style: preserve-3d;
-    }
-    .studio-header {
-      background: linear-gradient(to bottom, rgba(5, 5, 8, 0.95) 0%, rgba(5, 5, 8, 0.4) 100%);
-      backdrop-filter: blur(30px);
-      -webkit-backdrop-filter: blur(30px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    .studio-input {
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #fff;
-    }
-    .studio-input:focus {
-      border-color: #dc2626;
-      box-shadow: 0 0 15px rgba(220, 38, 38, 0.3);
-      outline: none;
-    }
-    
-    .glow-text-red { text-shadow: 0 0 20px rgba(220,38,38,0.6); }
-    .glow-text-cyan { text-shadow: 0 0 20px rgba(6,182,212,0.6); }
-    
-    .btn-cinematic {
-      background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%);
-      box-shadow: 0 4px 15px rgba(185, 28, 28, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
-      border: 1px solid rgba(255,100,100,0.3);
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    .btn-cinematic:hover {
-      transform: translateY(-2px) scale(1.02);
-      box-shadow: 0 8px 25px rgba(220, 38, 38, 0.6), inset 0 1px 0 rgba(255,255,255,0.3);
-    }
-    .btn-cinematic:active { transform: translateY(1px) scale(0.98); }
-
-    video::-webkit-media-controls { display: none !important; }
-    video::-webkit-media-controls-enclosure { display: none !important; }
-
-    @keyframes rec-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-    .animate-rec { animation: rec-blink 1.5s infinite; }
-    
-    @keyframes sweepUp {
-      0% { transform: translateY(100vh); opacity: 0; }
-      100% { transform: translateY(0); opacity: 1; }
-    }
-    .animate-sweepUp { animation: sweepUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-    
-    @keyframes deepDiveIn { 0% { transform: perspective(2500px) translateZ(-2000px) rotateX(60deg) rotateY(30deg); opacity: 0; filter: blur(60px); } 100% { transform: perspective(2500px) translateZ(0) rotateX(0deg) rotateY(0deg); opacity: 1; filter: blur(0px); } }
-    .animate-deepDiveIn { animation: deepDiveIn 2s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-style: preserve-3d; }
-  `;
-  document.head.appendChild(styleBlock);
-};
-
-// --- CINEMATIC INTRO LOADER ---
-function CinematicLoader({ onComplete }) {
-  const [progress, setProgress] = useState(0);
-  const [isFading, setIsFading] = useState(false);
-
-  useEffect(() => {
-    const duration = 2500; 
-    const interval = 30;
-    const steps = duration / interval;
-    let currentStep = 0;
-
-    const timer = setInterval(() => {
-      currentStep++;
-      const nextProg = Math.min((currentStep / steps) * 100, 100);
-      setProgress(nextProg);
-
-      if (currentStep >= steps) {
-        clearInterval(timer);
-        setIsFading(true);
-        setTimeout(() => onComplete(), 800);
-      }
-    }, interval);
-
-    return () => clearInterval(timer);
-  }, [onComplete]);
-
-  return (
-    <div className={`fixed inset-0 z-[999999] bg-[#050508] text-white flex flex-col items-center justify-center transition-transform duration-700 ease-in-out ${isFading ? '-translate-y-full' : 'translate-y-0'}`}>
-      <div className="absolute inset-8 border-2 border-white/10 pointer-events-none flex flex-col justify-between p-4">
-        <div className="flex justify-between w-full">
-          <div className="w-8 h-8 border-t-2 border-l-2 border-white/40"></div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-500 animate-rec shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>
-            <span className="font-mono text-sm tracking-widest font-bold text-red-500">REC</span>
-          </div>
-          <div className="w-8 h-8 border-t-2 border-r-2 border-white/40"></div>
-        </div>
-        <div className="flex justify-center items-center h-full absolute inset-0 pointer-events-none">
-          <div className="w-[1px] h-10 bg-white/20"></div>
-          <div className="h-[1px] w-10 bg-white/20 absolute"></div>
-        </div>
-        <div className="flex justify-between w-full">
-          <div className="w-8 h-8 border-b-2 border-l-2 border-white/40"></div>
-          <div className="w-8 h-8 border-b-2 border-r-2 border-white/40"></div>
-        </div>
-      </div>
-
-      <div className="text-center z-10 space-y-6 w-full max-w-md px-8">
-        <h1 className="font-serif text-4xl md:text-6xl font-black tracking-widest glow-text-red uppercase">Studio<br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-rose-700">Init</span></h1>
-        
-        <div className="space-y-2">
-          <div className="flex justify-between font-mono text-xs text-slate-400 font-bold uppercase tracking-widest">
-            <span>Loading Assets</span>
-            <span>{Math.floor(progress)}%</span>
-          </div>
-          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden shadow-inner">
-            <div className="h-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500" style={{ width: `${progress}%`, transition: 'width 0.1s linear' }}></div>
-          </div>
-        </div>
-        <p className="font-mono text-[9px] text-slate-500 uppercase tracking-widest animate-pulse">Initializing Rendering Engine...</p>
-      </div>
-    </div>
-  );
-}
-
-// --- ADVANCED 3D SCROLL REVEAL ANIMATION ---
-function ScrollReveal({ children, className = "", delay = 0 }) {
-  const domRef = useRef();
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          setTimeout(() => setIsVisible(true), delay);
-          observer.unobserve(entry.target); 
-        }
-      });
-    }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
-    
-    if (domRef.current) observer.observe(domRef.current);
-    return () => observer.disconnect();
-  }, [delay]);
-
-  return (
-    <div
-      ref={domRef}
-      className={`${className}`}
-      style={{
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'perspective(1000px) rotateX(0deg) translateY(0) scale(1)' : 'perspective(1000px) rotateX(15deg) translateY(60px) scale(0.95)',
-        transition: 'opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1), transform 0.9s cubic-bezier(0.22, 1, 0.36, 1)',
-        willChange: 'opacity, transform',
-        transformOrigin: 'top center'
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// --- PRESET AVATARS ---
-const PRESET_AVATARS = [
-  { id: 'coral-brush', name: 'Coral Splash', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#e11d48" opacity="0.2"/><path d="M30,70 Q50,30 70,30 Q80,50 60,70 Z" fill="#e11d48"/><circle cx="60" cy="45" r="5" fill="#facc15"/></svg>` },
-  { id: 'cobalt-wave', name: 'Cobalt Swirl', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#0284c7" opacity="0.2"/><path d="M25,50 Q45,20 65,45 T85,50" fill="none" stroke="#0284c7" stroke-width="8" stroke-linecap="round"/><circle cx="50" cy="35" r="6" fill="#0284c7"/></svg>` },
-  { id: 'gold-palette', name: 'Golden Drop', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#d97706" opacity="0.2"/><path d="M30,40 A20,20 0 0,0 70,60 A20,20 0 0,0 30,40" fill="#d97706"/><circle cx="45" cy="48" r="3" fill="#ffffff"/></svg>` },
-  { id: 'emerald-leaf', name: 'Mint Stroke', svg: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="#059669" opacity="0.2"/><path d="M35,35 Q50,70 65,35" fill="none" stroke="#059669" stroke-width="10" stroke-linecap="round"/></svg>` },
-];
-
-const ADMIN_EMAIL = "naitiksaxena06@gmail.com";
-const DEFAULT_CATEGORIES = ['Creativity', 'Editing', 'Writing', 'AI Related Expertise'];
-const DEFAULT_YT_CONFIG = { channelId: '@naitik._.artist-16', apiKey: 'AIzaSyCZ7Aj3HV9JNeMAhTDUimZlUdjMqnPVNVg', subscribers: '—', latestVideoViews: '—', latestVideoTitle: 'Not synced yet', lastError: null, lastSyncedAt: null };
-
-// --- VISUAL EXPIRY TIMERS ---
 const getExpiry7 = (createdAt) => {
   if (!createdAt) return 'Unknown';
   const expiryTime = createdAt + (7 * 24 * 60 * 60 * 1000); 
@@ -298,59 +98,6 @@ const getExpiry30 = (createdAt) => {
   if (days > 0) return `${days}d ${hours}h`;
   return `${hours}h ${Math.floor((diff / (1000 * 60)) % 60)}m`;
 };
-
-// --- CUSTOM TOUCH & HOLD HELPER COMPONENT ---
-const LongPressable = ({ onLongPress, children, className, onClick, style }) => {
-  const timerRef = useRef(null);
-  const isLongPressRef = useRef(false);
-
-  const start = () => {
-    isLongPressRef.current = false;
-    timerRef.current = setTimeout(() => {
-      isLongPressRef.current = true;
-      onLongPress();
-    }, 600);
-  };
-
-  const stop = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-  };
-
-  const handleClick = (e) => {
-    if (isLongPressRef.current) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-    if (onClick) onClick(e);
-  };
-
-  return (
-    <div
-      className={className}
-      style={{ ...style, WebkitTouchCallout: 'none', userSelect: 'none' }}
-      onClick={handleClick}
-      onMouseDown={start} onMouseUp={stop} onMouseLeave={stop}
-      onTouchStart={start} onTouchEnd={stop}
-      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-    >
-      {children}
-    </div>
-  );
-};
-
-// --- GENERIC CONFIRMATION MODAL FOR LONG PRESS ACTIONS ---
-function LongPressMenu({ title, onConfirm, onCancel, confirmText = "Delete" }) {
-  return (
-    <div className="fixed inset-0 z-[99999] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn" onClick={onCancel}>
-      <div className="studio-glass p-6 rounded-[2rem] w-full max-w-xs shadow-2xl text-center border-t border-white/20" onClick={e => e.stopPropagation()}>
-        <p className="font-serif text-lg font-bold text-white mb-5">{title}</p>
-        <button onClick={onConfirm} className="w-full py-3 btn-cinematic text-white font-bold rounded-xl mb-3 tracking-widest text-xs uppercase">{confirmText}</button>
-        <button onClick={onCancel} className="w-full py-3 studio-input hover:bg-white/10 text-white font-bold rounded-xl transition-colors tracking-widest text-xs uppercase">Cancel</button>
-      </div>
-    </div>
-  );
-}
 
 const compressAndConvertImage = (file, maxDim = 150) => {
   return new Promise((resolve, reject) => {
@@ -411,10 +158,10 @@ const resolvePlayableVideo = (url) => {
 
 const renderAvatar = (photoURL, className = "w-full h-full object-cover", onClick = null) => {
   if (!photoURL || typeof photoURL !== 'string') {
-    return <div onClick={onClick} className="studio-glass w-full h-full flex items-center justify-center font-bold text-slate-400 font-sans cursor-pointer">?</div>;
+    return <div onClick={onClick} className="bg-slate-900 w-full h-full flex items-center justify-center font-bold text-slate-500 font-sans cursor-pointer shadow-inner backdrop-blur-md">?</div>;
   }
   if (photoURL.startsWith('<svg') || photoURL.includes('<circle') || photoURL.includes('<path')) {
-    return <div onClick={onClick} className={`${className} cursor-pointer drop-shadow-lg`} dangerouslySetInnerHTML={{ __html: photoURL }} />;
+    return <div onClick={onClick} className={`${className} cursor-pointer drop-shadow-md`} dangerouslySetInnerHTML={{ __html: photoURL }} />;
   }
   return <img onClick={onClick} src={photoURL} alt="Crew Avatar" className={`${className} cursor-pointer`} onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=60"; }} />;
 };
@@ -461,6 +208,206 @@ function useFirestoreDoc(path, fallback, enabled = false) {
     } catch (e) { setLoaded(true); }
   }, [path, enabled]);
   return [data, loaded];
+}
+
+// --- LUXURIOUS 3D STYLING INJECTION ---
+function injectArtStyleStyles() {
+  if (document.getElementById('studio-lux-styles')) return;
+  const styleBlock = document.createElement('style');
+  styleBlock.id = 'studio-lux-styles';
+  styleBlock.innerHTML = `
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Space+Mono:wght@400;700&display=swap');
+    
+    :root {
+      --void-black: #030308;
+      --deep-indigo: #0b0820;
+      --cosmic-purple: #6a3fd8;
+      --plasma-orange: #ff8a3d;
+      --silver: #eef1f6;
+      --glass-border: rgba(255, 255, 255, 0.14);
+      --glass-highlight: rgba(255, 255, 255, 0.35);
+    }
+
+    body { background-color: var(--void-black); overflow-x: hidden; color: var(--silver); margin: 0; padding: 0; font-family: "Inter", "Helvetica Neue", Arial, sans-serif; }
+    .font-serif { font-family: 'Playfair Display', serif; } .font-sans { font-family: 'Outfit', sans-serif; } .font-mono { font-family: 'Space Mono', monospace; }
+    
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; } 
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } 
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.5); border-radius: 6px; }
+    
+    .three-art-background { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; }
+    .three-art-background canvas { display: block; width: 100% !important; height: 100% !important; }
+    
+    /* DEEP LUXURY GLASSMORPHISM */
+    .studio-glass { 
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.4) 0%, rgba(2, 6, 23, 0.8) 100%);
+      backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); 
+      border: 1px solid rgba(125, 211, 252, 0.1); 
+      border-top: 1px solid rgba(224, 242, 254, 0.2);
+      border-left: 1px solid rgba(186, 230, 253, 0.1);
+      box-shadow: 0 50px 100px -20px rgba(0,0,0,0.95), inset 0 2px 20px rgba(56,189,248,0.05); 
+      transform-style: preserve-3d; 
+    }
+    
+    .studio-header { 
+      background: linear-gradient(180deg, rgba(2, 6, 23, 0.95) 0%, rgba(0, 0, 0, 0.2) 100%);
+      backdrop-filter: blur(40px); border-bottom: 1px solid rgba(56,189,248,0.15); box-shadow: 0 20px 60px rgba(0,0,0,0.9); 
+    }
+
+    .studio-input { 
+      background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(186,230,253,0.15); color: #f0f9ff; 
+      box-shadow: inset 0 4px 20px rgba(0,0,0,0.6), 0 4px 15px rgba(56,189,248,0.05); transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); 
+    }
+    .studio-input:focus { 
+      border-color: #38bdf8; background: rgba(15, 23, 42, 0.8); 
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.2), inset 0 2px 10px rgba(0,0,0,0.6); outline: none; transform: translateY(-3px) translateZ(15px) scale(1.02); 
+    }
+    
+    .glow-text-gold { background: linear-gradient(135deg, #fde047 0%, #f59e0b 50%, #b45309 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 10px 25px rgba(245,158,11,0.5)); }
+    .glow-text-cyan { background: linear-gradient(135deg, #7dd3fc 0%, #0ea5e9 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 10px 20px rgba(14,165,233,0.6)); }
+    .glow-text-ruby { background: linear-gradient(135deg, #fca5a5 0%, #e11d48 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 10px 20px rgba(225,29,72,0.6)); }
+    
+    .btn-cinematic { 
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); 
+      box-shadow: 0 20px 40px -10px rgba(2,132,199,0.6), inset 0 2px 0 rgba(186,230,253,0.4); 
+      color: white; border: 1px solid rgba(125,211,252,0.2); font-weight: 900;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform-style: preserve-3d;
+    }
+    .btn-cinematic:hover { transform: translateY(-6px) translateZ(40px) scale(1.05); box-shadow: 0 30px 60px -10px rgba(2,132,199,0.8), inset 0 2px 0 rgba(186,230,253,0.6); }
+    .btn-cinematic:active { transform: translateY(2px) translateZ(0) scale(0.95); }
+    
+    video::-webkit-media-controls, video::-webkit-media-controls-enclosure { display: none !important; }
+
+    @keyframes deepDiveIn { 0% { transform: perspective(2500px) translateZ(-2000px) rotateX(60deg) rotateY(30deg); opacity: 0; filter: blur(60px); } 100% { transform: perspective(2500px) translateZ(0) rotateX(0deg) rotateY(0deg); opacity: 1; filter: blur(0px); } }
+    .animate-deepDiveIn { animation: deepDiveIn 2s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-style: preserve-3d; }
+    
+    @keyframes hyperFadeOut { 0% { transform: perspective(2500px) translateZ(0) scale(1); opacity: 1; } 100% { transform: perspective(2500px) translateZ(1500px) scale(3); opacity: 0; filter: blur(50px); visibility: hidden; } }
+    .animate-hyperFadeOut { animation: hyperFadeOut 1.5s cubic-bezier(0.7, 0, 0.3, 1) forwards; pointer-events: none; }
+  `;
+  document.head.appendChild(styleBlock);
+}
+
+// --- CINEMATIC INTRO LOADER ---
+function CinematicLoader({ onComplete }) {
+  const [progress, setProgress] = useState(0); 
+  const [isFading, setIsFading] = useState(false);
+
+  useEffect(() => {
+    let currentStep = 0;
+    const timer = setInterval(() => { 
+      currentStep++; 
+      setProgress(Math.min((currentStep / 50) * 100, 100)); 
+      if (currentStep >= 50) { 
+        clearInterval(timer); 
+        setIsFading(true); 
+        setTimeout(() => onComplete(), 1500); 
+      } 
+    }, 30);
+    return () => clearInterval(timer);
+  }, [onComplete]);
+
+  return (
+    <div className={`fixed inset-0 z-[999999] bg-[#020204] flex items-center justify-center perspective-[2500px] overflow-hidden ${isFading ? 'animate-hyperFadeOut' : ''}`}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-sky-950/40 via-transparent to-[#020204] pointer-events-none opacity-90"></div>
+      <div className="text-center z-10 flex flex-col items-center animate-deepDiveIn">
+        <div className="relative w-48 h-48 mb-16 flex items-center justify-center transform-style-3d animate-[spin_15s_linear_infinite]">
+          <div className="absolute inset-0 border-t-[6px] border-b-[6px] border-sky-500 rounded-full animate-[spin_2s_ease-in-out_infinite] shadow-[0_0_40px_rgba(14,165,233,0.8)]"></div>
+          <div className="absolute inset-6 border-l-[6px] border-r-[6px] border-indigo-500 rounded-full animate-[spin_3s_linear_infinite_reverse] shadow-[0_0_30px_rgba(99,102,241,0.6)]"></div>
+          <svg className="w-16 h-16 text-white drop-shadow-[0_0_20px_rgba(255,255,255,1)]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <h1 className="font-serif text-7xl md:text-[10rem] font-black tracking-tighter text-white uppercase glow-text-gold mb-12 drop-shadow-2xl translate-z-[200px]">Creator<span className="text-sky-400">.</span></h1>
+        <div className="w-[30rem] max-w-[80vw] space-y-4 translate-z-[80px]">
+          <div className="flex justify-between font-mono text-xs text-sky-300 font-black uppercase tracking-widest drop-shadow-md"><span>Hyperspace Initialization</span><span className="text-amber-400">{Math.floor(progress)}%</span></div>
+          <div className="h-2 w-full bg-black/60 rounded-full overflow-hidden shadow-inner border border-sky-500/30"><div className="h-full bg-gradient-to-r from-sky-700 via-indigo-500 to-amber-400" style={{ width: `${progress}%`, transition: 'width 0.1s linear' }}></div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- ADVANCED 3D SCROLL REVEAL & HOVER ANIMATION ---
+function Hover3DCard({ children, className = "" }) {
+  const ref = useRef(null);
+  const [style, setStyle] = useState({ transform: 'perspective(2000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)' });
+  const handleMouseMove = (e) => {
+    if (!ref.current) return; 
+    const rect = ref.current.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width - 0.5) * 20; 
+    const yPct = ((e.clientY - rect.top) / rect.height - 0.5) * -20;
+    setStyle({ transform: `perspective(2000px) rotateX(${yPct}deg) rotateY(${xPct}deg) scale3d(1.02, 1.02, 1.02)`, transition: 'transform 0.1s ease-out' });
+  };
+  const handleMouseLeave = () => setStyle({ transform: 'perspective(2000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)', transition: 'transform 0.8s cubic-bezier(0.16,1,0.3,1)' });
+  return (
+    <div ref={ref} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} className={className} style={{ ...style, transformStyle: 'preserve-3d', willChange: 'transform' }}>
+      <div style={{ transform: 'translateZ(30px)', transformStyle: 'preserve-3d' }} className="w-full h-full">{children}</div>
+    </div>
+  );
+}
+
+function ScrollReveal({ children, className = "", delay = 0 }) {
+  const domRef = useRef(); 
+  const [isVisible, setIsVisible] = useState(false);
+  useEffect(() => {
+    const observer = new IntersectionObserver(entries => { 
+      entries.forEach(e => { 
+        if (e.isIntersecting) { 
+          setTimeout(() => setIsVisible(true), delay); 
+          observer.unobserve(e.target); 
+        }
+      }); 
+    }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
+    if (domRef.current) observer.observe(domRef.current); 
+    return () => observer.disconnect();
+  }, [delay]);
+  return (
+    <div ref={domRef} className={className} style={{ opacity: isVisible ? 1 : 0, transform: isVisible ? 'perspective(2500px) rotateX(0deg) translateY(0) translateZ(0) scale(1)' : 'perspective(2500px) rotateX(15deg) translateY(60px) translateZ(-100px) scale(0.95)', transition: 'all 1.0s cubic-bezier(0.16, 1, 0.3, 1)', willChange: 'opacity, transform', transformOrigin: 'top center', transformStyle: 'preserve-3d' }}>
+      {children}
+    </div>
+  );
+}
+
+// --- CUSTOM TOUCH & HOLD HELPER COMPONENT ---
+function LongPressable({ onLongPress, children, className, onClick, style }) {
+  const timerRef = useRef(null); 
+  const isLongPressRef = useRef(false);
+  
+  const start = () => { 
+    isLongPressRef.current = false; 
+    timerRef.current = setTimeout(() => { 
+      isLongPressRef.current = true; 
+      if(onLongPress) onLongPress(); 
+    }, 600); 
+  };
+  const stop = () => clearTimeout(timerRef.current);
+  const handleClick = (e) => { 
+    if (isLongPressRef.current) { e.preventDefault(); e.stopPropagation(); return; } 
+    if (onClick) onClick(e); 
+  };
+
+  return (
+    <div 
+      className={className} 
+      style={{ ...style, WebkitTouchCallout: 'none', userSelect: 'none', transformStyle: 'preserve-3d' }} 
+      onClick={handleClick} 
+      onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} 
+      onTouchStart={start} onTouchEnd={stop} 
+      onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function LongPressMenu({ title, onConfirm, onCancel, confirmText = "Delete" }) {
+  return (
+    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-4 animate-fadeIn perspective-[2500px]" onClick={onCancel}>
+      <div className="studio-glass p-8 sm:p-12 rounded-[3rem] w-full max-w-sm shadow-[0_50px_100px_rgba(0,0,0,0.9)] text-center border-t border-cyan-500 animate-deepDiveIn" onClick={e => e.stopPropagation()}>
+        <p className="font-serif text-2xl sm:text-3xl font-black text-rose-100 mb-10 drop-shadow-lg tracking-tight">{title}</p>
+        <button onClick={onConfirm} className="w-full py-4 btn-cinematic text-white font-black rounded-2xl mb-4 tracking-widest text-xs uppercase shadow-2xl">⚠️ {confirmText}</button>
+        <button onClick={onCancel} className="w-full py-4 studio-input text-cyan-300 hover:text-white font-black rounded-2xl transition-colors tracking-widest text-xs uppercase shadow-sm border border-cyan-500/20">Abort Operation</button>
+      </div>
+    </div>
+  );
 }
 
 /* ============================================================================
@@ -803,8 +750,8 @@ const starVert = `
   }
 `;
 const starFrag = `
-  uniform vec2 uScreenDir;
-  uniform float uWarp;
+  uniform vec2 uScreenDir; 
+  uniform float uWarp;     
   varying float vTwinkle;
   varying float vSeed;
   void main(){
@@ -897,11 +844,7 @@ const lensArcFrag = `
 
 function ThreeArtBackground({ introDone }) {
   const mountRef = useRef(null);
-  const stateRef = useRef({
-    scrollProgress: 0,
-    targetScrollProgress: 0,
-    warp: 0,
-  });
+  const stateRef = useRef({ scrollProgress: 0, targetScrollProgress: 0, warp: 0 });
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -909,7 +852,6 @@ function ThreeArtBackground({ introDone }) {
 
     let width = window.innerWidth;
     let height = window.innerHeight;
-    const isMobile = width < 768;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -940,23 +882,27 @@ function ThreeArtBackground({ introDone }) {
     scene.add(sky);
 
     const nebulaGroup = new THREE.Group();
-    const nebulaPalettes = [[90, 70, 180], [130, 60, 160], [60, 90, 200], [150, 80, 140]];
-    const nebCount = isMobile ? 30 : 60;
-    for (let i = 0; i < nebCount; i++) {
+    const nebulaPalettes = [ [90, 70, 180], [130, 60, 160], [60, 90, 200], [150, 80, 140] ];
+    for (let i = 0; i < 60; i++) {
       const tint = nebulaPalettes[i % nebulaPalettes.length];
       const tex = createCloudPuffTexture(i + 1, tint);
       const mat = new THREE.SpriteMaterial({
-        map: tex, color: 0xffffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false,
+        map: tex, color: 0xffffff, transparent: true,
+        opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false,
       });
       const sprite = new THREE.Sprite(mat);
       const scale = 900 + Math.random() * 2200;
       sprite.scale.set(scale, scale, 1);
-      sprite.position.set((Math.random() - 0.5) * 9000, (Math.random() - 0.5) * 5000, -Math.random() * Math.abs(DEPTH.END) * 1.05);
+      sprite.position.set(
+        (Math.random() - 0.5) * 9000,
+        (Math.random() - 0.5) * 5000,
+        -Math.random() * Math.abs(DEPTH.END) * 1.05
+      );
       nebulaGroup.add(sprite);
     }
     scene.add(nebulaGroup);
 
-    const STAR_COUNT = isMobile ? 4000 : 9000;
+    const STAR_COUNT = 9000;
     const starGeo = new THREE.BufferGeometry();
     const starPos = new Float32Array(STAR_COUNT * 3);
     const starSize = new Float32Array(STAR_COUNT);
@@ -975,8 +921,14 @@ function ThreeArtBackground({ introDone }) {
     starGeo.setAttribute("aPhase", new THREE.BufferAttribute(starPhase, 1));
     starGeo.setAttribute("aSeed", new THREE.BufferAttribute(starSeed, 1));
     const starMat = new THREE.ShaderMaterial({
-      vertexShader: starVert, fragmentShader: starFrag,
-      uniforms: { uTime: { value: 0 }, uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) }, uWarp: { value: 0 }, uScreenDir: { value: new THREE.Vector2(0, 1) } },
+      vertexShader: starVert,
+      fragmentShader: starFrag,
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+        uWarp: { value: 0 },
+        uScreenDir: { value: new THREE.Vector2(0, 1) },
+      },
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     const stars = new THREE.Points(starGeo, starMat);
@@ -988,7 +940,15 @@ function ThreeArtBackground({ introDone }) {
     function roundedRectShape(w, h, r) {
       const shape = new THREE.Shape();
       const x = -w / 2, y = -h / 2;
-      shape.moveTo(x + r, y); shape.lineTo(x + w - r, y); shape.quadraticCurveTo(x + w, y, x + w, y + r); shape.lineTo(x + w, y + h - r); shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h); shape.lineTo(x + r, y + h); shape.quadraticCurveTo(x, y + h, x, y + h - r); shape.lineTo(x, y + r); shape.quadraticCurveTo(x, y, x + r, y);
+      shape.moveTo(x + r, y);
+      shape.lineTo(x + w - r, y);
+      shape.quadraticCurveTo(x + w, y, x + w, y + r);
+      shape.lineTo(x + w, y + h - r);
+      shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      shape.lineTo(x + r, y + h);
+      shape.quadraticCurveTo(x, y + h, x, y + h - r);
+      shape.lineTo(x, y + r);
+      shape.quadraticCurveTo(x, y, x + r, y);
       return shape;
     }
     const rectShape = roundedRectShape(340, 240, 46);
@@ -1012,7 +972,10 @@ function ThreeArtBackground({ introDone }) {
     }
     logoGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-    const logoMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, metalness: 0.65, roughness: 0.12, clearcoat: 1.0, clearcoatRoughness: 0.08, reflectivity: 1.0, emissive: new THREE.Color(0x220044), emissiveIntensity: 0.35 });
+    const logoMat = new THREE.MeshPhysicalMaterial({
+      vertexColors: true, metalness: 0.65, roughness: 0.12, clearcoat: 1.0,
+      clearcoatRoughness: 0.08, reflectivity: 1.0, emissive: new THREE.Color(0x220044), emissiveIntensity: 0.35,
+    });
     const logoMesh = new THREE.Mesh(logoGeo, logoMat);
     logoGroup.add(logoMesh);
 
@@ -1021,31 +984,15 @@ function ThreeArtBackground({ introDone }) {
     playShape.moveTo(-38, 55); playShape.lineTo(-38, -55); playShape.lineTo(58, 0); playShape.closePath();
     const playGeo = new THREE.ExtrudeGeometry(playShape, { depth: 26, bevelEnabled: true, bevelThickness: 4, bevelSize: 3, bevelSegments: 6, curveSegments: 12 });
     playGeo.center();
-    
-    // --- BRIGHT PLAY BUTTON FIX APPLIED ---
-    const playMat = new THREE.MeshPhysicalMaterial({ 
-      map: silverTex, 
-      color: 0xffffff,
-      metalness: 0.1, 
-      roughness: 0.05, 
-      clearcoat: 1.0, 
-      emissive: 0xffffff, 
-      emissiveIntensity: 0.8 
-    });
+    const playMat = new THREE.MeshPhysicalMaterial({ map: silverTex, metalness: 1.0, roughness: 0.18, clearcoat: 1.0, envMapIntensity: 1.4 });
     const playMesh = new THREE.Mesh(playGeo, playMat);
     playMesh.position.z = 46;
     logoGroup.add(playMesh);
-    
-    const playLight = new THREE.PointLight(0xffffff, 40, 600);
-    playLight.position.set(0, 50, 200);
-    logoGroup.add(playLight);
-    // --- END BRIGHT PLAY BUTTON FIX ---
 
     const auraTex = createSoftDiscTexture(512, "150,120,255", 0.08);
     const auraMat = new THREE.SpriteMaterial({ map: auraTex, color: 0x8866ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     const aura = new THREE.Sprite(auraMat);
-    aura.scale.set(1400, 1400, 1);
-    aura.position.z = -80;
+    aura.scale.set(1400, 1400, 1); aura.position.z = -80;
     logoGroup.add(aura);
 
     const logoLight = new THREE.PointLight(0x6a7bff, 6, 2000, 2);
@@ -1053,11 +1000,10 @@ function ThreeArtBackground({ introDone }) {
     logoGroup.add(logoLight);
     scene.add(logoGroup);
 
-    /* ---------------- 4. "Hand of God" nebula (Z: -2000) ---------------- */
     const handGroup = new THREE.Group();
     handGroup.position.set(650, 900, DEPTH.HAND_OF_GOD);
 
-    const HAND_PARTICLES = isMobile ? 2500 : 5200;
+    const HAND_PARTICLES = 5200;
     const handGeo = new THREE.BufferGeometry();
     const hp = new Float32Array(HAND_PARTICLES * 3);
     const hSize = new Float32Array(HAND_PARTICLES);
@@ -1074,9 +1020,7 @@ function ThreeArtBackground({ introDone }) {
       const by = -t * 1500;
       const bz = Math.sin(theta + twist) * radius * 0.6;
       const shearX = Math.sin(funnelAngle) * t * 700;
-      hp[i * 3 + 0] = bx + shearX;
-      hp[i * 3 + 1] = by;
-      hp[i * 3 + 2] = bz;
+      hp[i * 3 + 0] = bx + shearX; hp[i * 3 + 1] = by; hp[i * 3 + 2] = bz;
       hSize[i] = 260 + Math.random() * 420 * (1 - t * 0.4);
       const c = silverC.clone().lerp(darkC, Math.pow(t, 1.4));
       hColor[i * 3] = c.r; hColor[i * 3 + 1] = c.g; hColor[i * 3 + 2] = c.b;
@@ -1087,7 +1031,8 @@ function ThreeArtBackground({ introDone }) {
 
     const cloudTex = createCloudPuffTexture(99, [200, 200, 220]);
     const handMat = new THREE.PointsMaterial({
-      size: 1, map: cloudTex, transparent: true, opacity: 0.85, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+      size: 1, map: cloudTex, transparent: true, opacity: 0.85, vertexColors: true,
+      blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
     });
     handMat.onBeforeCompile = (shader) => {
       shader.vertexShader = shader.vertexShader
@@ -1102,22 +1047,22 @@ function ThreeArtBackground({ introDone }) {
     handGroup.add(handRimLight);
     scene.add(handGroup);
 
-    /* ---------------- 5. Hyper-realistic Jupiter (Z: -4500) ---------------- */
     const jupiterGroup = new THREE.Group();
     jupiterGroup.position.set(-900, -300, DEPTH.JUPITER);
 
     const jupiterTex = createJupiterTexture();
     const jupiterEmissiveTex = createJupiterEmissiveTexture(jupiterTex);
-    const jupiterGeo = new THREE.SphereGeometry(620, 64, 64);
+    const jupiterGeo = new THREE.SphereGeometry(620, 128, 128);
     const jupiterMat = new THREE.MeshStandardMaterial({
-      map: jupiterTex, emissiveMap: jupiterEmissiveTex, emissive: new THREE.Color(0xffb066), emissiveIntensity: 0.55, roughness: 0.85, metalness: 0.05,
+      map: jupiterTex, emissiveMap: jupiterEmissiveTex, emissive: new THREE.Color(0xffb066),
+      emissiveIntensity: 0.55, roughness: 0.85, metalness: 0.05,
     });
     const jupiterMesh = new THREE.Mesh(jupiterGeo, jupiterMat);
     jupiterMesh.rotation.z = 0.2;
     jupiterGroup.add(jupiterMesh);
 
     const ringTex = createRingTexture();
-    const ringGeo = new THREE.RingGeometry(820, 1450, 64);
+    const ringGeo = new THREE.RingGeometry(820, 1450, 128);
     const ringPos = ringGeo.attributes.position;
     const ringUv = ringGeo.attributes.uv;
     const v3 = new THREE.Vector3();
@@ -1126,10 +1071,12 @@ function ThreeArtBackground({ introDone }) {
       const rr = (v3.length() - 820) / (1450 - 820);
       ringUv.setXY(i, rr, 0.5);
     }
-    const ringMat = new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, opacity: 0.75, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+    const ringMat = new THREE.MeshBasicMaterial({
+      map: ringTex, transparent: true, opacity: 0.75, side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-    ringMesh.rotation.x = Math.PI / 2.4;
-    ringMesh.rotation.z = 0.4;
+    ringMesh.rotation.x = Math.PI / 2.4; ringMesh.rotation.z = 0.4;
     jupiterGroup.add(ringMesh);
 
     const jupiterGlow = new THREE.PointLight(0xffb066, 5, 4000, 2);
@@ -1137,31 +1084,33 @@ function ThreeArtBackground({ introDone }) {
     jupiterGroup.add(jupiterGlow);
     scene.add(jupiterGroup);
 
-    /* ---------------- 6. Gargantua black hole (Z: -7500) ---------------- */
     const holeGroup = new THREE.Group();
     holeGroup.position.set(0, 0, DEPTH.BLACK_HOLE);
 
-    const horizonGeo = new THREE.SphereGeometry(360, 64, 64);
+    const horizonGeo = new THREE.SphereGeometry(360, 96, 96);
     const horizonMat = new THREE.ShaderMaterial({ vertexShader: eventHorizonVert, fragmentShader: eventHorizonFrag });
     const horizonMesh = new THREE.Mesh(horizonGeo, horizonMat);
     holeGroup.add(horizonMesh);
 
-    const diskGeo = new THREE.RingGeometry(420, 1350, 100, 4);
+    const diskGeo = new THREE.RingGeometry(420, 1350, 200, 4);
     const diskMat = new THREE.ShaderMaterial({
-      vertexShader: accretionDiskVert, fragmentShader: accretionDiskFrag, uniforms: { uTime: { value: 0 } }, transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false,
+      vertexShader: accretionDiskVert, fragmentShader: accretionDiskFrag,
+      uniforms: { uTime: { value: 0 } }, transparent: true, side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending, depthWrite: false,
     });
     const diskMesh = new THREE.Mesh(diskGeo, diskMat);
     diskMesh.rotation.x = Math.PI / 2.15;
     holeGroup.add(diskMesh);
 
     const diskMesh2 = diskMesh.clone();
-    diskMesh2.rotation.x = -Math.PI / 2.15;
-    diskMesh2.scale.setScalar(0.62);
+    diskMesh2.rotation.x = -Math.PI / 2.15; diskMesh2.scale.setScalar(0.62);
     holeGroup.add(diskMesh2);
 
     const arcGeo = new THREE.PlaneGeometry(1500, 90, 1, 1);
     const arcMat = new THREE.ShaderMaterial({
-      vertexShader: lensArcVert, fragmentShader: lensArcFrag, uniforms: { uTime: { value: 0 } }, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+      vertexShader: lensArcVert, fragmentShader: lensArcFrag,
+      uniforms: { uTime: { value: 0 } }, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, side: THREE.DoubleSide,
     });
     const arcTop = new THREE.Mesh(arcGeo, arcMat);
     arcTop.position.y = 470; arcTop.rotation.z = 0.02;
@@ -1175,13 +1124,11 @@ function ThreeArtBackground({ introDone }) {
     holeGroup.add(holeUplight);
     scene.add(holeGroup);
 
-    /* ---------------- postprocessing ---------------- */
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.35, 0.85, 0.15);
     composer.addPass(bloomPass);
 
-    /* ---------------- scroll -> Z-axis dolly ---------------- */
     const totalDepth = Math.abs(DEPTH.END) + 1200;
     function getScrollProgress() {
       const doc = document.documentElement;
@@ -1199,13 +1146,10 @@ function ThreeArtBackground({ introDone }) {
     }
     window.addEventListener("resize", onResize);
 
-    /* ---------------- animation loop ---------------- */
-    const clock = new THREE.Clock();
-    let rafId;
+    const clock = new THREE.Clock(); let rafId;
     function animate() {
       rafId = requestAnimationFrame(animate);
-      const dt = Math.min(clock.getDelta(), 0.05);
-      const t = clock.elapsedTime;
+      const dt = Math.min(clock.getDelta(), 0.05); const t = clock.elapsedTime;
       const st = stateRef.current;
 
       const prev = st.scrollProgress;
@@ -1248,7 +1192,8 @@ function ThreeArtBackground({ introDone }) {
       cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
-      renderer.dispose(); composer.dispose?.();
+      renderer.dispose();
+      composer.dispose?.();
       mount.removeChild(renderer.domElement);
       scene.traverse((obj) => {
         if (obj.geometry) obj.geometry.dispose();
@@ -1263,6 +1208,7 @@ function ThreeArtBackground({ introDone }) {
   return <div ref={mountRef} className="three-art-background" />;
 }
 
+// --- MAIN APP COMPONENT ---
 export default function App() {
   const [showIntroLoader, setShowIntroLoader] = useState(true);
   const [currentPage, setCurrentPage] = useState('home');
@@ -1277,20 +1223,35 @@ export default function App() {
   const [activeVideo, setActiveVideo] = useState(null);
   const [inspectUser, setInspectUser] = useState(null);
 
-  const showToast = useCallback((message, type = 'info') => {
-    setCustomToast({ message, type });
-    setTimeout(() => setCustomToast(null), 2500); 
-  }, []);
+  const [selectedScriptId, setSelectedScriptId] = useState(null);
+  const [expandedPost, setExpandedPost] = useState(null);
 
+  const showToast = useCallback((message, type = 'info') => { 
+    setCustomToast({ message, type }); 
+    setTimeout(() => setCustomToast(null), 3500); 
+  }, []);
   const ensureProfileDocRef = useRef(() => {});
 
   useEffect(() => {
     if (!auth || !auth.app) { setAuthLoading(false); return; }
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      setAuthUser(user);
-      if (user && !user.isAnonymous) { try { await ensureProfileDocRef.current(user); } catch (e) {} }
-      setAuthLoading(false);
-    }, () => { setAuthLoading(false); });
+    const initAuth = async () => { 
+      try { 
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token); 
+        } else {
+          await signInAnonymously(auth); 
+        }
+      } catch (e) {} 
+    };
+    initAuth();
+    
+    const unsub = onAuthStateChanged(auth, async (user) => { 
+      setAuthUser(user); 
+      if (user && !user.isAnonymous) {
+        try { await ensureProfileDocRef.current(user); } catch (e) {} 
+      }
+      setAuthLoading(false); 
+    }, () => setAuthLoading(false));
     return () => unsub();
   }, []);
 
@@ -1301,7 +1262,7 @@ export default function App() {
   const [posts] = useFirestoreCollection('posts', 'createdAt', null, isAuthReady);
   const [notifications, notifsLoaded, notifsError] = useFirestoreCollection('notifications', 'timestamp', 50, isAuthReady);
   const [ytConfig] = useFirestoreDoc('meta/ytConfig', DEFAULT_YT_CONFIG, isAuthReady);
-  const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Studio Room'}] }, isAuthReady);
+  const [siteSettings] = useFirestoreDoc('meta/settings', { logoText: 'YOUTUBERS STUDIO', logoUrl: '', chatChannels: [{id: 'general', name: '🌍 Global Node'}] }, isAuthReady);
   const [projects] = useFirestoreCollection('projects', 'createdAt', null, isAuthReady);
   const [tasks] = useFirestoreCollection('tasks', null, null, isAuthReady);
   const [chats] = useFirestoreCollection('chats', 'createdAt', 200, isAuthReady);
@@ -1328,16 +1289,21 @@ export default function App() {
     return roleLower === 'roasting waiter' || roleLower === 'waiter';
   }, [userProfile]);
 
-  useEffect(() => {
+  const isProfileIncomplete = useMemo(() => {
+    if (!authUser || !userProfile) return false;
+    return !userProfile.name || userProfile.name.trim() === '' || !userProfile.workCategory || userProfile.isProfileComplete === false;
+  }, [authUser, userProfile]);
+
+  useEffect(() => { 
     if (currentPage === 'notifications' && db && userProfile) {
-      try { updateDoc(doc(db, 'profiles', userProfile.id), { lastSeenNotifAt: Date.now() }); } catch (e) {}
+      try { updateDoc(doc(db, 'profiles', userProfile.id), { lastSeenNotifAt: Date.now() }); } catch (e) {} 
     }
   }, [currentPage, userProfile]);
 
-  useEffect(() => {
+  useEffect(() => { 
+    if (!db || !db.app || !isAdmin) return; 
     const pruneOldNotifications = async () => {
       try {
-        if (!db || !db.app || !isAdmin) return;
         const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
         const notificationsRef = fbCollection(db, 'artifacts', appId, 'public', 'data', 'notifications');
         const snapshot = await getDocs(notificationsRef);
@@ -1350,32 +1316,18 @@ export default function App() {
     pruneOldNotifications();
   }, [db, isAdmin]);
 
-  const isProfileIncomplete = useMemo(() => {
-    if (!authUser || !userProfile) return false;
-    return !userProfile.name || userProfile.name.trim() === '' || !userProfile.workCategory || userProfile.isProfileComplete === false;
-  }, [authUser, userProfile]);
-
-  useEffect(() => {
-    if (!authLoading && !authUser && currentPage !== 'home') { setCurrentPage('home'); }
+  useEffect(() => { 
+    if (!authLoading && !authUser && currentPage !== 'home') { setCurrentPage('home'); } 
   }, [authUser, authLoading, currentPage]);
 
   useEffect(() => {
     if (!authUser || !userProfile) return;
-    if (isProfileIncomplete && currentPage !== 'profile') {
-      setCurrentPage('profile');
-      showToast("Let's personalize your credentials before accessing the main board!", "info");
-      return;
-    }
+    if (isProfileIncomplete && currentPage !== 'profile') { setCurrentPage('profile'); showToast("Complete specs first.", "info"); return; }
     if (!isProfileIncomplete) {
-      if (userProfile.status === 'pending' && currentPage !== 'pending-status') {
-        setCurrentPage('pending-status');
-      } else if (userProfile.status === 'rejected' && !['rejected-status', 'profile'].includes(currentPage)) {
-        setCurrentPage('rejected-status');
-      } else if (userProfile.status === 'approved' && isRoastingWaiter && currentPage !== 'profile') {
-        setCurrentPage('profile');
-      } else if (userProfile.status === 'approved' && !isRoastingWaiter && ['pending-status', 'rejected-status'].includes(currentPage)) {
-        setCurrentPage('home');
-      }
+      if (userProfile.status === 'pending' && currentPage !== 'pending-status') setCurrentPage('pending-status');
+      else if (userProfile.status === 'rejected' && !['rejected-status', 'profile'].includes(currentPage)) setCurrentPage('rejected-status');
+      else if (userProfile.status === 'approved' && isRoastingWaiter && currentPage !== 'profile') setCurrentPage('profile');
+      else if (userProfile.status === 'approved' && !isRoastingWaiter && ['pending-status', 'rejected-status'].includes(currentPage)) setCurrentPage('home');
     }
   }, [userProfile, authUser, currentPage, isProfileIncomplete, isRoastingWaiter, showToast]);
 
@@ -1404,7 +1356,9 @@ export default function App() {
     return () => clearTimeout(delayTimer);
   }, [isAuthReady, userProfile, chats, posts, notifications, videos, scripts, projects]);
 
-  useEffect(() => { if (notifsError && isAuthReady && !isRoastingWaiter) { showToast(`Notifications temporarily on standby.`, 'info'); } }, [notifsError, isAuthReady, isRoastingWaiter]);
+  useEffect(() => { 
+    if (notifsError && isAuthReady && !isRoastingWaiter) { showToast(`Notifications temporarily on standby.`, 'info'); } 
+  }, [notifsError, isAuthReady, isRoastingWaiter]);
 
   const visibleNotifications = useMemo(() => (notifications || []).filter(n => {
     if (!n || n.actor === 'System' || n.actor === userProfile?.name) return false; 
@@ -1541,7 +1495,7 @@ export default function App() {
     let url = '';
     const trimmed = activeChannelId.trim();
     if (trimmed.startsWith('UC') && !trimmed.includes('/') && !trimmed.includes('@')) {
-      url = `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${trimmed}&key=${activeApiKey}`;
+      url = `https://www.googleapis.com/official/youtube/v3/channels?part=statistics,snippet&id=${trimmed}&key=${activeApiKey}`;
     } else {
       let handle = trimmed;
       const match = trimmed.match(/@([^/?#\s]+)/);
@@ -1587,66 +1541,102 @@ export default function App() {
     return () => clearInterval(timer);
   }, [showIntroLoader, isAdmin]);
 
-  useEffect(() => { injectArtStyleStyles(); }, []);
+  useEffect(() => {
+    injectArtStyleStyles();
+  }, []);
+
+  const navLinks = [
+    { id: 'home', icon: '🪐', label: 'Command Hub' }, 
+    { id: 'notifications', icon: '📡', label: 'Live Radar', badge: unreadMap.overall > 0 },
+    { id: 'crew', icon: '👥', label: 'Crew Network' }, 
+    { id: 'categories-view', icon: '🏷️', label: 'Division Map' },
+    { id: 'vault', icon: '🎬', label: 'Video Vault', badge: unreadMap.vault }, 
+    { id: 'projects', icon: '📌', label: 'Active Timelines', badge: unreadMap.projects },
+    { id: 'scripts', icon: '📝', label: 'Manuscripts', badge: unreadMap.scripts }, 
+    { id: 'chat', icon: '💬', label: 'Comms Link' },
+    { id: 'posts', icon: '📸', label: 'Digital Gallery', badge: unreadMap.posts }
+  ];
 
   return (
-    <div className="min-h-screen relative overflow-x-hidden text-white font-sans selection:bg-red-600/30 bg-[#030308]">
+    <div className="min-h-screen relative overflow-x-hidden text-slate-200 font-sans selection:bg-rose-500/30 bg-[#030308]">
       {showIntroLoader && <CinematicLoader onComplete={() => setShowIntroLoader(false)} />}
       
+      {/* EXTREME 3D HEAVENLY BACKGROUND */}
       {!showIntroLoader && <ThreeArtBackground introDone={!showIntroLoader} />}
 
       {customToast && (
-        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-[99999] px-8 py-3 rounded-full shadow-2xl text-xs font-bold text-white transition-all animate-sweepUp border border-white/20 backdrop-blur-md ${customToast.type === 'success' ? 'bg-emerald-600/80' : 'bg-rose-600/80'}`}>{customToast.message}</div>
+        <div className={`fixed top-8 left-1/2 transform -translate-x-1/2 z-[99999] px-6 sm:px-10 py-3 sm:py-4 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.8)] text-[10px] sm:text-xs font-black text-white transition-all animate-deepDiveIn border border-white/20 backdrop-blur-2xl uppercase tracking-widest ${customToast.type === 'success' ? 'bg-emerald-600/90 shadow-[0_0_20px_rgba(5,150,105,0.5)]' : 'bg-red-700/90 shadow-[0_0_20px_rgba(220,38,38,0.8)]'}`}>
+          {customToast.message}
+        </div>
       )}
 
       {/* --- HEADER (GLASSMORPHISM) --- */}
-      <header className={`sticky top-0 z-40 studio-header px-4 sm:px-6 py-4 flex items-center justify-between shadow-2xl font-sans transition-opacity duration-1000 ${showIntroLoader ? 'opacity-0' : 'opacity-100'}`}>
-        <div className="flex items-center space-x-4 min-w-0">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 hover:bg-white/10 rounded-full transition text-white shadow-inner border border-white/10 shrink-0"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
-          <div className="flex items-center space-x-3 cursor-pointer min-w-0" onClick={() => handleNavigationChange('home')}>
-            {siteSettings.logoUrl ? <img src={siteSettings.logoUrl} alt="Logo" className="w-10 h-10 object-cover rounded-xl shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-500/50 shrink-0" /> : <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-rose-900 flex items-center justify-center text-white font-serif font-black text-lg shadow-[0_0_15px_rgba(220,38,38,0.5)] border border-red-500/50 shrink-0">Y</div>}
-            <span className="font-serif text-lg sm:text-xl tracking-widest text-white font-black truncate max-w-[150px] sm:max-w-xs leading-none glow-text-red uppercase">{siteSettings.logoText || 'STUDIO'}</span>
+      <header className={`sticky top-0 z-40 studio-header px-4 sm:px-10 py-4 sm:py-5 flex items-center justify-between font-sans transition-opacity duration-[1500ms] ease-in-out ${showIntroLoader ? 'opacity-0' : 'opacity-100'}`}>
+        <div className="flex items-center space-x-4 sm:space-x-6 min-w-0">
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-3 sm:p-3.5 hover:bg-cyan-900/30 rounded-full transition text-white shadow-[inset_0_2px_10px_rgba(255,255,255,0.1)] border border-cyan-500/30 shrink-0 bg-black/40 backdrop-blur-md">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+          <div className="flex items-center space-x-3 sm:space-x-5 cursor-pointer min-w-0 group" onClick={() => handleNavigationChange('home')}>
+            {siteSettings.logoUrl ? (
+              <img src={siteSettings.logoUrl} alt="Logo" className="w-10 h-10 sm:w-14 sm:h-14 object-cover rounded-[1rem] sm:rounded-[1.2rem] shadow-[0_10px_20px_rgba(6,182,212,0.5)] border border-cyan-500/50 shrink-0 group-hover:scale-105 transition-transform" />
+            ) : (
+              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-[1rem] sm:rounded-[1.2rem] bg-gradient-to-br from-cyan-600 to-rose-500 flex items-center justify-center text-white font-serif font-black text-xl sm:text-2xl shadow-[0_10px_25px_rgba(6,182,212,0.6)] border border-cyan-500/50 shrink-0 group-hover:scale-105 transition-transform transform-style-3d translate-z-[20px]">Y</div>
+            )}
+            <span className="font-serif text-xl sm:text-3xl tracking-tighter text-white font-black truncate max-w-[120px] sm:max-w-xs leading-none uppercase glow-text-cyan">{siteSettings.logoText || 'STUDIO'}</span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 sm:space-x-5 shrink-0">
+        <div className="flex items-center space-x-3 sm:space-x-6 shrink-0">
           {userProfile && userProfile.status === 'approved' && !isRoastingWaiter && (
-            <button onClick={() => handleNavigationChange('notifications')} className="relative p-3 hover:bg-white/10 rounded-full transition text-white shadow-inner border border-white/10 backdrop-blur">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-              {unreadMap.overall > 0 && <span className="absolute top-0 right-0 bg-red-600 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border border-black shadow-[0_0_10px_rgba(220,38,38,0.8)]">{unreadMap.overall > 9 ? '9+' : unreadMap.overall}</span>}
+            <button onClick={() => currentPage === 'notifications' ? handleNavigationChange('home') : handleNavigationChange('notifications')} className="relative p-3 sm:p-4 hover:bg-cyan-900/40 bg-black/50 rounded-full transition text-white shadow-inner border border-cyan-500/30 backdrop-blur-md">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+              {unreadMap.overall > 0 && <span className="absolute top-0 right-0 bg-amber-500 text-black text-[9px] sm:text-[10px] font-black w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center border border-black shadow-[0_0_15px_rgba(245,158,11,0.8)] animate-pulse">{unreadMap.overall > 9 ? '9+' : unreadMap.overall}</span>}
             </button>
           )}
           {userProfile ? (
-            <div className="flex items-center space-x-3 bg-white/5 pr-2 pl-3 py-1.5 rounded-full border border-white/10">
-              <div className="hidden sm:flex flex-col text-right"><p className="text-sm font-bold text-white leading-none tracking-wide">{userProfile?.name}</p><span className="text-[9px] text-rose-400 uppercase tracking-widest font-mono font-bold mt-1">{userProfile?.role}</span></div>
-              <div className="w-9 h-9 rounded-full border-2 border-red-500/50 shadow-[0_0_15px_rgba(220,38,38,0.4)] overflow-hidden flex items-center justify-center cursor-pointer" onClick={() => handleNavigationChange('profile')}>{renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}</div>
+            <div className="flex items-center space-x-3 sm:space-x-5 bg-black/40 pr-2 sm:pr-3 pl-4 sm:pl-6 py-1.5 sm:py-2.5 rounded-full border border-cyan-500/30 shadow-[inset_0_2px_10px_rgba(255,255,255,0.05)] backdrop-blur-xl cursor-pointer hover:bg-cyan-950/50 transition" onClick={() => handleNavigationChange('profile')}>
+              <div className="hidden sm:flex flex-col text-right">
+                <p className="text-sm font-black text-white leading-none tracking-wide">{userProfile?.name}</p>
+                <span className="text-[10px] text-amber-400 uppercase tracking-widest font-mono font-bold mt-2">{userProfile?.role}</span>
+              </div>
+              <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-2 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.5)] overflow-hidden flex items-center justify-center bg-black">
+                {renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}
+              </div>
             </div>
-          ) : <button onClick={() => setShowSignInModal(true)} className="text-[11px] sm:text-sm font-black btn-cinematic text-white px-5 py-2.5 rounded-full uppercase tracking-wider whitespace-nowrap">Initialize</button>}
+          ) : <button onClick={() => setShowSignInModal(true)} className="text-[10px] sm:text-sm font-black btn-cinematic text-white px-6 sm:px-10 py-3 sm:py-4 rounded-full uppercase tracking-widest whitespace-nowrap shadow-[0_10px_20px_rgba(6,182,212,0.6)]">Access Mainframe</button>}
         </div>
       </header>
 
       {/* --- SIDEBAR DRAWER --- */}
-      <div className={`fixed inset-0 z-50 transition-opacity duration-500 bg-black/60 backdrop-blur-md ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
-        <div className={`absolute left-0 top-0 bottom-0 w-72 studio-glass border-r border-white/10 shadow-[20px_0_50px_rgba(0,0,0,0.8)] p-6 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-700 cubic-bezier(0.16, 1, 0.3, 1) ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-6 pb-20">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10"><span className="font-serif font-black text-lg text-white tracking-widest uppercase glow-text-red">Menu</span><button onClick={() => setIsSidebarOpen(false)} className="text-slate-400 font-bold p-1 hover:text-white bg-white/5 rounded-full px-2 transition-colors">✕</button></div>
-            <nav className="space-y-2 relative font-sans">
-              {(!userProfile || (userProfile.status === 'approved' && !isRoastingWaiter && !isProfileIncomplete)) && (
-                <>
-                  <button onClick={() => handleNavigationChange('home')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'home' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>🪐</span><span>Dashboard</span></button>
-                  <button onClick={() => handleNavigationChange('notifications')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'notifications' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>📡</span><span>Radar Log</span>{unreadMap.overall > 0 && <span className="absolute right-4 w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>}</button>
-                  <button onClick={() => handleNavigationChange('crew')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'crew' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>👥</span><span>Production Crew</span></button>
-                  <button onClick={() => handleNavigationChange('categories-view')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'categories-view' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>🏷️</span><span>Roles Map</span></button>
-                  <button onClick={() => handleNavigationChange('vault')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'vault' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>🎬</span><span>Video Vault</span>{unreadMap.vault && <span className="absolute right-4 w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>}</button>
-                  <button onClick={() => handleNavigationChange('projects')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'projects' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>📌</span><span>Active Boards</span>{unreadMap.projects && <span className="absolute right-4 w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>}</button>
-                  <button onClick={() => handleNavigationChange('scripts')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'scripts' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>📝</span><span>Script Writer</span>{unreadMap.scripts && <span className="absolute right-4 w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>}</button>
-                  <button onClick={() => handleNavigationChange('chat')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'chat' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>💬</span><span>Comms Link</span></button>
-                  <button onClick={() => handleNavigationChange('posts')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all relative ${currentPage === 'posts' ? 'bg-gradient-to-r from-red-600/20 to-transparent border-l-4 border-red-600 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>📸</span><span>Showroom Feed</span>{unreadMap.posts && <span className="absolute right-4 w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>}</button>
-                </>
+      <div className={`fixed inset-0 z-50 transition-opacity duration-700 bg-black/90 backdrop-blur-xl ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
+        <div className={`absolute left-0 top-0 bottom-0 w-72 sm:w-80 studio-glass border-r border-cyan-500/30 shadow-[30px_0_100px_rgba(0,0,0,0.9)] p-8 sm:p-10 flex flex-col h-full overflow-y-auto custom-scrollbar transition-transform duration-[800ms] cubic-bezier(0.16, 1, 0.3, 1) ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={(e) => e.stopPropagation()}>
+          <div className="space-y-10 pb-20">
+            <div className="flex items-center justify-between pb-6 border-b border-cyan-500/30">
+              <span className="font-serif font-black text-xl sm:text-2xl text-white tracking-wider uppercase glow-text-gold">Menu</span>
+              <button onClick={() => setIsSidebarOpen(false)} className="text-cyan-300 font-bold p-3 hover:text-white bg-cyan-950/50 rounded-xl transition-colors border border-cyan-500/30">✕</button>
+            </div>
+            <nav className="space-y-4 relative font-sans">
+              {(!userProfile || (userProfile.status === 'approved' && !isRoastingWaiter && !isProfileIncomplete)) && navLinks.map(l => (
+                <button key={l.id} onClick={() => handleNavigationChange(l.id)} className={`w-full flex items-center space-x-4 sm:space-x-5 px-5 sm:px-6 py-4 rounded-2xl text-left text-[11px] sm:text-sm font-black uppercase tracking-wider transition-all duration-300 relative ${currentPage === l.id ? 'bg-gradient-to-r from-cyan-600/30 to-transparent shadow-[inset_4px_0_0_#06b6d4] text-white transform scale-105 translate-x-2 border border-cyan-500/20' : 'text-cyan-200/70 hover:text-white hover:bg-white/5 border border-transparent'}`}>
+                  <span className="text-xl sm:text-2xl filter drop-shadow-md">{l.icon}</span>
+                  <span className="tracking-widest">{l.label}</span>
+                  {l.badge ? <span className="absolute right-6 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-500 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.8)]"></span> : null}
+                </button>
+              ))}
+              {userProfile && (
+                <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-4 sm:space-x-5 px-5 sm:px-6 py-4 rounded-2xl text-left text-[11px] sm:text-sm font-black uppercase tracking-wider transition-all duration-300 ${currentPage === 'profile' ? 'bg-gradient-to-r from-amber-500/30 to-transparent shadow-[inset_4px_0_0_#fbbf24] text-white transform scale-105 translate-x-2 border border-amber-500/20' : 'text-cyan-200/70 hover:text-white hover:bg-white/5 border border-transparent'}`}>
+                  <span className="text-xl sm:text-2xl filter drop-shadow-md">🪪</span>
+                  <span className="tracking-widest">ID Profile {isProfileIncomplete && '⚠️'}</span>
+                </button>
               )}
-              {userProfile && <button onClick={() => handleNavigationChange('profile')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'profile' ? 'bg-gradient-to-r from-cyan-600/20 to-transparent border-l-4 border-cyan-500 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}><span>🪪</span><span>ID Profile {isProfileIncomplete && '⚠️'}</span></button>}
               {isAdmin && !isRoastingWaiter && !isProfileIncomplete && (
-                <div className="pt-6 border-t border-white/10 mt-6 space-y-2"><span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-5 block mb-2 font-mono">Terminal Override</span><button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-4 px-5 py-3 rounded-xl text-left text-sm font-bold transition-all ${currentPage === 'admin' ? 'bg-rose-900/40 border-l-4 border-rose-500 text-rose-300' : 'text-rose-500/70 hover:text-rose-400 hover:bg-rose-900/20'}`}><span>⚙️</span><span>Admin Console</span></button></div>
+                <div className="pt-8 sm:pt-10 border-t border-cyan-500/30 mt-8 sm:mt-10 space-y-4">
+                  <span className="text-[9px] sm:text-[10px] font-black text-rose-500 uppercase tracking-widest px-6 block mb-4 font-mono">System Override</span>
+                  <button onClick={() => handleNavigationChange('admin')} className={`w-full flex items-center space-x-4 sm:space-x-5 px-5 sm:px-6 py-4 rounded-2xl text-left text-[11px] sm:text-sm font-black uppercase tracking-wider transition-all duration-300 ${currentPage === 'admin' ? 'bg-gradient-to-r from-rose-800/50 to-transparent shadow-[inset_4px_0_0_#e11d48] text-white transform scale-105 translate-x-2 border border-rose-500/20' : 'text-cyan-400/70 hover:text-cyan-300 hover:bg-cyan-900/20 border border-transparent'}`}>
+                    <span className="text-xl sm:text-2xl filter drop-shadow-md">⚙️</span>
+                    <span className="tracking-widest">Admin Console</span>
+                  </button>
+                </div>
               )}
             </nav>
           </div>
@@ -1654,14 +1644,13 @@ export default function App() {
       </div>
 
       {/* --- MAIN PAGE CONTENT --- */}
-      <main className={`relative z-20 max-w-7xl mx-auto px-4 sm:px-6 py-8 studio-page-wrap transition-opacity duration-1000 ${showIntroLoader ? 'opacity-0' : 'opacity-100'}`}>
+      <main className={`relative z-20 max-w-[100rem] mx-auto px-4 sm:px-8 py-8 sm:py-12 studio-page-wrap transition-opacity duration-[1500ms] ease-out ${showIntroLoader ? 'opacity-0' : 'opacity-100'}`}>
         {currentPage === 'home' && <CreatorHomeHub siteSettings={siteSettings} videos={videos} projects={projects} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} isAdmin={isAdmin} notifications={notifications} onNavigate={setCurrentPage} onInspectUser={setInspectUser} userProfile={userProfile} setSelectedProject={setSelectedProject} />}
         {currentPage === 'notifications' && <NotificationsFeed notifications={visibleNotifications} onNavigate={setCurrentPage} setActiveVideo={setActiveVideo} videos={videos} onInspectUser={setInspectUser} />}
         {currentPage === 'pending-status' && <PendingScreen userProfile={userProfile} handleNavigationChange={handleNavigationChange} handleSignOut={handleSignOut} />}
         {currentPage === 'rejected-status' && <RejectedScreen handleSignOut={handleSignOut} />}
         {currentPage === 'crew' && <CrewSection profiles={profiles} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} onInspectUser={setInspectUser} />}
         {currentPage === 'categories-view' && <CategoriesViewSection profiles={profiles} categories={categories} showToast={showToast} onInspectUser={setInspectUser} />}
-        
         {currentPage === 'vault' && <VideoVault videos={videos} projects={projects} userProfile={userProfile} showToast={showToast} isAdmin={isAdmin} pushNotification={pushNotification} activeVideo={activeVideo} setActiveVideo={setActiveVideo} onInspectUser={setInspectUser} />}
         {currentPage === 'projects' && <ProjectBoard projects={projects} tasks={tasks} videos={videos} scripts={scripts} posts={posts} userProfile={userProfile} showToast={showToast} selectedProject={selectedProject} setSelectedProject={setSelectedProject} pushNotification={pushNotification} isAdmin={isAdmin} setActiveVideo={setActiveVideo} setSelectedScriptId={setSelectedScriptId} setExpandedPost={setExpandedPost} onNavigate={setCurrentPage} />}
         {currentPage === 'scripts' && <ScriptsWorkspace scripts={scripts} projects={projects} userProfile={userProfile} isAdmin={isAdmin} showToast={showToast} pushNotification={pushNotification} selectedScriptId={selectedScriptId} setSelectedScriptId={setSelectedScriptId} />}
@@ -1669,7 +1658,7 @@ export default function App() {
         {currentPage === 'posts' && <PostsWorkspace posts={posts} projects={projects} userProfile={userProfile} showToast={showToast} pushNotification={pushNotification} isAdmin={isAdmin} onInspectUser={setInspectUser} expandedPost={expandedPost} setExpandedPost={setExpandedPost} />}
         
         {currentPage === 'profile' && (
-          !userProfile ? <div className="studio-glass p-10 rounded-[3rem] text-center max-w-md mx-auto shadow-2xl"><p className="text-slate-400 font-bold tracking-widest animate-pulse">Fetching Hologram ID...</p></div> : 
+          !userProfile ? <div className="studio-glass p-16 rounded-[4rem] text-center max-w-lg mx-auto shadow-2xl"><p className="text-cyan-400 font-bold tracking-widest animate-pulse uppercase font-mono text-sm">Fetching ID Protocol...</p></div> : 
           <MyProfileWorkspace userProfile={userProfile} categories={categories} showToast={showToast} handleSignOut={handleSignOut} isOnboarding={isProfileIncomplete} onNavigate={handleNavigationChange} />
         )}
         {currentPage === 'admin' && isAdmin && <AdminPanel profiles={profiles} siteSettings={siteSettings} ytConfig={ytConfig} syncYouTubeStats={syncYouTubeStats} userProfile={userProfile} showToast={showToast} />}
@@ -1677,14 +1666,16 @@ export default function App() {
 
       {/* --- GLOBAL USER INSPECTOR MODAL --- */}
       {targetInspectProfile && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4 animate-fadeIn" onClick={() => setInspectUser(null)}>
-          <div className="w-full max-w-sm studio-glass border border-white/20 rounded-[3rem] p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative text-center" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setInspectUser(null)} className="absolute top-5 right-5 font-bold text-slate-400 hover:text-white transition">✕</button>
-            <div className="w-24 h-24 rounded-full border-4 border-cyan-500/40 mx-auto overflow-hidden p-1 mb-4 flex items-center justify-center bg-black/50 shadow-[0_0_20px_rgba(6,182,212,0.3)]">{renderAvatar(targetInspectProfile.photoURL)}</div>
-            <div className="font-serif text-2xl font-black text-white glow-text-cyan">{targetInspectProfile.name}</div>
-            <span className="bg-cyan-900/30 text-cyan-400 border border-cyan-500/40 text-[10px] px-4 py-1.5 rounded-full font-bold mt-3 inline-block uppercase tracking-widest font-mono shadow-sm">{targetInspectProfile.workCategory} • {targetInspectProfile.role}</span>
-            <div className="my-6 text-slate-300 font-sans font-semibold text-sm px-4 leading-relaxed bg-black/40 py-4 rounded-2xl border border-white/5 shadow-inner">{targetInspectProfile.bio || "No bio parameters defined."}</div>
-            <p className="text-[9px] text-slate-500 font-mono tracking-widest uppercase">ID Mapped • {new Date(targetInspectProfile.createdAt).toLocaleDateString()}</p>
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 animate-fadeIn perspective-[2500px]" onClick={() => setInspectUser(null)}>
+          <div className="w-full max-w-md studio-glass border-t border-cyan-500/40 rounded-[3rem] sm:rounded-[4rem] p-8 sm:p-12 shadow-[0_50px_100px_rgba(0,0,0,0.9)] relative text-center animate-deepDiveIn" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setInspectUser(null)} className="absolute top-6 sm:top-8 right-6 sm:right-8 font-bold text-cyan-300 hover:text-white transition bg-cyan-950/50 border border-cyan-500/30 rounded-full w-10 h-10 sm:w-12 sm:h-12 shadow-sm flex items-center justify-center hover:scale-110">✕</button>
+            <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-[2rem] sm:rounded-[2.5rem] border-[6px] border-cyan-500/30 mx-auto overflow-hidden p-1.5 mb-6 sm:mb-8 flex items-center justify-center bg-black/80 shadow-[0_0_30px_rgba(6,182,212,0.5)]">
+              {renderAvatar(targetInspectProfile.photoURL, "w-full h-full object-cover rounded-[1.5rem] sm:rounded-[2rem]")}
+            </div>
+            <div className="font-serif text-3xl sm:text-4xl font-black text-white drop-shadow-xl mb-3 glow-text-gold">{targetInspectProfile.name}</div>
+            <span className="bg-cyan-900/40 text-cyan-300 border border-cyan-500/40 text-[9px] sm:text-[10px] px-5 sm:px-6 py-2 sm:py-2.5 rounded-xl font-black mt-2 sm:mt-3 inline-block uppercase tracking-widest font-mono shadow-md">{targetInspectProfile.workCategory} • {targetInspectProfile.role}</span>
+            <div className="my-8 sm:my-10 text-cyan-100 font-sans font-semibold text-xs sm:text-sm px-4 sm:px-6 leading-relaxed studio-input py-6 sm:py-8 rounded-[1.5rem] sm:rounded-[2rem] shadow-inner border border-cyan-500/20">{targetInspectProfile.bio || "No bio parameters defined in database."}</div>
+            <p className="text-[9px] sm:text-[10px] text-rose-500 font-mono tracking-widest uppercase font-black">ID Registered • {new Date(targetInspectProfile.createdAt).toLocaleDateString()}</p>
           </div>
         </div>
       )}
@@ -1694,122 +1685,317 @@ export default function App() {
   );
 }
 
-// --- SIGN IN MODAL ---
 function SignInModal({ handleGoogleSignIn, setShowSignInModal, showToast }) {
   const [emailMode, setEmailMode] = useState(false); const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [loading, setLoading] = useState(false);
 
   const handleEmailAuthSubmit = async (e) => {
-    e.preventDefault(); const cleanEmail = email.trim(); const cleanPassword = password.trim();
-    if (!cleanEmail || !cleanPassword) return; if (!auth || !auth.app) { showToast('Authentication mock active in offline state.', 'info'); setShowSignInModal(false); return; }
-    setLoading(true);
-    try {
-      if (isSignUp) { await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword); showToast('Created credentials!', 'success'); } 
-      else { await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword); showToast('Successfully logged in!', 'success'); }
-      setShowSignInModal(false);
-    } catch (err) { showToast(err.message.includes('auth/') ? err.message.split('auth/')[1].replace('-', ' ') : 'Authentication failed.', 'warning'); } 
-    finally { setLoading(false); }
+    e.preventDefault(); const cE = email.trim(), cP = password.trim(); if (!cE || !cP) return; if (!auth || !auth.app) { showToast('Offline state.', 'info'); setShowSignInModal(false); return; } setLoading(true);
+    try { if (isSignUp) { await createUserWithEmailAndPassword(auth, cE, cP); showToast('Created!', 'success'); } else { await signInWithEmailAndPassword(auth, cE, cP); showToast('Logged in!', 'success'); } setShowSignInModal(false); } catch (err) { showToast('Auth failed.', 'warning'); } finally { setLoading(false); }
   };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn font-sans">
-      <div className="w-full max-w-md studio-glass rounded-[3rem] p-10 shadow-[0_0_50px_rgba(220,38,38,0.2)] relative animate-fadeIn border-t border-white/20">
-        <button onClick={() => setShowSignInModal(false)} className="absolute top-6 right-6 font-bold text-slate-500 bg-white/10 rounded-full px-3 py-1 hover:bg-white/20 hover:text-white transition">✕</button>
-        <div className="font-serif text-2xl font-black text-white text-center mb-2 tracking-widest uppercase glow-text-red">Identify</div>
-        <p className="text-xs text-slate-400 text-center mb-8 font-mono uppercase tracking-wide">Establish credentials to link to studio mainframe.</p>
-        
-        {!emailMode ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 animate-fadeIn font-sans perspective-[2000px]">
+      <div className="w-full max-w-md studio-glass rounded-[3rem] p-8 sm:p-10 shadow-[0_40px_100px_rgba(0,0,0,0.9)] relative animate-deepDiveIn border-t border-cyan-500/50">
+        <button onClick={() => setShowSignInModal(false)} className="absolute top-5 sm:top-6 right-5 sm:right-6 font-bold text-cyan-300 bg-cyan-950/50 border border-cyan-500/30 rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-cyan-900 transition shadow-sm">✕</button>
+        <div className="font-serif text-3xl sm:text-4xl font-black text-white text-center mb-2 tracking-wide uppercase drop-shadow-sm glow-text-gold">Join Crew</div><p className="text-[10px] sm:text-xs text-cyan-300 text-center mb-8 sm:mb-10 font-sans font-bold uppercase tracking-widest">Establish credentials to link to studio canvas.</p>
+        {!emailMode ? ( 
           <div className="space-y-4">
-            <button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-4 py-4 studio-input hover:bg-white/10 rounded-2xl text-sm font-bold text-white transition shadow-lg border border-white/20">
-              <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.2 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.3 5.3C40.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
-              Google Override
-            </button>
-            <div className="relative flex py-2 items-center"><div className="flex-grow border-t border-white/10"></div><span className="flex-shrink mx-4 text-slate-500 text-[10px] font-bold uppercase tracking-widest">or</span><div className="flex-grow border-t border-white/10"></div></div>
-            <button onClick={() => setEmailMode(true)} className="w-full py-4 bg-slate-900 text-white text-xs font-bold rounded-2xl hover:bg-black shadow-lg transition border border-white/10 uppercase tracking-widest">✉️ Email Protocol</button>
-          </div>
-        ) : (
+            <button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-3 sm:gap-4 py-3 sm:py-4 studio-input hover:bg-white/20 rounded-2xl text-xs sm:text-sm font-bold text-white shadow-md transition border border-cyan-500/20"><svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.2 26.8 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.5l6.3 5.3C40.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Google Override</button>
+            <div className="relative flex py-3 sm:py-4 items-center"><div className="flex-grow border-t border-cyan-500/30"></div><span className="flex-shrink mx-4 text-cyan-500 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest">or</span><div className="flex-grow border-t border-cyan-500/30"></div></div>
+            <button onClick={() => setEmailMode(true)} className="w-full py-3 sm:py-4 bg-cyan-950/80 text-white text-[10px] sm:text-xs font-black rounded-2xl hover:bg-cyan-900 shadow-xl transition border border-cyan-500/30 uppercase tracking-widest">✉️ Email Protocol</button>
+          </div> 
+        ) : ( 
           <form onSubmit={handleEmailAuthSubmit} className="space-y-4 animate-fadeIn">
-            <div><label className="block text-[9px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">Email Address</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@domain.com" className="w-full px-4 py-3 studio-input rounded-xl text-sm transition-all" required /></div>
-            <div><label className="block text-[9px] font-mono text-slate-400 uppercase tracking-widest mb-1.5">Secret Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-3 studio-input rounded-xl text-sm transition-all" required /></div>
-            <button type="submit" disabled={loading} className="w-full py-4 btn-cinematic text-white text-sm font-bold uppercase tracking-widest rounded-xl mt-4">{loading ? "Authorizing..." : (isSignUp ? "Register Node" : "Access Node")}</button>
-            <div className="flex justify-between items-center pt-4 text-[10px] font-bold font-mono">
-              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-slate-400 hover:text-red-400 uppercase tracking-wider">{isSignUp ? "Already Registered?" : "Need Access?"}</button>
-              <button type="button" onClick={() => setEmailMode(false)} className="text-slate-500 hover:text-white uppercase tracking-wider">◀ Abort</button>
-            </div>
-          </form>
+            <div><label className="block text-[8px] sm:text-[9px] font-mono font-bold text-cyan-300 uppercase tracking-widest mb-2">Email Address</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@domain.com" className="w-full px-4 sm:px-5 py-3 sm:py-4 studio-input border-cyan-500/30 shadow-inner rounded-xl text-xs sm:text-sm font-bold text-white transition-all focus:ring-2 focus:ring-cyan-500" required /></div>
+            <div><label className="block text-[8px] sm:text-[9px] font-mono font-bold text-cyan-300 uppercase tracking-widest mb-2">Secret Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 sm:px-5 py-3 sm:py-4 studio-input border-cyan-500/30 shadow-inner rounded-xl text-xs sm:text-sm font-bold text-white transition-all focus:ring-2 focus:ring-cyan-500" required /></div>
+            <button type="submit" disabled={loading} className="w-full py-3 sm:py-4 btn-cinematic border border-cyan-500/50 text-white text-xs sm:text-sm font-black uppercase tracking-widest rounded-xl mt-4 shadow-xl">{loading ? "Authorizing..." : (isSignUp ? "Register Node" : "Access Node")}</button>
+            <div className="flex justify-between items-center pt-4 sm:pt-5 text-[9px] sm:text-[10px] font-bold font-mono"><button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-cyan-400 hover:text-cyan-300 uppercase tracking-wider transition-colors">{isSignUp ? "Already Registered?" : "Need Access?"}</button><button type="button" onClick={() => setEmailMode(false)} className="text-slate-400 hover:text-white uppercase tracking-wider transition-colors">◀ Abort</button></div>
+          </form> 
         )}
-        <p className="text-[9px] text-slate-600 font-mono text-center mt-8 uppercase tracking-widest">Unrecognized signatures held for manual review.</p>
       </div>
     </div>
   );
 }
 
-// --- HOMEPAGE HUB ---
 function CreatorHomeHub({ siteSettings, videos, projects, ytConfig, syncYouTubeStats, isAdmin, notifications, onNavigate, onInspectUser, userProfile, setSelectedProject }) {
-  const studioUpdates = useMemo(() => {
-    return (notifications || []).filter(n => n && n.message && !String(n.message).startsWith('"') && n.actor !== 'System' && n.actor !== userProfile?.name);
-  }, [notifications, userProfile]);
-
+  const studioUpdates = useMemo(() => notifications.filter(n => n && n.message && !String(n.message).startsWith('"') && n.actor !== 'System' && n.actor !== userProfile?.name), [notifications, userProfile]);
+  const stats = [ 
+    { label: 'YouTube Subs', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${formatTimeAMPM(ytConfig.lastSyncedAt)}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[8px] sm:text-[9px] bg-cyan-950/50 text-cyan-300 font-black px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border border-cyan-500/30 hover:bg-cyan-900 transition mt-3 sm:mt-4 uppercase tracking-widest font-mono shadow-sm backdrop-blur">🔄 Ping API</button>) : null }, 
+    { label: 'Latest Video Views', value: ytConfig?.latestVideoViews || '—', icon: '📺', change: ytConfig?.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null }, 
+    { label: 'Vault Records', value: `${videos?.length || 0} Masters`, icon: '🎬', change: 'Cloud storage linked', action: null }, 
+    { label: 'Active Boards', value: `${projects?.length || 0} Open`, icon: '📌', change: 'Live collaboration sync', action: null } 
+  ];
   return (
-    <section className="space-y-12 py-4 animate-fadeIn font-sans">
-      <ScrollReveal className="text-center py-10" delay={200}>
-        <h1 className="font-serif text-4xl sm:text-6xl md:text-7xl font-black text-white uppercase tracking-widest leading-none glow-text-red drop-shadow-2xl">{siteSettings?.logoText || 'STUDIO'}</h1>
-        <p className="text-slate-400 font-mono uppercase tracking-widest text-xs sm:text-sm mt-6 bg-black/40 inline-block px-4 py-2 rounded-full border border-white/10 shadow-inner">Command Center & Asset Master</p>
+    <section className="space-y-12 sm:space-y-20 py-6 sm:py-10 font-sans">
+      <ScrollReveal className="text-center py-10 sm:py-16" delay={200}>
+        <h1 className="font-serif text-4xl sm:text-6xl md:text-[8rem] font-black text-white uppercase tracking-tighter leading-none glow-text-cyan drop-shadow-2xl translate-z-[100px]">{siteSettings?.logoText || 'YOUTUBERS'}</h1>
+        <p className="text-cyan-200 font-sans uppercase tracking-widest text-[10px] sm:text-xs md:text-sm mt-6 sm:mt-10 bg-black/50 backdrop-blur-2xl inline-block px-6 sm:px-10 py-3 sm:py-4 rounded-full border border-cyan-500/40 shadow-[0_0_30px_rgba(6,182,212,0.5)] font-bold">Creative Pipeline Canvas</p>
       </ScrollReveal>
-
-      <ScrollReveal className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" delay={400}>
-        {[
-          { label: 'YouTube Subscribers', value: ytConfig?.subscribers || '—', icon: '📈', change: ytConfig?.lastError ? `⚠ ${ytConfig.lastError}` : (ytConfig?.lastSyncedAt ? `Synced ${formatTimeAMPM(ytConfig.lastSyncedAt)}` : 'Not synced yet'), action: isAdmin ? (<button onClick={() => syncYouTubeStats()} className="text-[9px] bg-red-600/20 text-red-400 font-black px-3 py-1.5 rounded border border-red-500/30 hover:bg-red-600/40 transition mt-3 uppercase tracking-widest font-mono">🔄 Ping API</button>) : null },
-          { label: 'Latest Video Views', value: ytConfig?.latestVideoViews || '—', icon: '📺', change: ytConfig?.latestVideoTitle ? `"${ytConfig.latestVideoTitle.substring(0, 24)}..."` : '—', action: null },
-          { label: 'Vault Records', value: `${videos?.length || 0} Masters`, icon: '🎬', change: 'Cloud storage linked', action: null },
-          { label: 'Active Boards', value: `${projects?.length || 0} Open`, icon: '📌', change: 'Live collaboration sync', action: null },
-        ].map((stat, idx) => (
-          <div key={idx} className="studio-glass rounded-3xl p-6 shadow-2xl hover:-translate-y-2 hover:shadow-[0_20px_50px_rgba(220,38,38,0.15)] transition-all duration-500 flex flex-col justify-between h-48 border-t border-white/20 group">
-            <div><div className="flex justify-between items-start text-slate-400 mb-2"><span className="text-[10px] uppercase font-black tracking-widest font-mono">{stat.label}</span><span className="text-2xl group-hover:scale-110 transition-transform">{stat.icon}</span></div><p className="text-3xl font-black text-white font-serif leading-none mt-2">{stat.value}</p></div>
-            <div className="mt-2"><span className="text-[10px] text-red-400 font-bold block truncate font-mono uppercase tracking-wider">{stat.change}</span>{stat.action}</div>
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-10">
+        {stats.map((s, idx) => ( 
+          <ScrollReveal key={idx} delay={idx * 100}>
+            <Hover3DCard className="h-56 sm:h-64 w-full cursor-pointer">
+              <div className="w-full h-full studio-glass rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-8 shadow-2xl hover:shadow-[0_40px_100px_rgba(6,182,212,0.4)] flex flex-col justify-between group border-t border-cyan-500/40 bg-black/40">
+                <div>
+                  <div className="flex justify-between items-start text-cyan-300 mb-3 sm:mb-4"><span className="text-[9px] sm:text-[11px] uppercase font-black tracking-widest font-mono drop-shadow-sm">{s.label}</span><span className="text-3xl sm:text-5xl group-hover:scale-125 transition-transform filter drop-shadow-lg group-hover:-translate-y-2">{s.icon}</span></div>
+                  <p className="text-3xl sm:text-5xl font-black text-white font-serif leading-none mt-2 drop-shadow-lg group-hover:text-amber-400 transition-colors">{s.value}</p>
+                </div>
+                <div className="mt-2"><span className="text-[9px] sm:text-[11px] text-rose-500 font-black block truncate font-mono uppercase tracking-widest">{s.change}</span>{s.action}</div>
+              </div>
+            </Hover3DCard>
+          </ScrollReveal> 
         ))}
-      </ScrollReveal>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <ScrollReveal className="studio-glass p-8 rounded-[2.5rem] shadow-2xl border-t border-white/20" delay={600}>
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
-            <h3 className="font-serif text-xl font-black text-white glow-text-red">📢 Broadcast Log</h3>
-            <span className="bg-red-600/20 text-red-400 border border-red-500/30 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded shadow-sm">Live Feed</span>
-          </div>
-          <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-3">
-            {studioUpdates.map(notif => (
-              <div key={notif.id} className="text-sm leading-relaxed border-l-2 border-red-600/50 pl-4 py-1 animate-fadeIn bg-white/5 rounded-r-lg pr-3">
-                <span className="font-bold text-white cursor-pointer hover:text-red-400 transition-colors" onClick={() => onInspectUser(notif.authorUid)}>{notif.actor}:{' '}</span>
-                <span className="text-slate-300 font-semibold">{notif.message}</span>
-                <p className="text-[10px] text-slate-500 mt-1.5 font-mono font-bold tracking-widest uppercase">{formatTimeAMPM(notif.timestamp)}</p>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12">
+        <ScrollReveal delay={400}>
+          <Hover3DCard className="h-full w-full">
+            <div className="studio-glass p-8 sm:p-14 rounded-[3rem] sm:rounded-[4rem] shadow-2xl border-t border-cyan-500/40 h-full bg-black/40">
+              <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4 sm:pb-6 mb-6 sm:mb-8"><h3 className="font-serif text-2xl sm:text-3xl font-black text-white drop-shadow-md glow-text-cyan">📢 Broadcast Log</h3><span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl shadow-md">Live Feed</span></div>
+              <div className="space-y-4 sm:space-y-6 max-h-[300px] sm:max-h-[400px] overflow-y-auto custom-scrollbar pr-3 sm:pr-4">
+                {studioUpdates.map(n => (
+                  <div key={n.id} className="text-sm sm:text-base leading-relaxed border-l-[3px] sm:border-l-[4px] border-amber-500 pl-4 sm:pl-6 py-3 sm:py-4 animate-fadeIn bg-black/40 rounded-r-[1.5rem] sm:rounded-r-3xl pr-4 sm:pr-5 shadow-sm backdrop-blur">
+                    <span className="font-black text-white cursor-pointer hover:text-amber-400 transition-colors drop-shadow-sm" onClick={() => onInspectUser(n.authorUid)}>{n.actor}: </span>
+                    <span className="text-cyan-100 font-semibold">{n.message}</span>
+                    <p className="text-[8px] sm:text-[10px] text-cyan-400 mt-2 sm:mt-2.5 font-mono font-bold tracking-widest uppercase">{formatTimeAMPM(n.timestamp)}</p>
+                  </div>
+                ))}
+                {studioUpdates.length === 0 && <p className="text-xs sm:text-sm text-slate-500 font-mono font-bold uppercase tracking-widest text-center py-10 sm:py-16">System log empty.</p>}
               </div>
-            ))}
-            {studioUpdates.length === 0 && <p className="text-xs text-slate-500 font-mono uppercase tracking-widest text-center py-10">System log empty.</p>}
-          </div>
+            </div>
+          </Hover3DCard>
         </ScrollReveal>
-
-        <ScrollReveal className="studio-glass p-8 rounded-[2.5rem] shadow-2xl border-t border-white/20" delay={700}>
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
-            <h3 className="font-serif text-xl font-black text-white glow-text-cyan">📌 Pinned Timelines</h3>
-            <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded shadow-sm">Active</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-            {projects.slice(0, 6).map(p => (
-              <div key={p.id} onClick={() => { setSelectedProject(p); onNavigate('projects'); }} className="studio-input p-5 rounded-2xl cursor-pointer hover:bg-white/10 hover:border-cyan-500/50 transition-all duration-300 shadow-sm group">
-                <p className="text-sm font-black text-white truncate group-hover:text-cyan-400">{p.title}</p>
-                <p className="text-[10px] text-slate-500 font-mono font-bold mt-2 tracking-widest uppercase">Expires: {getExpiry30(p.createdAt)}</p>
+        <ScrollReveal delay={500}>
+          <Hover3DCard className="h-full w-full">
+            <div className="studio-glass p-8 sm:p-14 rounded-[3rem] sm:rounded-[4rem] shadow-2xl border-t border-cyan-500/40 h-full bg-black/40">
+              <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4 sm:pb-6 mb-6 sm:mb-8"><h3 className="font-serif text-2xl sm:text-3xl font-black text-white drop-shadow-md glow-text-gold">📌 Pinned Timelines</h3><span className="bg-rose-500/20 text-rose-500 border border-rose-500/30 text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl shadow-md">Active</span></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-h-[300px] sm:max-h-[400px] overflow-y-auto custom-scrollbar pr-2 sm:pr-3">
+                {projects.slice(0, 6).map(p => (
+                  <div key={p.id} onClick={() => { setSelectedProject(p); onNavigate('projects'); }} className="w-full h-full studio-input p-6 sm:p-8 rounded-[1.5rem] sm:rounded-3xl cursor-pointer hover:bg-black/60 hover:border-amber-400/50 transition-all duration-300 shadow-lg group border-cyan-500/20 hover:scale-105">
+                    <p className="text-base sm:text-lg font-black text-white truncate group-hover:text-amber-400 drop-shadow-sm">{p.title}</p>
+                    <p className="text-[8px] sm:text-[10px] text-cyan-500 font-mono font-bold mt-3 sm:mt-4 tracking-widest uppercase">Expires: {getExpiry30(p.createdAt)}</p>
+                  </div>
+                ))}
+                {projects.length === 0 && <p className="text-xs sm:text-sm text-slate-500 font-mono font-bold uppercase tracking-widest text-center py-10 sm:py-16 col-span-1 sm:col-span-2">No boards established.</p>}
               </div>
-            ))}
-            {projects.length === 0 && <p className="text-xs text-slate-500 font-mono uppercase tracking-widest text-center py-10 col-span-2">No boards established.</p>}
-          </div>
+            </div>
+          </Hover3DCard>
         </ScrollReveal>
       </div>
     </section>
   );
 }
 
-// --- MY PROFILE WORKSPACE ---
+function NotificationsFeed({ notifications, onNavigate, setActiveVideo, videos, onInspectUser }) {
+  const handleNotificationClick = (notif) => {
+    const msg = (notif.message || '').toLowerCase();
+    if (msg.includes('video asset') || msg.includes('commented on video')) { onNavigate('vault'); const match = videos.find(v => msg.includes(v.title.toLowerCase())); if (match) setActiveVideo(match); } else if (msg.includes('concept whiteboard') || msg.includes('task') || msg.includes('project')) { onNavigate('projects'); } else if (msg.includes('script topic')) { onNavigate('scripts'); } else if (msg.includes('showroom draft') || msg.includes('showroom feed') || msg.includes('instagram')) { onNavigate('posts'); } else if (msg.startsWith('"')) { onNavigate('chat'); } else { onNavigate('home'); }
+  };
+  const sortedNotifs = useMemo(() => [...notifications].sort((a, b) => b.timestamp - a.timestamp), [notifications]);
+  return (
+    <ScrollReveal className="studio-glass p-8 sm:p-16 rounded-[3rem] sm:rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.9)] max-w-5xl mx-auto min-h-[75vh] flex flex-col border-t border-cyan-500/50 bg-black/60 mt-6 sm:mt-10">
+      <div className="flex items-center justify-between border-b border-cyan-500/20 pb-6 sm:pb-8 mb-8 sm:mb-10"><h2 className="font-serif text-3xl sm:text-4xl font-black text-white flex items-center gap-4 sm:gap-5 glow-text-cyan">📡 Radar / Updates Log</h2></div>
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 sm:pr-4 space-y-4 sm:space-y-6">
+        {sortedNotifs.map((n, idx) => (
+          <ScrollReveal key={n.id} delay={idx * 50}>
+            <div onClick={() => handleNotificationClick(n)} className="flex items-start gap-4 sm:gap-6 p-6 sm:p-8 studio-input rounded-[1.5rem] sm:rounded-3xl hover:border-amber-400/50 hover:bg-black/80 cursor-pointer transition-all duration-300 shadow-lg border-cyan-500/20 group">
+              <div className="mt-1.5 sm:mt-2 w-3 h-3 sm:w-4 sm:h-4 bg-amber-500 rounded-full shrink-0 shadow-[0_0_20px_rgba(245,158,11,0.8)] group-hover:scale-150 transition-transform" />
+              <div className="flex-1 min-w-0">
+                <p className="text-base sm:text-xl font-black text-white leading-snug drop-shadow-md">{n.message}</p>
+                <div className="flex items-center gap-3 sm:gap-4 mt-3 sm:mt-5">
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-cyan-300 hover:text-amber-400 transition-colors" onClick={(e) => { e.stopPropagation(); onInspectUser(n.authorUid); }}>{n.actor}</span>
+                  <span className="text-slate-600 text-[10px] sm:text-xs font-black">•</span>
+                  <span className="text-[8px] sm:text-[10px] font-mono text-rose-500 font-bold tracking-widest uppercase">{formatDateTimeAMPM(n.timestamp)}</span>
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
+        ))}
+        {sortedNotifs.length === 0 && <div className="text-center py-32 sm:py-40 text-slate-500 font-mono font-bold tracking-widest uppercase text-sm sm:text-base">Radar clear. No recent activity.</div>}
+      </div>
+    </ScrollReveal>
+  );
+}
+
+function CrewSection({ profiles, userProfile, showToast, isAdmin, onInspectUser }) {
+  const [focusIdx, setFocusIdx] = useState(0); const [memberToDelete, setMemberToDelete] = useState(null);
+  const approvedProfiles = useMemo(() => profiles.filter(p => p.status === 'approved'), [profiles]);
+  const removeMember = async () => { if (!memberToDelete || !db || !db.app) return; try { await deleteDoc(doc(db, 'profiles', memberToDelete.id)); showToast('Crew member removed.', 'success'); } catch (err) { showToast('Failed to remove.', 'warning'); } setMemberToDelete(null); };
+
+  if (approvedProfiles.length === 0) return <div className="text-center text-slate-500 font-mono font-bold tracking-widest py-40 uppercase text-base">Database empty.</div>;
+  return (
+    <section className="py-8 sm:py-10 animate-fadeIn grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12">
+      <ScrollReveal className="lg:col-span-1 studio-glass p-8 sm:p-12 rounded-[3rem] sm:rounded-[4rem] text-center shadow-2xl h-fit border-t border-cyan-500/50 bg-black/60">
+        <div className="w-32 h-32 sm:w-48 sm:h-48 rounded-full border-[4px] sm:border-[6px] border-cyan-500/20 mx-auto overflow-hidden p-1.5 sm:p-2 mb-8 sm:mb-10 flex items-center justify-center bg-black/50 shadow-[0_0_50px_rgba(6,182,212,0.4)] hover:scale-105 transition-transform cursor-pointer">{renderAvatar(approvedProfiles[focusIdx]?.photoURL, "w-full h-full object-cover rounded-full", () => onInspectUser(approvedProfiles[focusIdx]?.id))}</div>
+        <div className="font-serif text-4xl sm:text-5xl font-black text-white cursor-pointer hover:text-amber-400 transition-colors glow-text-gold" onClick={() => onInspectUser(approvedProfiles[focusIdx]?.id)}>{approvedProfiles[focusIdx]?.name}</div>
+        <p className="text-xs sm:text-sm font-mono text-cyan-300 mt-3 sm:mt-4 tracking-widest uppercase font-bold">{approvedProfiles[focusIdx]?.email}</p>
+        <span className="bg-cyan-950/50 text-cyan-400 border border-cyan-500/40 text-[10px] sm:text-xs px-6 sm:px-8 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-black mt-6 sm:mt-8 inline-block shadow-lg uppercase tracking-widest">{approvedProfiles[focusIdx]?.role}</span>
+        {approvedProfiles[focusIdx]?.bio && <p className="text-sm sm:text-base text-cyan-100 mt-8 sm:mt-10 studio-input p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] font-semibold leading-relaxed shadow-inner border border-white/10 bg-black/40">"{approvedProfiles[focusIdx].bio}"</p>}
+      </ScrollReveal>
+      <ScrollReveal className="lg:col-span-2 studio-glass p-8 sm:p-12 rounded-[3rem] sm:rounded-[4rem] shadow-2xl max-h-[600px] sm:max-h-[800px] overflow-y-auto custom-scrollbar border-t border-cyan-500/50 bg-black/60" delay={200}>
+        <h4 className="font-serif font-black text-3xl sm:text-4xl border-b border-cyan-500/20 pb-6 sm:pb-8 mb-8 sm:mb-10 text-white drop-shadow-md glow-text-cyan">Production Roster</h4>
+        <div className="space-y-4 sm:space-y-6 pr-2 sm:pr-3">
+          {profiles.map((p) => (
+            <LongPressable key={p.id} onLongPress={() => { if (isAdmin && (p.email || '').toLowerCase() !== ADMIN_EMAIL) setMemberToDelete(p); }} className="flex justify-between items-center p-5 sm:p-6 studio-input rounded-[2rem] sm:rounded-[2.5rem] hover:bg-black/60 transition-all shadow-lg cursor-pointer border border-cyan-500/20 group hover:scale-[1.02] hover:border-amber-500/50">
+              <div className="flex items-center space-x-4 sm:space-x-6 min-w-0 flex-1">
+                <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 sm:border-4 border-cyan-500/20 p-1 flex items-center justify-center bg-black shadow-md shrink-0 group-hover:border-amber-400 transition-colors">{renderAvatar(p.photoURL, "w-full h-full object-cover rounded-full", () => onInspectUser(p.id))}</div>
+                <div className="cursor-pointer min-w-0 flex-1" onClick={() => setFocusIdx(approvedProfiles.indexOf(p) !== -1 ? approvedProfiles.indexOf(p) : 0)}>
+                  <p className="text-xl sm:text-2xl font-black text-white truncate group-hover:text-amber-400 transition-colors drop-shadow-sm" onClick={() => onInspectUser(p.id)}>{p.name}</p>
+                  <span className="text-[9px] sm:text-[11px] font-mono font-bold text-slate-400 block truncate mt-2 sm:mt-3 tracking-widest uppercase">{p.email} • {p.role} • {p.workCategory}</span>
+                </div>
+              </div>
+            </LongPressable>
+          ))}
+        </div>
+      </ScrollReveal>
+      {memberToDelete && <LongPressMenu title={`Expel ${memberToDelete.name}?`} onConfirm={removeMember} onCancel={() => setMemberToDelete(null)} confirmText="Confirm Expulsion" />}
+    </section>
+  );
+}
+
+function CategoriesViewSection({ profiles, categories, showToast, onInspectUser }) {
+  const [activeCategory, setActiveCategory] = useState(categories[0] || 'Editing'); const [newCatInput, setNewCustomCategory] = useState('');
+  const handleAddCategory = async (e) => { e.preventDefault(); const clean = newCatInput.trim(); if (!clean || !db || !db.app) return; if (categories.some(c => c.toLowerCase() === clean.toLowerCase())) { showToast('Category exists.', 'warning'); return; } await setDoc(doc(db, 'meta/categories'), { list: arrayUnion(clean) }, { merge: true }); setActiveCategory(clean); setNewCustomCategory(''); showToast(`Category added.`, 'success'); };
+  const matchedMembers = useMemo(() => profiles.filter(p => p.status === 'approved' && p.workCategory === activeCategory), [profiles, activeCategory]);
+
+  return (
+    <section className="py-6 sm:py-8 animate-fadeIn grid grid-cols-1 lg:grid-cols-4 gap-8 sm:gap-12">
+      <ScrollReveal className="lg:col-span-1 studio-glass p-8 sm:p-10 rounded-[3rem] shadow-2xl space-y-8 sm:space-y-10 border-t border-cyan-500/50 bg-black/60">
+        <div><h4 className="font-serif text-xl sm:text-2xl font-black text-white mb-5 sm:mb-6 drop-shadow-sm glow-text-cyan">Define Sub-Routine</h4><form onSubmit={handleAddCategory} className="space-y-4 sm:space-y-5"><input type="text" value={newCatInput} onChange={(e) => setNewCustomCategory(e.target.value)} placeholder="e.g. CGI Artist" className="w-full px-5 sm:px-6 py-4 sm:py-5 studio-input rounded-xl sm:rounded-2xl text-[10px] sm:text-sm font-bold uppercase tracking-widest border border-cyan-500/20 shadow-inner focus:ring-4 focus:ring-amber-500/30" required /><button type="submit" className="w-full py-4 sm:py-5 btn-cinematic text-white text-[9px] sm:text-[11px] font-black uppercase tracking-widest rounded-xl sm:rounded-2xl shadow-lg border border-white/20">Append Tag</button></form></div>
+        <div className="pt-6 sm:pt-8 border-t border-cyan-500/20 space-y-3 sm:space-y-4"><span className="text-[9px] sm:text-[11px] font-black text-rose-500 uppercase tracking-widest block mb-4 sm:mb-6 drop-shadow-sm font-mono">Active Divisions</span>{categories.map((cat, idx) => (<button key={idx} onClick={() => setActiveCategory(cat)} className={`w-full text-left px-5 sm:px-6 py-4 sm:py-5 rounded-xl sm:rounded-2xl text-[11px] sm:text-sm font-bold uppercase tracking-wider transition-all duration-300 shadow-md border ${activeCategory === cat ? 'bg-cyan-600/30 text-cyan-400 border-cyan-500/50 transform scale-105' : 'studio-input text-cyan-200 hover:text-white hover:bg-black/40 border-cyan-500/20'}`}>🎬 {cat}</button>))}</div>
+      </ScrollReveal>
+      <ScrollReveal className="lg:col-span-3 studio-glass p-8 sm:p-14 rounded-[3rem] sm:rounded-[4rem] shadow-2xl space-y-8 sm:space-y-10 border-t border-cyan-500/50 bg-black/60" delay={200}>
+        <div className="flex justify-between items-center border-b border-cyan-500/20 pb-6 sm:pb-8"><h3 className="font-serif text-3xl sm:text-5xl font-black text-white drop-shadow-md glow-text-gold">Division: <span className="text-cyan-500">{activeCategory}</span></h3><span className="text-[10px] sm:text-sm bg-black/40 border border-cyan-500/30 px-5 sm:px-8 py-2 sm:py-3 rounded-xl sm:rounded-2xl font-mono font-black text-white uppercase tracking-widest shadow-lg backdrop-blur-md">{matchedMembers.length} Operatives</span></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 pt-4 sm:pt-6">
+          {matchedMembers.map((member, idx) => (
+            <ScrollReveal key={member.id} delay={idx * 100} className="flex items-center space-x-4 sm:space-x-6 p-5 sm:p-6 studio-input rounded-[2rem] sm:rounded-[2.5rem] hover:border-amber-500/40 hover:bg-black/60 transition-all cursor-pointer group shadow-lg border border-cyan-500/20 hover:scale-[1.03]">
+              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full border-2 sm:border-4 border-white/10 bg-black overflow-hidden p-0.5 sm:p-1 flex items-center justify-center shrink-0 shadow-md group-hover:border-rose-400 transition-colors">{renderAvatar(member.photoURL, "w-full h-full object-cover rounded-full", () => onInspectUser(member.id))}</div>
+              <div className="min-w-0"><h5 className="font-black text-lg sm:text-2xl text-white truncate group-hover:text-amber-400 transition-colors drop-shadow-sm" onClick={() => onInspectUser(member.id)}>{member.name}</h5><p className="text-[9px] sm:text-[11px] text-slate-400 font-mono tracking-widest uppercase mt-1.5 sm:mt-2 truncate font-bold">{member.email}</p><span className="inline-block bg-cyan-900/30 text-cyan-400 border border-cyan-500/40 text-[8px] sm:text-[10px] font-black px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl mt-3 sm:mt-4 uppercase tracking-widest shadow-sm">{member.role}</span></div>
+            </ScrollReveal>
+          ))}
+          {matchedMembers.length === 0 && <div className="col-span-full py-32 sm:py-40 text-center text-slate-500 font-mono font-bold tracking-widest uppercase text-sm sm:text-base">No operatives found in this division.</div>}
+        </div>
+      </ScrollReveal>
+    </section>
+  );
+}
+
+function PostsWorkspace({ posts, projects, userProfile, showToast, pushNotification, isAdmin, onInspectUser, expandedPost, setExpandedPost }) {
+  const [postTitle, setPostTitle] = useState(''); const [postText, setPostText] = useState(''); const [relatedProjectId, setRelatedProjectId] = useState(''); const [showCreateModal, setShowCreatePostModal] = useState(false); const [publishing, setPublishing] = useState(false); const [postToDelete, setPostToDelete] = useState(null); const [commentToDelete, setCommentToDelete] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const publishPost = async (e) => { e.preventDefault(); const file = fileInputRef.current?.files[0]; if (!postTitle.trim() || !file || !db || !db.app) return; setPublishing(true); try { const compressedString = await compressAndConvertImage(file, 500); await addDoc(collection(db, 'posts'), { title: postTitle.trim(), description: postText.trim(), image: compressedString, relatedProjectId: relatedProjectId, authorName: userProfile.name, authorAvatar: userProfile.photoURL, authorUid: userProfile.id, likes: 0, likedBy: [], comments: [], createdAt: Date.now() }); pushNotification(`Pushed to gallery: "${postTitle}"`, 'post', {}, userProfile.name); setPostTitle(''); setPostText(''); setRelatedProjectId(''); setShowCreatePostModal(false); showToast('Asset injected to gallery.', 'success'); } catch (err) { showToast('Injection failed.', 'warning'); } finally { setPublishing(false); } };
+  const toggleLikePost = async (post) => { if (!db || !db.app) return; const hasLiked = post.likedBy?.includes(userProfile.id); const newLikedBy = hasLiked ? post.likedBy.filter(u => u !== userProfile.id) : [...(post.likedBy || []), userProfile.id]; await updateDoc(doc(db, 'posts', post.id), { likedBy: newLikedBy, likes: newLikedBy.length }); if (expandedPost?.id === post.id) { setExpandedPost({ ...expandedPost, likedBy: newLikedBy, likes: newLikedBy.length }); } };
+  const handleAddPostComment = async (e, postId) => { e.preventDefault(); if (!db || !db.app) return; const commentVal = e.target.commentInputText.value.trim(); if (!commentVal) return; const newComment = { id: 'pc_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentVal, timestamp: Date.now() }; await updateDoc(doc(db, 'posts', postId), { comments: arrayUnion(newComment) }); pushNotification(`Analyzed gallery asset 📸`, 'post', {}, userProfile?.name, 'admin'); e.target.commentInputText.value = ''; showToast('Analysis appended.', 'success'); if (expandedPost?.id === postId) { setExpandedPost({ ...expandedPost, comments: [...(expandedPost.comments || []), newComment] }); } };
+  const removePost = async () => { if (!postToDelete || !db || !db.app) return; await deleteDoc(doc(db, 'posts', postToDelete)); if (expandedPost?.id === postToDelete) setExpandedPost(null); setPostToDelete(null); showToast("Asset purged.", "info"); };
+  const removePostComment = async () => { if (!commentToDelete || !db || !db.app) return; const { postId, postComments, commentId } = commentToDelete; const updatedComments = postComments.filter(x => x.id !== commentId); await updateDoc(doc(db, 'posts', postId), { comments: updatedComments }); if (expandedPost?.id === postId) { setExpandedPost({ ...expandedPost, comments: updatedComments }); } setCommentToDelete(null); showToast("Analysis redacted.", "info"); };
+
+  if (expandedPost) {
+    return (
+      <ScrollReveal className="studio-glass min-h-[85vh] sm:rounded-[4rem] border-t border-cyan-500/50 shadow-[0_50px_100px_rgba(0,0,0,0.9)] flex flex-col font-sans relative z-30 overflow-hidden bg-black/60 mt-10">
+        <div className="p-8 border-b border-white/10 flex items-center gap-5 shrink-0 bg-white/5 backdrop-blur-2xl">
+          <button onClick={() => setExpandedPost(null)} className="p-4 hover:bg-white/20 bg-white/10 rounded-full transition shadow-md border border-white/20 text-white"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
+          <span className="font-serif font-black text-white text-2xl tracking-widest uppercase drop-shadow-sm glow-text-cyan">Return to Gallery</span>
+        </div>
+        <div className="flex flex-col md:flex-row flex-1 min-h-0 bg-transparent backdrop-blur-xl">
+          <div className="md:w-3/5 bg-black/90 flex items-center justify-center p-12 border-r border-white/10 shadow-[inset_0_0_100px_rgba(0,0,0,1)]">
+            <img src={expandedPost.image} alt={expandedPost.title} className="max-w-full max-h-[70vh] object-contain rounded-[2rem] shadow-[0_0_50px_rgba(255,255,255,0.1)] border border-white/10" />
+          </div>
+          <div className="md:w-2/5 flex flex-col bg-black/40 shrink-0 backdrop-blur-3xl">
+            <div className="p-8 border-b border-white/10 flex items-center justify-between bg-white/5">
+              <div className="flex items-center gap-5">
+                <div className="w-16 h-16 rounded-full border-2 border-white/20 p-1 bg-black shadow-lg">{renderAvatar(expandedPost.authorAvatar, "w-full h-full object-cover rounded-full", () => { setExpandedPost(null); onInspectUser(expandedPost.authorUid); })}</div>
+                <div>
+                  <p className="font-black text-2xl text-white cursor-pointer hover:text-cyan-400 transition-colors drop-shadow-md" onClick={() => { setExpandedPost(null); onInspectUser(expandedPost.authorUid); }}>{expandedPost.authorName}</p>
+                  <p className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-400 drop-shadow-sm mt-1">{formatDateTimeAMPM(expandedPost.createdAt)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-8 overflow-y-auto custom-scrollbar flex-1 border-b border-white/10">
+              <LongPressable onLongPress={() => { if (isAdmin || expandedPost.authorUid === userProfile?.id) setPostToDelete(expandedPost.id); }} className="cursor-pointer hover:bg-white/5 p-6 -mx-2 rounded-[2.5rem] transition border border-transparent hover:border-white/10 shadow-lg mb-6 bg-black/20">
+                <h3 className="font-black text-3xl text-white mb-5 font-serif drop-shadow-lg tracking-wide uppercase">{expandedPost.title}</h3>
+                {expandedPost.description && <p className="text-base font-semibold text-slate-300 leading-relaxed whitespace-pre-wrap drop-shadow-sm">{expandedPost.description}</p>}
+              </LongPressable>
+              <div className="space-y-5 mt-8 pt-8 border-t border-dashed border-white/20">
+                <h4 className="font-black text-[11px] text-slate-500 uppercase tracking-[0.2em] mb-6 border-b border-white/10 pb-4 drop-shadow-sm">Analysis Logs</h4>
+                {(expandedPost.comments || []).map((c, i) => (
+                  <LongPressable key={i} onLongPress={() => { if (isAdmin || c.authorName === userProfile.name) setCommentToDelete({ postId: expandedPost.id, postComments: expandedPost.comments, commentId: c.id }); }} className="flex justify-between items-start group text-base p-6 studio-input rounded-3xl hover:border-cyan-500/50 hover:bg-white/10 cursor-pointer transition shadow-lg border border-white/10 bg-black/40">
+                    <div className="flex flex-col gap-2 min-w-0 pr-2">
+                      <span className="font-black text-white cursor-pointer hover:text-cyan-400 transition-colors drop-shadow-sm" onClick={(e) => { e.stopPropagation(); setExpandedPost(null); onInspectUser(c.authorUid); }}>{c.authorName}</span>
+                      <span className="text-slate-300 font-semibold leading-relaxed drop-shadow-sm">{c.text}</span>
+                    </div>
+                  </LongPressable>
+                ))}
+                {(!expandedPost.comments || expandedPost.comments.length === 0) && <p className="text-sm text-slate-500 font-mono tracking-widest uppercase text-center py-16 italic drop-shadow-sm border border-dashed border-white/10 rounded-[2rem] m-2 bg-black/20">No data appended.</p>}
+              </div>
+            </div>
+            <div className="p-8 bg-white/5 shrink-0 rounded-br-[4rem]">
+              <div className="flex items-center gap-5 mb-8">
+                <button onClick={() => toggleLikePost(expandedPost)} className="text-5xl transition-transform active:scale-125 filter drop-shadow-[0_0_20px_rgba(6,182,212,0.5)] hover:scale-110">{expandedPost.likedBy?.includes(userProfile?.id) ? '❤️' : '🤍'}</button>
+                <span className="font-black text-2xl text-white drop-shadow-md uppercase tracking-wider">{expandedPost.likes || 0} Approvals</span>
+              </div>
+              <form onSubmit={(e) => handleAddPostComment(e, expandedPost.id)} className="flex gap-4">
+                <div className="w-14 h-14 rounded-full border-2 border-white/20 p-1 bg-black hidden sm:block shrink-0 shadow-lg">{renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}</div>
+                <input name="commentInputText" type="text" placeholder="Append analysis..." className="flex-1 px-6 py-4 studio-input border border-white/10 shadow-inner rounded-2xl text-base font-bold text-white placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/40 transition-all bg-black/40" required />
+                <button type="submit" className="btn-cinematic text-white rounded-2xl font-black px-8 text-sm uppercase tracking-widest shadow-xl border border-cyan-500/50">Append</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {postToDelete && <LongPressMenu title="Purge this entire asset record?" onConfirm={removePost} onCancel={() => setPostToDelete(null)} confirmText="Purge Asset" />}
+        {commentToDelete && <LongPressMenu title="Redact this analysis?" onConfirm={removePostComment} onCancel={() => setCommentToDelete(null)} confirmText="Redact" />}
+      </ScrollReveal>
+    );
+  }
+
+  return (
+    <section className="py-6 animate-fadeIn space-y-12 font-sans px-4 sm:px-0">
+      <ScrollReveal className="flex justify-between items-center studio-glass p-8 sm:p-12 rounded-[3rem] shadow-2xl border-t border-cyan-500/50 gap-6 bg-black/40">
+        <h2 className="font-serif text-3xl sm:text-5xl font-black text-white uppercase tracking-widest glow-text-cyan">📸 Digital Gallery Feed</h2>
+        <button onClick={() => setShowCreatePostModal(true)} className="btn-cinematic text-white font-black text-xs sm:text-sm px-10 py-5 rounded-2xl shadow-xl transition-all font-mono uppercase tracking-widest whitespace-nowrap border border-white/30 hover:scale-105">Inject Media</button>
+      </ScrollReveal>
+      <div className="columns-1 sm:columns-2 lg:columns-3 gap-10 max-w-7xl mx-auto animate-fadeIn space-y-10">
+        {posts.map((post, idx) => {
+          const amLiked = post.likedBy?.includes(userProfile?.id);
+          return (
+            <ScrollReveal key={post.id} delay={idx * 100}>
+              <Hover3DCard className="w-full h-full cursor-pointer">
+                <LongPressable onLongPress={() => { if (isAdmin || post.authorUid === userProfile?.id) setPostToDelete(post.id); }} className="break-inside-avoid studio-glass border-t border-cyan-500/30 rounded-[3rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] hover:shadow-[0_40px_80px_rgba(6,182,212,0.3)] transition-all duration-700 cursor-pointer group flex flex-col h-full bg-black/50">
+                  <div className="w-full aspect-video bg-black relative flex items-center justify-center overflow-hidden border-b border-white/10">
+                    {post.image ? <img src={post.image} alt={post.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-[1500ms] opacity-60 group-hover:opacity-100" /> : <div className={`absolute inset-0 bg-gradient-to-br from-cyan-900/60 to-blue-900/80 group-hover:scale-110 transition-transform duration-[1500ms] flex flex-col items-center justify-center p-8 text-center select-none backdrop-blur-xl`}><span className="text-6xl mb-6 filter drop-shadow-2xl">📸</span><span className="text-xl font-serif font-black tracking-widest text-white uppercase line-clamp-2 px-4 drop-shadow-md">{post.title}</span></div>}
+                    <div className="absolute top-5 right-5 bg-black/80 backdrop-blur-xl text-cyan-400 border border-cyan-500/30 text-[10px] font-bold font-mono tracking-widest uppercase px-4 py-2 rounded-xl shadow-lg">TTL: {getExpiry7(post.createdAt)}</div>
+                  </div>
+                  <div className="p-8 flex flex-col justify-between flex-1 bg-white/5" onClick={() => setExpandedPost(post)}>
+                    <h3 className="font-serif font-black text-white text-2xl leading-tight line-clamp-2 group-hover:text-amber-400 transition-colors mb-6 drop-shadow-sm">{post.title}</h3>
+                    <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 bg-black border-2 border-white/20 shadow-lg">{renderAvatar(post.authorAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(post.authorUid); })}</div>
+                      <div className="text-slate-400 text-[11px] font-mono font-bold uppercase tracking-widest truncate flex-1 leading-relaxed">{post.authorName}</div>
+                    </div>
+                  </div>
+                </LongPressable>
+              </Hover3DCard>
+            </ScrollReveal>
+          );
+        })}
+      </div>
+      {posts.length === 0 && <ScrollReveal><div className="text-center text-slate-500 font-mono tracking-widest py-40 uppercase studio-input rounded-[4rem] border-dashed border-white/10 m-6 shadow-inner font-bold text-base bg-black/40">Gallery currently empty.</div></ScrollReveal>}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-4">
+          <form onSubmit={publishPost} className="studio-glass border-t border-cyan-500/50 p-12 rounded-[4rem] w-full max-w-xl space-y-8 font-sans shadow-[0_50px_100px_rgba(0,0,0,0.9)] animate-deepDiveIn bg-black/80">
+            <div className="border-b border-white/10 pb-6 mb-6"><h4 className="font-serif font-black text-white text-3xl uppercase tracking-widest glow-text-cyan">Inject Media</h4></div>
+            <div><label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest mb-3">Asset Designation</label><input type="text" value={postTitle} onChange={e => setPostTitle(e.target.value)} className="w-full px-6 py-5 studio-input rounded-2xl text-base font-bold text-white transition-all border border-white/10 shadow-inner focus:ring-4 focus:ring-cyan-500/40 outline-none placeholder-slate-600 bg-black/40" placeholder="e.g. Master Edit V3" required /></div>
+            <div><label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest mb-3">Context Data</label><input type="text" value={postText} onChange={e => setPostText(e.target.value)} className="w-full px-6 py-5 studio-input rounded-2xl text-base font-bold text-white transition-all border border-white/10 shadow-inner focus:ring-4 focus:ring-cyan-500/40 outline-none placeholder-slate-600 bg-black/40" placeholder="..." required /></div>
+            <div><label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest mb-3">Attach to Board (Opt)</label><select value={relatedProjectId} onChange={e => setRelatedProjectId(e.target.value)} className="w-full px-6 py-5 studio-input rounded-2xl text-base font-bold text-slate-400 transition-all border border-white/10 shadow-inner focus:ring-4 focus:ring-cyan-500/40 outline-none bg-black/40"><option value="">-- Standalone Asset --</option>{projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}</select></div>
+            <div className="pt-2"><label className="block text-[11px] font-mono font-bold text-slate-500 uppercase tracking-widest mb-3">Target File</label><input type="file" ref={fileInputRef} accept="image/*" className="w-full text-sm font-bold text-slate-500 font-sans file:mr-6 file:py-3.5 file:px-6 file:rounded-xl file:border-0 file:text-[11px] file:uppercase file:tracking-widest file:font-black file:bg-white/10 file:text-white hover:file:bg-white/20 file:transition-colors file:shadow-md cursor-pointer" required /></div>
+            <div className="flex gap-5 justify-end pt-8 border-t border-white/10"><button type="button" onClick={() => setShowCreatePostModal(false)} className="px-10 py-4 studio-input hover:bg-white/10 text-slate-400 hover:text-white rounded-xl text-sm font-black uppercase tracking-widest transition shadow-sm border border-white/10">Abort</button><button type="submit" disabled={publishing} className="px-10 py-4 btn-cinematic text-white font-black text-sm rounded-xl uppercase tracking-widest shadow-[0_0_20px_rgba(225,29,72,0.4)] transition">{publishing ? 'Uplinking...' : 'Execute'}</button></div>
+          </form>
+        </div>
+      )}
+      {postToDelete && <LongPressMenu title="Purge this entire asset record?" onConfirm={removePost} onCancel={() => setPostToDelete(null)} confirmText="Purge Asset" />}
+    </section>
+  );
+}
+
+// --- MY PROFILE ---
 function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut, isOnboarding, onNavigate }) {
   const [fullName, setFullName] = useState(userProfile?.name || '');
   const [selectedCat, setSelectedCat] = useState(userProfile?.workCategory || categories[0] || 'Editing');
@@ -1850,68 +2036,68 @@ function MyProfileWorkspace({ userProfile, categories, showToast, handleSignOut,
   };
 
   return (
-    <section className="max-w-2xl mx-auto studio-glass border-t border-white/20 rounded-[3.5rem] p-10 sm:p-14 shadow-[0_30px_60px_rgba(0,0,0,0.8)] relative animate-fadeIn font-sans mt-8">
-      <div className="text-center mb-10 border-b border-white/10 pb-6">
-        <h2 className="font-serif text-3xl sm:text-4xl font-black text-white drop-shadow-md uppercase tracking-widest glow-text-cyan">{isOnboarding ? "Identity Initialization 🚀" : "Identity Parameters"}</h2>
-        {isOnboarding && <p className="text-[10px] text-cyan-400 font-mono tracking-widest font-bold mt-4 drop-shadow-sm uppercase">Input designation and specs to bypass firewall.</p>}
+    <section className="max-w-3xl mx-auto studio-glass border-t border-cyan-500/50 rounded-[4rem] p-10 sm:p-16 shadow-[0_50px_100px_rgba(0,0,0,0.8)] relative animate-fadeIn font-sans mt-10 bg-black/60">
+      <div className="text-center mb-12 border-b border-white/10 pb-8">
+        <h2 className="font-serif text-4xl sm:text-5xl font-black text-white drop-shadow-lg uppercase tracking-widest glow-text-cyan">{isOnboarding ? "Identity Initialization 🚀" : "Identity Parameters"}</h2>
+        {isOnboarding && <p className="text-[11px] text-amber-400 font-mono tracking-widest font-bold mt-5 drop-shadow-sm uppercase">Input designation and specs to bypass firewall.</p>}
       </div>
-      <div className="flex flex-col items-center mb-10 font-sans relative">
-        <div className="w-32 h-32 rounded-full border-[4px] border-cyan-500/40 bg-black backdrop-blur-xl overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.3)] flex items-center justify-center mb-3 font-sans relative z-10">
-          {renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-full")}
+      <div className="flex flex-col items-center mb-12 font-sans relative">
+        <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-[2rem] border-[6px] border-cyan-500/40 bg-black backdrop-blur-xl overflow-hidden shadow-[0_0_50px_rgba(6,182,212,0.4)] flex items-center justify-center mb-4 font-sans relative z-10 hover:scale-105 transition-transform">
+          {renderAvatar(uploadedPhotoUrl, "w-full h-full object-cover rounded-[1.5rem]")}
         </div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-white/5 rounded-full animate-[spin_10s_linear_infinite] pointer-events-none"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 border border-cyan-500/10 rounded-full animate-[spin_7s_linear_infinite_reverse] pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 sm:w-64 sm:h-64 border border-white/10 rounded-full animate-[spin_10s_linear_infinite] pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-56 sm:h-56 border border-cyan-500/20 rounded-full animate-[spin_7s_linear_infinite_reverse] pointer-events-none"></div>
       </div>
-      <form onSubmit={saveProfileSettings} className="space-y-6 font-sans animate-fadeIn relative z-20">
+      <form onSubmit={saveProfileSettings} className="space-y-8 font-sans animate-fadeIn relative z-20">
         <div>
-          <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest drop-shadow-sm mb-2">Designation (Display Name)</label>
-          <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-5 py-4 studio-input rounded-xl text-sm font-bold text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none shadow-inner transition-all" required />
+          <label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest drop-shadow-sm mb-3">Designation (Display Name)</label>
+          <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-6 py-5 studio-input rounded-2xl text-base font-bold text-white focus:ring-4 focus:ring-cyan-500/40 outline-none shadow-inner transition-all border border-white/10 bg-black/40" required />
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
           <div>
-            <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest font-sans drop-shadow-sm mb-2">Primary Spec</label>
-            <select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="w-full px-5 py-4 studio-input rounded-xl text-sm font-bold text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none shadow-inner transition-all">
+            <label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest font-sans drop-shadow-sm mb-3">Primary Spec</label>
+            <select value={selectedCat} onChange={(e) => setSelectedCat(e.target.value)} className="w-full px-6 py-5 studio-input rounded-2xl text-base font-bold text-white focus:ring-4 focus:ring-cyan-500/40 outline-none shadow-inner transition-all border border-white/10 bg-black/40">
               {categories.map((cat, idx) => <option key={idx} value={cat} className="bg-slate-900 text-white">{cat}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest font-sans drop-shadow-sm mb-2">Visual ID Override (PFP)</label>
+            <label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest font-sans drop-shadow-sm mb-3">Visual ID Override (PFP)</label>
             <input type="file" accept="image/*" onChange={async (e) => {
               const file = e.target.files[0];
               if (file) {
                 try {
-                  const b64 = await compressAndConvertImage(file, 150);
+                  const b64 = await compressAndConvertImage(file, 250);
                   setUploadedPhotoUrl(b64);
                 } catch (err) { showToast('Image compression failed.', 'warning'); }
               }
-            }} className="w-full text-[10px] font-bold text-slate-400 mt-2 file:py-2.5 file:px-5 file:border-0 file:rounded file:bg-white/10 file:shadow-sm hover:file:bg-white/20 file:transition-colors file:font-black file:text-white file:uppercase file:tracking-widest cursor-pointer" />
+            }} className="w-full text-[11px] font-bold text-slate-400 mt-1 file:py-3.5 file:px-6 file:border-0 file:rounded-xl file:bg-white/10 file:shadow-sm hover:file:bg-white/20 file:transition-colors file:font-black file:text-white file:uppercase file:tracking-widest cursor-pointer" />
           </div>
         </div>
 
         <div>
-          <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest drop-shadow-sm mb-2">Bio-Data (Specs / Details)</label>
-          <textarea value={bioInput} onChange={e => setBioInput(e.target.value)} placeholder="Input parameters..." className="w-full px-5 py-4 studio-input rounded-xl text-sm font-bold text-white placeholder-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none font-sans leading-relaxed shadow-inner transition-all" rows={4} maxLength={250} />
-          <p className="text-[10px] font-bold text-right text-cyan-500 mt-2 font-mono drop-shadow-sm">{bioInput.length}/250 BYTE LIMIT</p>
+          <label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest drop-shadow-sm mb-3">Bio-Data (Specs / Details)</label>
+          <textarea value={bioInput} onChange={e => setBioInput(e.target.value)} placeholder="Input parameters..." className="w-full px-6 py-5 studio-input rounded-2xl text-base font-bold text-white placeholder-slate-600 focus:ring-4 focus:ring-cyan-500/40 outline-none font-sans leading-relaxed shadow-inner transition-all border border-white/10 bg-black/40" rows={4} maxLength={250} />
+          <p className="text-[10px] font-black text-right text-cyan-500 mt-3 font-mono drop-shadow-sm">{bioInput.length}/250 BYTE LIMIT</p>
         </div>
 
-        <button type="submit" disabled={saving} className="w-full py-4 bg-cyan-600/30 border-b-[4px] border-cyan-500/50 hover:bg-cyan-500/40 text-cyan-400 text-sm font-black uppercase rounded-xl tracking-widest shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all disabled:opacity-50 mt-4">
+        <button type="submit" disabled={saving} className="w-full py-5 btn-cinematic text-white text-base font-black uppercase rounded-2xl tracking-widest shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all disabled:opacity-50 mt-6 border border-white/30">
           {saving ? 'Syncing Data...' : 'Confirm Identity & Execute'}
         </button>
       </form>
       
       {!isOnboarding && (
-        <div className="border-t border-white/10 mt-10 pt-8 font-sans">
-          <h4 className="font-serif text-sm font-black text-white mb-4 drop-shadow-sm tracking-wide">Register Custom Tag</h4>
-          <form onSubmit={handleRegisterCategory} className="flex flex-col sm:flex-row gap-4 font-sans">
-            <input type="text" value={newCatInp} onChange={(e) => setNewCatInp(e.target.value)} placeholder="e.g. SFX Supervisor" className="flex-1 px-5 py-3 studio-input rounded-xl text-sm font-bold text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-white shadow-inner transition-all" required />
-            <button type="submit" className="px-8 py-3 bg-white/10 text-white text-xs rounded-xl font-black font-sans shadow-md hover:bg-white/20 border border-white/20 transition-all uppercase tracking-widest">Append</button>
+        <div className="border-t border-white/10 mt-12 pt-10 font-sans">
+          <h4 className="font-serif text-lg font-black text-white mb-6 drop-shadow-sm tracking-wide">Register Custom Tag</h4>
+          <form onSubmit={handleRegisterCategory} className="flex flex-col sm:flex-row gap-5 font-sans">
+            <input type="text" value={newCatInp} onChange={(e) => setNewCatInp(e.target.value)} placeholder="e.g. SFX Supervisor" className="flex-1 px-6 py-4 studio-input rounded-2xl text-base font-bold text-white placeholder-slate-600 outline-none focus:ring-4 focus:ring-cyan-500/40 shadow-inner transition-all border border-white/10 bg-black/40" required />
+            <button type="submit" className="px-10 py-4 btn-cinematic text-white text-sm rounded-2xl font-black font-sans shadow-lg border border-white/30 transition-all uppercase tracking-widest">Append</button>
           </form>
         </div>
       )}
 
-      <div className="border-t border-white/10 mt-10 pt-8 text-center">
-        <button onClick={handleSignOut} className="text-xs font-black text-rose-500 hover:text-rose-400 hover:bg-rose-900/30 transition-all studio-input border border-rose-900/50 px-8 py-3 rounded uppercase tracking-widest shadow-sm">Sever Connection (Sign Out)</button>
+      <div className="border-t border-white/10 mt-12 pt-10 text-center">
+        <button onClick={handleSignOut} className="text-sm font-black text-rose-500 hover:text-white hover:bg-rose-600 transition-all studio-input border border-rose-500/30 px-10 py-4 rounded-2xl uppercase tracking-widest shadow-lg">Sever Connection (Sign Out)</button>
       </div>
     </section>
   );
@@ -1969,36 +2155,36 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   const remove = (uid) => { if (db && db.app) deleteDoc(doc(db, 'profiles', uid)); };
 
   return (
-    <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fadeIn font-sans py-4">
-      <div className="col-span-1 space-y-8">
-        <ScrollReveal className="studio-glass border-t border-white/20 p-8 rounded-[2.5rem] shadow-2xl space-y-6 font-sans">
-          <h3 className="font-serif font-black border-b border-white/10 pb-4 text-white text-xl drop-shadow-sm uppercase tracking-widest glow-text-red">Global Branding</h3>
-          <div><label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest drop-shadow-sm mb-2">Master Terminal Designation</label><input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-5 py-3 studio-input rounded-xl text-sm font-bold text-white focus:ring-2 focus:outline-none transition-all shadow-inner" /></div>
-          <div><label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest font-sans drop-shadow-sm mb-2">Global Icon</label><input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-[10px] font-bold text-slate-400 mt-2 file:py-2.5 file:px-5 file:border-0 file:rounded file:bg-white/10 file:shadow-sm file:text-white file:font-black file:uppercase file:tracking-widest hover:file:bg-white/20 transition-colors cursor-pointer" /></div>
-          <button onClick={saveLogoText} className="w-full py-3 btn-cinematic text-white text-xs rounded-xl font-black font-sans shadow-lg transition uppercase tracking-widest mt-2">Lock In</button>
+    <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12 animate-fadeIn font-sans py-6 sm:py-8">
+      <div className="col-span-1 space-y-8 sm:space-y-12">
+        <ScrollReveal className="studio-glass border-t border-cyan-500/50 p-8 sm:p-12 rounded-[3rem] shadow-2xl space-y-6 sm:space-y-8 font-sans bg-black/60">
+          <h3 className="font-serif font-black border-b border-white/10 pb-5 text-white text-2xl drop-shadow-md uppercase tracking-widest glow-text-red">Global Branding</h3>
+          <div><label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest drop-shadow-sm mb-3">Master Terminal Designation</label><input type="text" value={logoTxt} onChange={(e) => setLogoTxt(e.target.value)} className="w-full px-6 py-4 studio-input rounded-2xl text-base font-bold text-white outline-none focus:ring-4 focus:ring-cyan-500/40 transition-all shadow-inner border border-white/10 bg-black/40" /></div>
+          <div><label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest font-sans drop-shadow-sm mb-3">Global Icon</label><input type="file" accept="image/*" onChange={triggerSiteLogoUpload} className="w-full text-[11px] font-bold text-slate-400 mt-2 file:py-3 file:px-6 file:border-0 file:rounded-xl file:bg-white/10 file:shadow-md file:text-white file:font-black file:uppercase file:tracking-widest hover:file:bg-white/20 transition-colors cursor-pointer" /></div>
+          <button onClick={saveLogoText} className="w-full py-4 btn-cinematic text-white text-sm rounded-2xl font-black font-sans shadow-[0_0_20px_rgba(6,182,212,0.4)] transition uppercase tracking-widest mt-4">Lock In</button>
         </ScrollReveal>
 
-        <ScrollReveal className="studio-glass border-t border-white/20 p-8 rounded-[2.5rem] shadow-2xl font-sans space-y-6" delay={150}>
-          <h3 className="font-serif font-black border-b border-white/10 pb-4 text-white text-xl drop-shadow-sm uppercase tracking-widest glow-text-red">API Integration</h3>
-          {ytConfig.lastError && <p className="text-[10px] text-rose-300 bg-rose-900/40 border border-rose-500/50 px-4 py-3 rounded-lg font-mono uppercase tracking-widest shadow-inner">⚠ Error: {ytConfig.lastError}</p>}
-          <form onSubmit={handleYtSave} className="space-y-5 font-sans">
-            <div><label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest drop-shadow-sm mb-2">YT Source Handle</label><input type="text" value={channelIdInput} onChange={(e) => setChannelIdInput(e.target.value)} placeholder="@username" className="w-full px-5 py-3 studio-input rounded-xl text-sm font-bold text-white focus:outline-none focus:ring-2 transition-all shadow-inner placeholder-slate-600" required /></div>
-            <div><label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest drop-shadow-sm mb-2">API Security Key</label><input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="w-full px-5 py-3 studio-input rounded-xl text-sm font-bold text-white focus:outline-none focus:ring-2 transition-all shadow-inner placeholder-slate-600" /></div>
-            <button type="submit" className="w-full py-3 btn-cinematic text-white text-xs font-black uppercase tracking-widest rounded-xl font-sans shadow-lg transition mt-2">Sync Nodes</button>
+        <ScrollReveal className="studio-glass border-t border-cyan-500/50 p-8 sm:p-12 rounded-[3rem] shadow-2xl font-sans space-y-6 sm:space-y-8 bg-black/60" delay={150}>
+          <h3 className="font-serif font-black border-b border-white/10 pb-5 text-white text-2xl drop-shadow-md uppercase tracking-widest glow-text-red">API Integration</h3>
+          {ytConfig.lastError && <p className="text-[10px] text-rose-300 bg-rose-900/40 border border-rose-500/50 px-5 py-4 rounded-xl font-mono uppercase tracking-widest shadow-inner">⚠ Error: {ytConfig.lastError}</p>}
+          <form onSubmit={handleYtSave} className="space-y-6 font-sans">
+            <div><label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest drop-shadow-sm mb-3">YT Source Handle</label><input type="text" value={channelIdInput} onChange={(e) => setChannelIdInput(e.target.value)} placeholder="@username" className="w-full px-6 py-4 studio-input rounded-2xl text-base font-bold text-white outline-none focus:ring-4 focus:ring-cyan-500/40 transition-all shadow-inner placeholder-slate-600 border border-white/10 bg-black/40" required /></div>
+            <div><label className="block text-[11px] font-mono font-black text-slate-500 uppercase tracking-widest drop-shadow-sm mb-3">API Security Key</label><input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder="AIzaSy..." className="w-full px-6 py-4 studio-input rounded-2xl text-base font-bold text-white outline-none focus:ring-4 focus:ring-cyan-500/40 transition-all shadow-inner placeholder-slate-600 border border-white/10 bg-black/40" /></div>
+            <button type="submit" className="w-full py-4 btn-cinematic text-white text-sm font-black uppercase tracking-widest rounded-2xl font-sans shadow-[0_0_20px_rgba(6,182,212,0.4)] transition mt-4">Sync Nodes</button>
           </form>
         </ScrollReveal>
       </div>
 
-      <ScrollReveal className="col-span-2 studio-glass border-t border-white/20 p-8 sm:p-10 rounded-[3rem] shadow-2xl font-sans" delay={300}>
-        <h3 className="font-serif font-black border-b border-white/10 pb-5 text-white text-xl flex items-center justify-between drop-shadow-sm uppercase tracking-widest glow-text-cyan">
+      <ScrollReveal className="col-span-2 studio-glass border-t border-cyan-500/50 p-8 sm:p-14 rounded-[4rem] shadow-2xl font-sans bg-black/60" delay={300}>
+        <h3 className="font-serif font-black border-b border-white/10 pb-6 text-white text-2xl sm:text-3xl flex items-center justify-between drop-shadow-md uppercase tracking-widest glow-text-cyan">
           <span>Operative Roster</span>
-          {pendingCount > 0 && <span className="bg-red-600 text-white text-[10px] px-3 py-1 rounded shadow-[0_0_10px_rgba(220,38,38,0.8)] font-black uppercase tracking-widest animate-pulse">{pendingCount} Pending</span>}
+          {pendingCount > 0 && <span className="bg-rose-600 text-white text-[11px] px-4 py-1.5 rounded-xl shadow-[0_0_15px_rgba(225,29,72,0.8)] font-black uppercase tracking-widest animate-pulse">{pendingCount} Pending</span>}
         </h3>
-        <p className="text-[10px] font-mono text-slate-500 mb-6 italic mt-4 uppercase tracking-widest">SysAdmin Tip: Long-press rows to initiate expulsion protocols.</p>
+        <p className="text-[11px] font-mono text-slate-500 mb-8 italic mt-5 uppercase tracking-widest font-bold">SysAdmin Tip: Long-press rows to initiate expulsion protocols.</p>
         <div className="overflow-x-auto custom-scrollbar pr-2">
-          <table className="w-full text-sm text-left font-sans min-w-[600px]">
+          <table className="w-full text-base text-left font-sans min-w-[700px]">
             <thead>
-              <tr className="text-slate-400 font-mono text-[10px] uppercase tracking-widest border-b border-white/10"><th className="pb-4 pl-3">Designation</th><th className="pb-4">Clearance</th><th className="pb-4 text-right pr-3">Overrides</th></tr>
+              <tr className="text-slate-400 font-mono text-[11px] font-black uppercase tracking-widest border-b border-white/10"><th className="pb-5 pl-4">Designation</th><th className="pb-5">Clearance</th><th className="pb-5 text-right pr-4">Overrides</th></tr>
             </thead>
             <tbody>
               {profiles.map(p => {
@@ -2006,34 +2192,34 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
                 const isOwner = (p.email || '').toLowerCase() === ADMIN_EMAIL;
                 return (
                   <tr key={p.id} className="border-b border-white/5 font-sans animate-fadeIn hover:bg-white/5 transition-colors">
-                    <td className="py-4 pl-3">
-                      <LongPressable onLongPress={() => { if (!isOwner) remove(p.id); }} className="flex items-center space-x-4 cursor-pointer group">
-                        <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/20 p-0.5 flex items-center justify-center bg-black shrink-0 group-hover:border-rose-500 transition-colors shadow-inner">{renderAvatar(p.photoURL)}</div>
-                        <div className="flex flex-col font-sans group-hover:text-rose-400 transition-colors"><span className="font-black text-white text-base drop-shadow-sm tracking-wide">{p.name}</span><span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 group-hover:text-rose-500 mt-1">{p.email}</span></div>
+                    <td className="py-5 pl-4">
+                      <LongPressable onLongPress={() => { if (!isOwner) remove(p.id); }} className="flex items-center space-x-5 cursor-pointer group">
+                        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/20 p-1 flex items-center justify-center bg-black shrink-0 group-hover:border-rose-500 transition-colors shadow-inner">{renderAvatar(p.photoURL)}</div>
+                        <div className="flex flex-col font-sans group-hover:text-rose-400 transition-colors"><span className="font-black text-white text-lg drop-shadow-sm tracking-wide">{p.name}</span><span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 group-hover:text-rose-500 mt-2">{p.email}</span></div>
                       </LongPressable>
                       {isEditing && (
-                        <div className="mt-4 p-5 studio-input border border-white/20 rounded-2xl space-y-4 animate-fadeIn font-sans shadow-lg">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-white block font-mono">Force Identity Update</span>
-                          <input type="file" accept="image/*" onChange={(e) => setEditedFile(e.target.files[0])} className="text-[10px] font-bold text-slate-400 font-sans w-full file:bg-white/10 file:text-white file:border-0 file:rounded file:px-3 file:py-1.5 file:font-black file:uppercase file:tracking-widest hover:file:bg-white/20 transition-colors" />
-                          <div className="flex gap-3 justify-end pt-2 border-t border-white/10"><button onClick={() => setEditingUserId(null)} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition px-4 py-2">Abort</button><button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[10px] bg-cyan-600/30 text-cyan-400 border border-cyan-500/50 hover:bg-cyan-500/40 px-5 py-2 rounded font-black shadow-[0_0_15px_rgba(6,182,212,0.3)] transition uppercase tracking-widest">Execute</button></div>
+                        <div className="mt-5 p-6 studio-input border border-cyan-500/30 rounded-3xl space-y-5 animate-fadeIn font-sans shadow-xl bg-black/40">
+                          <span className="text-[11px] font-black uppercase tracking-widest text-white block font-mono">Force Identity Update</span>
+                          <input type="file" accept="image/*" onChange={(e) => setEditedFile(e.target.files[0])} className="text-[11px] font-bold text-slate-400 font-sans w-full file:bg-white/10 file:text-white file:border-0 file:rounded-xl file:px-4 file:py-2 file:font-black file:uppercase file:tracking-widest hover:file:bg-white/20 transition-colors cursor-pointer" />
+                          <div className="flex gap-4 justify-end pt-3 border-t border-white/10"><button onClick={() => setEditingUserId(null)} className="text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition px-5 py-2.5 studio-input rounded-xl border border-white/10 shadow-sm">Abort</button><button onClick={() => saveMemberPhotoOverride(p.id)} className="text-[11px] btn-cinematic border border-cyan-500/30 text-white px-6 py-2.5 rounded-xl font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] transition uppercase tracking-widest">Execute</button></div>
                         </div>
                       )}
                     </td>
-                    <td className="py-4 uppercase font-mono text-[10px] font-black tracking-widest"><span className={p.status === 'pending' ? 'text-amber-500 bg-amber-500/10 px-2 py-1 rounded' : p.status === 'approved' ? 'text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded' : 'text-rose-500 bg-rose-500/10 px-2 py-1 rounded'}>{p.status}</span><br/><span className="text-slate-400 block mt-2">{p.role}</span></td>
-                    <td className="py-4 text-right pr-3">
+                    <td className="py-5 uppercase font-mono text-[10px] font-black tracking-widest"><span className={p.status === 'pending' ? 'text-amber-500 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/30' : p.status === 'approved' ? 'text-emerald-500 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/30' : 'text-rose-500 bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/30'}>{p.status}</span><br/><span className="text-slate-400 block mt-3">{p.role}</span></td>
+                    <td className="py-5 text-right pr-4">
                       {!isOwner ? (
-                        <div className="flex items-center justify-end gap-2 flex-wrap max-w-[200px] ml-auto">
-                          <button onClick={() => setEditingUserId(p.id)} className="studio-input text-white px-3 py-1.5 border border-white/20 rounded hover:bg-white/10 transition text-[9px] font-black uppercase tracking-widest">PFP</button>
-                          {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-600/20 text-emerald-400 px-3 py-1.5 border border-emerald-500/40 rounded hover:bg-emerald-600/40 transition text-[9px] font-black uppercase tracking-widest">Approve</button>}
-                          {p.role !== 'admin' && p.role !== 'owner' ? <button onClick={() => promote(p.id)} className="bg-cyan-600/20 text-cyan-400 px-3 py-1.5 border border-cyan-500/40 rounded hover:bg-cyan-600/40 transition text-[9px] font-black uppercase tracking-widest">Promote</button> : p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-rose-600/20 text-rose-400 px-3 py-1.5 border border-rose-500/40 rounded hover:bg-rose-600/40 transition text-[9px] font-black uppercase tracking-widest">Demote</button>}
-                          {p.role !== 'roasting waiter' && p.role !== 'owner' && <button onClick={() => makeWaiter(p.id)} className="bg-purple-600/20 text-purple-400 px-3 py-1.5 border border-purple-500/40 rounded hover:bg-purple-600/40 transition text-[9px] font-black uppercase tracking-widest">Restrict</button>}
+                        <div className="flex items-center justify-end gap-3 flex-wrap max-w-[250px] ml-auto">
+                          <button onClick={() => setEditingUserId(p.id)} className="studio-input text-white px-4 py-2 border border-white/20 rounded-xl hover:bg-white/10 transition text-[10px] font-black uppercase tracking-widest shadow-sm">PFP</button>
+                          {p.status !== 'approved' && <button onClick={() => approve(p.id)} className="bg-emerald-600/20 text-emerald-400 px-4 py-2 border border-emerald-500/40 rounded-xl hover:bg-emerald-600/40 transition text-[10px] font-black uppercase tracking-widest shadow-sm">Approve</button>}
+                          {p.role !== 'admin' && p.role !== 'owner' ? <button onClick={() => promote(p.id)} className="bg-cyan-600/20 text-cyan-400 px-4 py-2 border border-cyan-500/40 rounded-xl hover:bg-cyan-600/40 transition text-[10px] font-black uppercase tracking-widest shadow-sm">Promote</button> : p.role !== 'owner' && <button onClick={() => demote(p.id)} className="bg-rose-600/20 text-rose-400 px-4 py-2 border border-rose-500/40 rounded-xl hover:bg-rose-600/40 transition text-[10px] font-black uppercase tracking-widest shadow-sm">Demote</button>}
+                          {p.role !== 'roasting waiter' && p.role !== 'owner' && <button onClick={() => makeWaiter(p.id)} className="bg-purple-600/20 text-purple-400 px-4 py-2 border border-purple-500/40 rounded-xl hover:bg-purple-600/40 transition text-[10px] font-black uppercase tracking-widest shadow-sm">Restrict</button>}
                         </div>
-                      ) : <span className="text-rose-600 font-bold font-mono text-[10px] tracking-widest uppercase">Sys Admin</span>}
+                      ) : <span className="text-rose-500 font-black font-mono text-[11px] tracking-widest uppercase bg-rose-900/20 border border-rose-500/30 px-4 py-2 rounded-xl">Sys Admin</span>}
                     </td>
                   </tr>
                 );
               })}
-              {profiles.length === 0 && <tr><td colSpan={3} className="py-16 text-center text-slate-500 font-mono font-bold tracking-widest uppercase italic border-2 border-dashed border-white/10 rounded-2xl m-4 block">No operatives in database.</td></tr>}
+              {profiles.length === 0 && <tr><td colSpan={3} className="py-20 text-center text-slate-500 font-mono font-bold tracking-widest uppercase italic border-2 border-dashed border-white/10 rounded-3xl m-6 block bg-black/20">No operatives in database.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -2042,4 +2228,31 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
   );
 }
 
-export { CinematicLoader, ScrollReveal, PRESET_AVATARS, LongPressable, LongPressMenu, compressAndConvertImage, resolvePlayableVideo, renderAvatar };
+function PendingScreen({ userProfile, handleNavigationChange, handleSignOut }) {
+  return (
+    <div className="min-h-[75vh] flex items-center justify-center text-center p-4 relative z-30">
+      <div className="studio-glass border-t border-cyan-500/50 p-16 rounded-[4rem] max-w-lg shadow-[0_50px_100px_rgba(0,0,0,0.9)] animate-deepDiveIn font-sans flex flex-col items-center bg-black/80">
+        <div className="w-24 h-24 border-[6px] border-amber-500/30 border-t-amber-500 rounded-full animate-spin mb-8 shadow-[0_0_30px_rgba(245,158,11,0.5)]"></div>
+        <h3 className="font-serif font-black text-4xl mb-5 text-white glow-text-gold uppercase tracking-widest drop-shadow-md">Verification Pending</h3>
+        <p className="text-base text-slate-300 font-semibold mb-10 font-sans leading-relaxed">Designation <span className="text-amber-400 font-black">{userProfile?.name}</span> is awaiting clearance from the SysAdmin.</p>
+        <div className="flex gap-5 mt-2 w-full">
+          <button onClick={() => handleNavigationChange('profile')} className="flex-1 text-xs font-black uppercase tracking-widest text-white btn-cinematic py-4 px-6 rounded-2xl transition-all shadow-lg hover:scale-105 border border-cyan-500/30">Edit File</button>
+          <button onClick={handleSignOut} className="flex-1 text-xs font-black uppercase tracking-widest text-slate-400 studio-input hover:text-white border border-white/10 shadow-sm py-4 px-6 hover:bg-white/10 rounded-2xl transition-all">Abort</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RejectedScreen({ handleSignOut }) {
+  return (
+    <div className="text-center py-40 font-sans flex flex-col items-center justify-center gap-8 relative z-30">
+      <div className="studio-glass p-16 rounded-[4rem] border-t border-rose-500/50 shadow-[0_50px_100px_rgba(225,29,72,0.4)] animate-deepDiveIn bg-black/80 max-w-lg w-full">
+        <h1 className="text-8xl mb-8 filter drop-shadow-[0_0_20px_rgba(225,29,72,0.6)]">🚫</h1>
+        <p className="font-black text-3xl text-white drop-shadow-md mb-4 uppercase tracking-widest font-serif glow-text-ruby">Clearance Denied</p>
+        <p className="text-slate-400 font-mono text-sm uppercase tracking-widest mb-10 font-bold">Access to mainframe restricted by SysAdmin.</p>
+        <button onClick={handleSignOut} className="w-full text-sm font-black uppercase tracking-widest text-white bg-rose-600/80 hover:bg-rose-600 border border-rose-400 px-8 py-5 rounded-2xl transition-all shadow-[0_0_30px_rgba(225,29,72,0.5)] hover:scale-105">Sever Connection</button>
+      </div>
+    </div>
+  );
+}
