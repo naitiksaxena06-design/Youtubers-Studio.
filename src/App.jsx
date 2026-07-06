@@ -849,12 +849,13 @@ function ThreeArtBackground({ introDone }) {
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+    const isMobile = window.innerWidth < 768;
 
     let width = window.innerWidth;
     let height = window.innerHeight;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1 : 2));
     renderer.setSize(width, height);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -902,7 +903,7 @@ function ThreeArtBackground({ introDone }) {
     }
     scene.add(nebulaGroup);
 
-    const STAR_COUNT = 9000;
+    const STAR_COUNT = isMobile ? 3000 : 9000;
     const starGeo = new THREE.BufferGeometry();
     const starPos = new Float32Array(STAR_COUNT * 3);
     const starSize = new Float32Array(STAR_COUNT);
@@ -1003,7 +1004,7 @@ function ThreeArtBackground({ introDone }) {
     const handGroup = new THREE.Group();
     handGroup.position.set(650, 900, DEPTH.HAND_OF_GOD);
 
-    const HAND_PARTICLES = 5200;
+    const HAND_PARTICLES = isMobile ? 2000 : 5200;
     const handGeo = new THREE.BufferGeometry();
     const hp = new Float32Array(HAND_PARTICLES * 3);
     const hSize = new Float32Array(HAND_PARTICLES);
