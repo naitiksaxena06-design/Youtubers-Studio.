@@ -1208,6 +1208,914 @@ function ThreeArtBackground({ introDone }) {
   return <div ref={mountRef} className="three-art-background" />;
 }
 
+// --- VIDEO VAULT FEED & INTEGRATION ---
+function VideoVault({ videos, projects, userProfile, showToast, isAdmin, pushNotification, activeVideo, setActiveVideo, onInspectUser }) {
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoUrlInput, setVideoUrlInput] = useState('');
+  const [relatedProjectId, setRelatedProjectId] = useState('');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState(null);
+  const [videoToDelete, setVideoToDelete] = useState(null);
+
+  const startUpload = async (e) => {
+    e.preventDefault();
+    if (!videoTitle.trim() || !videoUrlInput.trim() || !db || !db.app) return;
+    
+    try {
+      await addDoc(collection(db, 'videos'), {
+        title: videoTitle.trim(),
+        hlsUrl: videoUrlInput.trim(),
+        relatedProjectId: relatedProjectId,
+        uploaderUid: userProfile.id,
+        uploaderName: userProfile.name,
+        uploaderAvatar: userProfile.photoURL || '',
+        size: "External Managed Stream URL Link",
+        comments: [],
+        createdAt: Date.now(),
+      });
+      pushNotification(`Added video link: "${videoTitle}"`, 'video', {}, userProfile.name);
+      setVideoTitle(''); setVideoUrlInput(''); setRelatedProjectId(''); setShowUploadModal(false);
+      showToast('Video link registered successfully!', 'success');
+    } catch (err) { showToast('Upload authorization failure.', 'warning'); }
+  };
+
+  const removeVideo = async () => {
+    if (!videoToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'videos', videoToDelete));
+    if (activeVideo?.id === videoToDelete) setActiveVideo(null);
+    setVideoToDelete(null);
+    showToast('Video removed from Vault.', 'info');
+  };
+
+  const handlePostVideoComment = async (e, videoId) => {
+    e.preventDefault();
+    if (!db || !db.app) return;
+    const commentText = e.target.commentInput.value.trim();
+    if (!commentText) return;
+    const newComment = { id: 'c_' + Date.now(), authorUid: userProfile.id, authorName: userProfile.name, text: commentText, timestamp: Date.now() };
+    await updateDoc(doc(db, 'videos', videoId), { comments: arrayUnion(newComment) });
+    pushNotification(`${userProfile.name} commented on video: "${activeVideo.title}"`, 'video', {}, userProfile.name, 'admin');
+
+    e.target.commentInput.value = '';
+    const freshDoc = await getDoc(doc(db, 'videos', videoId));
+    if (freshDoc.exists()) setActiveVideo({ id: freshDoc.id, ...freshDoc.data() });
+    showToast('Feedback published!', 'success');
+  };
+
+  const deleteVideoComment = async () => {
+    if (!commentToDelete || !db || !db.app) return;
+    const { videoId, commentId, currentComments } = commentToDelete;
+    const updatedComments = currentComments.filter(c => c.id !== commentId);
+    await updateDoc(doc(db, 'videos', videoId), { comments: updatedComments });
+    const freshDoc = await getDoc(doc(db, 'videos', videoId));
+    if (freshDoc.exists()) setActiveVideo({ id: freshDoc.id, ...freshDoc.data() });
+    setCommentToDelete(null);
+    showToast('Comment deleted.', 'info');
+  };
+
+  if (activeVideo) {
+    const embed = resolvePlayableVideo(activeVideo.hlsUrl);
+    const timeLeft = getExpiry7(activeVideo.createdAt);
+    
+    return (
+      <ScrollReveal className="studio-glass min-h-[85vh] sm:rounded-[3rem] border-t border-white/20 shadow-2xl flex flex-col font-sans relative z-30 overflow-hidden">
+        <div className="p-6 border-b border-white/10 flex items-center gap-4">
+          <button onClick={() => setActiveVideo(null)} className="p-3 hover:bg-white/10 bg-black/40 rounded-full transition shadow-sm border border-white/10 text-slate-300 hover:text-white"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
+          <span className="font-serif font-black text-white text-xl tracking-widest uppercase glow-text-red">Archive Storage</span>
+        </div>
+
+        {embed.type === 'iframe-stream' && (
+          <div className="px-6 py-4 bg-red-900/30 backdrop-blur border-b border-red-500/20 flex items-center justify-between gap-4 shadow-inner">
+            <span className="text-red-400 font-mono font-bold tracking-widest text-[10px] uppercase">⚠ Format Mismatch Detected</span>
+            <button 
+              type="button"
+              onClick={() => {
+                const wrapper = document.getElementById('iframe-aspect-container');
+                if (wrapper) {
+                  if (wrapper.classList.contains('aspect-video')) {
+                    wrapper.classList.remove('aspect-video', 'max-h-[75vh]');
+                    wrapper.classList.add('aspect-[9/16]', 'max-w-md', 'mx-auto');
+                  } else {
+                    wrapper.classList.remove('aspect-[9/16]', 'max-w-md', 'mx-auto');
+                    wrapper.classList.add('aspect-video', 'max-h-[75vh]');
+                  }
+                }
+              }}
+              className="bg-black/50 text-white font-bold px-5 py-2 rounded border border-white/20 text-[10px] tracking-widest uppercase transition hover:bg-white/10"
+            >
+              Force Layout Shift
+            </button>
+          </div>
+        )}
+
+        <div className="w-full bg-black/80 shadow-[0_10px_50px_rgba(0,0,0,0.9)] relative p-2 sm:p-8 backdrop-blur-3xl border-b border-white/5">
+          {embed.type === 'youtube' ? (
+             <div className="w-full relative aspect-video max-h-[75vh] rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-white/10">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+             </div>
+          ) : embed.type === 'direct' ? (
+             <CustomVideoPlayer hlsUrl={embed.src} videoTitle={activeVideo.title} />
+          ) : embed.type === 'iframe-stream' ? (
+             <div id="iframe-aspect-container" className="w-full relative aspect-video max-h-[75vh] transition-all duration-700 rounded-2xl overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-white/10">
+               <iframe src={embed.src} className="absolute top-0 left-0 w-full h-full border-none bg-[#050508]" allow="autoplay; encrypted-media" allowFullScreen />
+             </div>
+          ) : (
+             <CustomVideoPlayer hlsUrl={activeVideo.hlsUrl} videoTitle={activeVideo.title} />
+          )}
+        </div>
+
+        <div className="p-8 border-b border-white/10">
+          <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight mb-4 font-serif uppercase tracking-wider">{activeVideo.title}</h1>
+          <div className="flex justify-between items-center text-sm">
+            <span className="font-mono text-slate-500 font-bold tracking-widest">{formatDateTimeAMPM(activeVideo.createdAt)}</span>
+            <span className="bg-red-500/20 text-red-500 font-mono font-black px-4 py-1.5 rounded border border-red-500/30 uppercase tracking-widest">TTL: {timeLeft}</span>
+          </div>
+          
+          <div className="flex items-center gap-5 mt-6 pt-6 border-t border-white/10">
+            <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white/20 p-0.5 bg-black shrink-0">{renderAvatar(activeVideo.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover rounded-full", () => onInspectUser(activeVideo.uploaderUid))}</div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-black text-white text-lg hover:text-red-400 transition-colors cursor-pointer" onClick={() => onInspectUser(activeVideo.uploaderUid)}>{activeVideo.uploaderName}</h4>
+              <p className="text-[11px] text-slate-500 font-mono uppercase tracking-widest mt-1">{activeVideo.size}</p>
+            </div>
+            {(isAdmin || activeVideo.uploaderUid === userProfile?.id) && (
+              <button onClick={() => setVideoToDelete(activeVideo.id)} className="studio-input text-rose-500 hover:text-white hover:bg-rose-600 text-xs font-black px-5 py-2.5 rounded uppercase tracking-widest transition border border-rose-500/30 shadow-md">Purge File</button>
+            )}
+          </div>
+        </div>
+
+        <div className="p-8 flex-1 bg-white/5 rounded-b-[3rem]">
+          <h3 className="font-mono font-bold text-xs text-slate-400 mb-6 uppercase tracking-[0.2em]">Attached Notes ({activeVideo.comments?.length || 0})</h3>
+          <form onSubmit={(e) => handlePostVideoComment(e, activeVideo.id)} className="flex gap-4 mb-10">
+            <div className="w-12 h-12 rounded-full overflow-hidden border border-white/20 p-0.5 bg-black shrink-0 hidden sm:block">{renderAvatar(userProfile?.photoURL, "w-full h-full object-cover rounded-full")}</div>
+            <input type="text" name="commentInput" placeholder="Enter feedback string..." className="flex-1 px-5 py-3 studio-input rounded-xl text-sm font-bold text-white focus:outline-none placeholder-slate-600" required />
+            <button type="submit" className="btn-cinematic text-white text-xs px-8 rounded-xl font-black uppercase tracking-widest">Append</button>
+          </form>
+
+          <div className="space-y-4 pb-10">
+            {(activeVideo.comments || []).map((comment, idx) => (
+              <ScrollReveal key={comment.id} delay={idx * 50}>
+                <LongPressable
+                  onLongPress={() => { if (isAdmin || comment.authorName === userProfile?.name) setCommentToDelete({ videoId: activeVideo.id, currentComments: activeVideo.comments, commentId: comment.id }); }}
+                  className="text-sm flex items-start gap-4 studio-input p-5 rounded-2xl hover:bg-white/10 cursor-pointer transition"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-4 mb-2">
+                      <span className="font-black text-white hover:text-cyan-400 cursor-pointer" onClick={(e) => { e.stopPropagation(); onInspectUser(comment.authorUid); }}>{comment.authorName}</span>
+                      <span className="text-[10px] text-slate-500 font-mono font-bold tracking-widest">{formatTimeAMPM(comment.timestamp)}</span>
+                    </div>
+                    <span className="text-slate-300 font-semibold break-words leading-relaxed">{comment.text}</span>
+                  </div>
+                </LongPressable>
+              </ScrollReveal>
+            ))}
+            {(!activeVideo.comments || activeVideo.comments.length === 0) && <div className="text-xs text-slate-500 font-mono font-bold tracking-widest uppercase text-center py-16 italic studio-input rounded-2xl border-dashed">No notation logs found for this master.</div>}
+          </div>
+        </div>
+        
+        {commentToDelete && (
+          <LongPressMenu title="Purge this note?" onConfirm={deleteVideoComment} onCancel={() => setCommentToDelete(null)} confirmText="Purge" />
+        )}
+        {videoToDelete && (
+          <LongPressMenu title={`Purge master file "${activeVideo.title}"?`} onConfirm={removeVideo} onCancel={() => setVideoToDelete(null)} confirmText="Purge File" />
+        )}
+      </ScrollReveal>
+    );
+  }
+
+  return (
+    <section className="py-4 animate-fadeIn space-y-8 font-sans px-4 sm:px-0">
+      <ScrollReveal className="flex justify-between items-center studio-glass p-6 sm:p-8 rounded-[2rem] shadow-2xl border-t border-white/20 gap-4">
+        <h2 className="font-serif text-2xl font-black text-white glow-text-red uppercase tracking-wider">🎬 Cloud Video Vault</h2>
+        <button onClick={() => setShowUploadModal(true)} className="btn-cinematic text-white font-black text-[10px] sm:text-xs px-6 py-3 rounded-xl shadow-lg transition font-mono tracking-widest uppercase">Link Target Asset</button>
+      </ScrollReveal>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        {videos.map((vid, idx) => {
+          const embed = resolvePlayableVideo(vid.hlsUrl);
+          const timeLeft = getExpiry7(vid.createdAt);
+          
+          const templateBgStyle = vid.title.toLowerCase().includes('edit') 
+            ? 'from-cyan-900/80 to-blue-900/90' 
+            : 'from-red-900/80 to-rose-900/90';
+
+          return (
+            <ScrollReveal key={vid.id} delay={idx * 100}>
+              <div onClick={() => setActiveVideo(vid)} className="studio-glass border-t border-white/20 rounded-[2.5rem] overflow-hidden shadow-xl hover:shadow-[0_20px_50px_rgba(220,38,38,0.2)] hover:-translate-y-2 transition-all duration-500 cursor-pointer group flex flex-col h-full">
+                <div className="w-full aspect-video bg-black relative flex items-center justify-center overflow-hidden border-b border-white/10">
+                  {embed.thumbnail ? (
+                    <img src={embed.thumbnail} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000 opacity-60 group-hover:opacity-90" />
+                  ) : (
+                    <div className={`absolute inset-0 bg-gradient-to-br ${templateBgStyle} group-hover:scale-105 transition-transform duration-1000 flex flex-col items-center justify-center p-5 text-center select-none`}>
+                      <span className="text-5xl mb-3 filter drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]">📼</span>
+                      <span className="text-base font-serif font-black tracking-widest text-white uppercase line-clamp-2 px-3">{vid.title}</span>
+                      <div className="mt-4 flex items-center gap-2 bg-black/60 backdrop-blur px-4 py-1.5 rounded border border-white/10 shadow-inner">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>
+                        <span className="text-[9px] font-mono tracking-widest text-slate-300 font-bold uppercase">Format OK</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="relative z-10 w-16 h-16 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center border border-white/20 group-hover:bg-red-600 group-hover:scale-110 group-hover:border-red-400 transition-all duration-500 shadow-[0_0_30px_rgba(0,0,0,0.5)]"><div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-white border-b-[10px] border-b-transparent ml-1"></div></div>
+                  <div className="absolute top-4 right-4 bg-black/80 backdrop-blur-md text-red-400 border border-red-500/30 text-[9px] font-bold font-mono tracking-widest uppercase px-3 py-1 rounded shadow-lg">TTL: {timeLeft}</div>
+                </div>
+
+                <div className="p-6 flex flex-col justify-between flex-1">
+                  <h3 className="font-serif font-black text-white text-lg leading-tight line-clamp-2 group-hover:text-red-400 transition-colors mb-4">{vid.title}</h3>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-black border border-white/20 shadow-inner">{renderAvatar(vid.uploaderAvatar || PRESET_AVATARS[0].svg, "w-full h-full object-cover", (e) => { e.stopPropagation(); onInspectUser(vid.uploaderUid); })}</div>
+                    <div className="text-slate-400 text-[10px] font-mono font-bold uppercase tracking-widest truncate flex-1">{vid.uploaderName} <br/> {vid.comments?.length || 0} Annotations</div>
+                  </div>
+                </div>
+              </div>
+            </ScrollReveal>
+          );
+        })}
+      </div>
+      {videos.length === 0 && <ScrollReveal><div className="text-center text-slate-500 font-mono tracking-widest py-24 uppercase studio-input rounded-[3rem] border-dashed border-white/20">The database is currently empty.</div></ScrollReveal>}
+
+      {showUploadModal && (
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+          <form onSubmit={startUpload} className="studio-glass border-t border-white/20 p-8 rounded-[3rem] w-full max-w-md space-y-6 font-sans shadow-2xl animate-sweepUp">
+            <div className="border-b border-white/10 pb-4 mb-4">
+              <h4 className="font-serif font-black text-white text-xl uppercase tracking-widest glow-text-red">Establish Link</h4>
+              <p className="text-[10px] font-mono text-slate-400 mt-2 uppercase tracking-wide">Input raw media URL for pipeline integration.</p>
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Asset Designation</label>
+              <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} className="w-full px-4 py-3 studio-input rounded-xl text-sm font-bold text-white placeholder-slate-600 transition-all" placeholder="e.g. Master Edit V3" required />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">External Target URL</label>
+              <input type="url" value={videoUrlInput} onChange={e => setVideoUrlInput(e.target.value)} className="w-full px-4 py-3 studio-input rounded-xl text-sm font-bold text-white placeholder-slate-600 transition-all" placeholder="https://..." required />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Attach to Board (Opt)</label>
+              <select value={relatedProjectId} onChange={e => setRelatedProjectId(e.target.value)} className="w-full px-4 py-3 studio-input rounded-xl text-sm font-bold text-slate-300 transition-all">
+                <option value="">-- Standalone Asset --</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-4 justify-end pt-4 border-t border-white/10">
+              <button type="button" onClick={() => setShowUploadModal(false)} className="px-6 py-2.5 studio-input hover:bg-white/10 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition">Abort</button>
+              <button type="submit" className="px-6 py-2.5 btn-cinematic text-white font-bold text-xs rounded-xl uppercase tracking-widest transition">Initialize Link</button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// --- PROJECT BOARD ---
+function ProjectBoard({ projects, tasks, videos, scripts, posts, userProfile, showToast, selectedProject, setSelectedProject, pushNotification, isAdmin }) {
+  const [newConcept, setNewConcept] = useState('');
+  const [taskTitle, setTaskTitle] = useState('');
+  const [boardTab, setBoardTab] = useState('progress');
+  const [projectToDelete, setProjectToDelete] = useState(null);
+  const [taskToDelete, setTaskToDelete] = useState(null);
+
+  const createConcept = async (e) => {
+    e.preventDefault();
+    if (!newConcept.trim() || !db || !db.app) return;
+    try {
+      await addDoc(collection(db, 'projects'), { title: newConcept, creatorName: userProfile.name, createdAt: Date.now() });
+      pushNotification(`Initiated new operation: "${newConcept}"`, 'project', {}, userProfile.name);
+      setNewConcept(''); showToast('Operation board established!', 'success');
+    } catch(err) {}
+  };
+
+  const activeTasks = useMemo(() => (tasks || []).filter(t => t.projectId === selectedProject?.id), [tasks, selectedProject]);
+  
+  const projectVideos = useMemo(() => (videos || []).filter(v => v.relatedProjectId === selectedProject?.id), [videos, selectedProject]);
+  const projectScripts = useMemo(() => (scripts || []).filter(s => s.relatedProjectId === selectedProject?.id), [scripts, selectedProject]);
+  const projectPosts = useMemo(() => (posts || []).filter(p => p.relatedProjectId === selectedProject?.id), [posts, selectedProject]);
+
+  const addTask = async (e) => {
+    e.preventDefault();
+    if (!taskTitle.trim() || !db || !db.app) return;
+    try {
+      await addDoc(collection(db, 'tasks'), { projectId: selectedProject.id, title: taskTitle, status: 'Pending' });
+      setTaskTitle('');
+    } catch(err) {}
+  };
+
+  const removeProject = async () => {
+    if (!projectToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'projects', projectToDelete));
+    if (selectedProject?.id === projectToDelete) setSelectedProject(null); 
+    setProjectToDelete(null);
+    showToast('Operation board purged.', 'info');
+  };
+
+  const removeTask = async () => { 
+    if (!taskToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'tasks', taskToDelete)); 
+    setTaskToDelete(null);
+    showToast('Task removed from queue.', 'info');
+  };
+
+  const toggleTaskStatus = async (task) => {
+    if (!db || !db.app) return;
+    const nextStatus = task.status === 'Pending' ? 'Resolved' : 'Pending';
+    await updateDoc(doc(db, 'tasks', task.id), { status: nextStatus });
+    showToast(`Task status: ${nextStatus}`, 'success');
+  };
+
+  return (
+    <section className="py-4 animate-fadeIn font-sans">
+      {!selectedProject ? (
+        <div className="space-y-10 font-sans">
+          <ScrollReveal>
+            <form onSubmit={createConcept} className="max-w-xl mx-auto flex flex-col sm:flex-row gap-4 studio-glass p-6 rounded-[2rem] shadow-2xl border-t border-white/20">
+              <input type="text" value={newConcept} onChange={e => setNewConcept(e.target.value)} placeholder="Establish new operation vector..." className="flex-1 px-5 py-3 studio-input rounded-xl text-sm font-bold text-white placeholder-slate-500 transition-all" required />
+              <button type="submit" className="px-8 py-3 btn-cinematic text-white text-xs rounded-xl font-black uppercase tracking-widest shadow-lg transition">Deploy</button>
+            </form>
+          </ScrollReveal>
+          
+          <ScrollReveal className="p-8 sm:p-12 border border-white/10 shadow-[inset_0_0_50px_rgba(0,0,0,0.8)] rounded-[3rem] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 animate-fadeIn backdrop-blur-sm" style={{ background: 'rgba(5,5,8,0.6)', backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
+            {projects.map((p, idx) => (
+              <ScrollReveal key={p.id} delay={idx * 50}>
+                <LongPressable 
+                  onClick={() => setSelectedProject(p)} 
+                  onLongPress={() => { if (isAdmin) setProjectToDelete(p.id); }}
+                  className="studio-input p-6 rounded-[2rem] cursor-pointer shadow-xl hover:-translate-y-2 hover:shadow-[0_15px_40px_rgba(6,182,212,0.15)] hover:border-cyan-500/40 transition-all duration-500 relative border border-white/10 h-full flex flex-col justify-between group"
+                >
+                  <span className="text-3xl drop-shadow-[0_0_10px_rgba(6,182,212,0.5)] mb-4 block group-hover:scale-110 transition-transform">📂</span>
+                  <div className="font-serif font-black text-white text-lg line-clamp-2 leading-tight group-hover:text-cyan-400 transition-colors">{p.title}</div>
+                  <div className="text-[9px] text-slate-500 font-bold mt-5 font-mono tracking-widest uppercase border-t border-white/10 pt-3">TTL: {getExpiry30(p.createdAt)}</div>
+                </LongPressable>
+              </ScrollReveal>
+            ))}
+            {projects.length === 0 && <div className="col-span-full text-center py-20 font-mono tracking-widest uppercase text-slate-500 text-sm">No operations currently active in database.</div>}
+          </ScrollReveal>
+        </div>
+      ) : (
+        <ScrollReveal className="space-y-6 studio-glass p-6 sm:p-10 rounded-[3rem] shadow-2xl animate-fadeIn border-t border-white/20">
+          <div className="flex justify-between items-center border-b border-white/10 pb-5">
+            <button onClick={() => setSelectedProject(null)} className="text-[10px] font-black text-white hover:text-cyan-400 uppercase tracking-widest transition bg-white/5 hover:bg-white/10 px-4 py-2 rounded shadow-sm border border-white/10">◀ Exit Terminal</button>
+          </div>
+          
+          <div>
+            <h3 className="font-serif text-3xl sm:text-5xl font-black text-white drop-shadow-lg uppercase tracking-wider">{selectedProject.title}</h3>
+            <p className="text-[10px] text-cyan-400 font-mono tracking-widest uppercase mt-3 bg-cyan-900/20 inline-block px-3 py-1 rounded border border-cyan-500/30">Auto-Purge: {getExpiry30(selectedProject.createdAt)}</p>
+          </div>
+          
+          <div className="flex gap-8 border-b border-white/10 mt-8 pt-4">
+            <button onClick={() => setBoardTab('progress')} className={`pb-4 text-xs font-black uppercase tracking-widest transition-colors ${boardTab === 'progress' ? 'border-b-[3px] border-cyan-500 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>Execution Queue</button>
+            <button onClick={() => setBoardTab('resources')} className={`pb-4 text-xs font-black uppercase tracking-widest transition-colors flex gap-2 items-center ${boardTab === 'resources' ? 'border-b-[3px] border-cyan-500 text-cyan-400' : 'text-slate-500 hover:text-white'}`}>
+              Linked Assets
+              {(projectVideos.length + projectScripts.length + projectPosts.length) > 0 && (
+                <span className="bg-cyan-500 text-black text-[9px] px-2 py-0.5 rounded shadow-[0_0_10px_rgba(6,182,212,0.5)]">{projectVideos.length + projectScripts.length + projectPosts.length}</span>
+              )}
+            </button>
+          </div>
+
+          {boardTab === 'progress' ? (
+            <div className="pt-4">
+              <div className="space-y-3 mt-2">
+                {activeTasks.map((t) => (
+                  <LongPressable 
+                    key={t.id} 
+                    onLongPress={() => { if (isAdmin) setTaskToDelete(t.id); }}
+                    className="py-4 px-5 flex justify-between items-center group cursor-pointer hover:bg-white/10 studio-input rounded-2xl transition-all shadow-sm border border-white/5 hover:border-cyan-500/30"
+                  >
+                    <span className={`text-sm font-semibold tracking-wide ${t.status === 'Resolved' ? 'line-through text-slate-600' : 'text-slate-200'} transition-all`}>{t.title}</span>
+                    <button onClick={(e) => { e.stopPropagation(); toggleTaskStatus(t); }} className={`text-[9px] px-4 py-1.5 rounded uppercase tracking-widest font-black shadow transition-all active:scale-95 ${t.status === 'Pending' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/30' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'}`}>{t.status}</button>
+                  </LongPressable>
+                ))}
+                {activeTasks.length === 0 && <p className="text-slate-500 font-mono tracking-widest uppercase text-center py-10 text-xs border border-dashed border-white/10 rounded-2xl">No vectors added to queue.</p>}
+              </div>
+              
+              <form onSubmit={addTask} className="flex flex-col sm:flex-row gap-3 pt-8 mt-6 border-t border-white/10">
+                <input type="text" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Define new execution parameter..." className="flex-1 px-5 py-3 studio-input rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-all" required />
+                <button type="submit" className="px-8 py-3 bg-white text-black text-xs rounded-xl font-black uppercase tracking-widest shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:bg-slate-200 transition">Append</button>
+              </form>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6">
+              {projectVideos.map((v, i) => (
+                <ScrollReveal key={v.id} delay={i*50} className="flex items-center p-5 studio-input rounded-2xl border border-white/10 hover:border-cyan-500/40 hover:bg-white/5 transition-all shadow-md cursor-pointer">
+                  <span className="text-[10px] bg-red-500/20 text-red-400 px-3 py-1.5 rounded font-black mr-4 uppercase tracking-widest shrink-0 border border-red-500/30">📼 Video</span>
+                  <span className="font-bold text-sm text-slate-200 flex-1 truncate">{v.title}</span>
+                </ScrollReveal>
+              ))}
+              {projectScripts.map((s, i) => (
+                <ScrollReveal key={s.id} delay={i*50} className="flex items-center p-5 studio-input rounded-2xl border border-white/10 hover:border-cyan-500/40 hover:bg-white/5 transition-all shadow-md cursor-pointer">
+                  <span className="text-[10px] bg-blue-500/20 text-blue-400 px-3 py-1.5 rounded font-black mr-4 uppercase tracking-widest shrink-0 border border-blue-500/30">📝 Script</span>
+                  <span className="font-bold text-sm text-slate-200 flex-1 truncate">{s.title}</span>
+                </ScrollReveal>
+              ))}
+              {projectPosts.map((p, i) => (
+                <ScrollReveal key={p.id} delay={i*50} className="flex items-center p-5 studio-input rounded-2xl border border-white/10 hover:border-cyan-500/40 hover:bg-white/5 transition-all shadow-md cursor-pointer">
+                  <span className="text-[10px] bg-purple-500/20 text-purple-400 px-3 py-1.5 rounded font-black mr-4 uppercase tracking-widest shrink-0 border border-purple-500/30">📸 Image</span>
+                  <span className="font-bold text-sm text-slate-200 flex-1 truncate">{p.title}</span>
+                </ScrollReveal>
+              ))}
+              {(!projectVideos.length && !projectScripts.length && !projectPosts.length) && (
+                <div className="col-span-full text-center text-slate-500 font-mono tracking-widest uppercase py-20 text-xs border border-dashed border-white/10 rounded-2xl">No assets currently linked to this node.</div>
+              )}
+            </div>
+          )}
+        </ScrollReveal>
+      )}
+      
+      {projectToDelete && (
+        <LongPressMenu title="Purge this Operational Board entirely?" onConfirm={removeProject} onCancel={() => setProjectToDelete(null)} confirmText="Purge Board" />
+      )}
+      {taskToDelete && (
+        <LongPressMenu title="Purge this queue parameter?" onConfirm={removeTask} onCancel={() => setTaskToDelete(null)} confirmText="Purge Task" />
+      )}
+    </section>
+  );
+}
+
+// --- SCRIPTS WORKSPACE ---
+function ScriptsWorkspace({ scripts, projects, userProfile, isAdmin, showToast, pushNotification }) {
+  const [selectedScriptId, setSelectedScriptId] = useState(null);
+  const [showNewTopicModal, setShowNewTopicModal] = useState(false);
+  const [newTopicTitle, setNewTopicTitle] = useState('');
+  const [relatedProjectId, setRelatedProjectId] = useState('');
+  const [draftText, setDraftText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [isEditingBody, setIsEditingBody] = useState(false);
+  const [topicToDelete, setTopicToDelete] = useState(null);
+
+  const selectedScript = useMemo(() => (scripts || []).find(s => s.id === selectedScriptId) || null, [scripts, selectedScriptId]);
+
+  useEffect(() => {
+    if (selectedScript && !isEditingBody) {
+      setDraftText(selectedScript.content || '');
+    }
+  }, [selectedScript, isEditingBody]);
+
+  const canEditSelected = selectedScript && userProfile;
+
+  useEffect(() => {
+    if (!isEditingBody || !selectedScript || !canEditSelected || !db || !db.app) return;
+    if (draftText === selectedScript.content) return; 
+
+    const timer = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await updateDoc(doc(db, 'scripts', selectedScript.id), {
+          content: draftText,
+          updatedAt: Date.now(),
+          lastEditedBy: userProfile.name
+        });
+      } catch (err) {
+        console.error("Auto-save error", err);
+      } finally {
+        setSaving(false);
+      }
+    }, 800); 
+
+    return () => clearTimeout(timer);
+  }, [draftText, isEditingBody, selectedScript, canEditSelected, userProfile]);
+
+  const createTopic = async (e) => {
+    e.preventDefault();
+    const clean = newTopicTitle.trim();
+    if (!clean || !db || !db.app) return;
+    try {
+      const ref = await addDoc(collection(db, 'scripts'), { 
+        title: clean, 
+        content: '', 
+        relatedProjectId: relatedProjectId,
+        authorUid: userProfile.id, 
+        authorName: userProfile.name, 
+        createdAt: Date.now(), 
+        updatedAt: Date.now() 
+      });
+      pushNotification(`Drafted manuscript: "${clean}"`, 'script', {}, userProfile.name);
+      setNewTopicTitle(''); setRelatedProjectId(''); setShowNewTopicModal(false);
+      setSelectedScriptId(ref.id); setIsEditingBody(true); setDraftText('');
+      showToast('Manuscript initialized!', 'success');
+    } catch(err) {
+      showToast('Failed to initialize manuscript.', 'warning');
+    }
+  };
+
+  const removeTopic = async () => {
+    if (!topicToDelete || !db || !db.app) return;
+    await deleteDoc(doc(db, 'scripts', topicToDelete));
+    if (selectedScriptId === topicToDelete) { setSelectedScriptId(null); setIsEditingBody(false); }
+    setTopicToDelete(null);
+    showToast('Manuscript purged.', 'info');
+  };
+
+  return (
+    <section className="py-4 animate-fadeIn font-sans space-y-8">
+      <ScrollReveal className="flex justify-between items-center studio-glass p-6 sm:p-8 rounded-[2rem] shadow-2xl border-t border-white/20">
+        <h3 className="font-serif font-black text-white text-xl sm:text-2xl uppercase tracking-widest glow-text-cyan">📝 Manuscript Database</h3>
+        <button onClick={() => setShowNewTopicModal(true)} className="bg-cyan-600/20 text-cyan-400 font-black text-[10px] sm:text-xs px-6 py-3 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:bg-cyan-600/40 transition border border-cyan-500/50 uppercase tracking-widest">Create Entry</button>
+      </ScrollReveal>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <ScrollReveal className="lg:col-span-1 studio-glass p-6 rounded-[2.5rem] shadow-2xl space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar border-t border-white/20" delay={200}>
+          {scripts.map(s => (
+            <LongPressable 
+              key={s.id} 
+              onClick={() => { setSelectedScriptId(s.id); setIsEditingBody(false); }} 
+              onLongPress={() => { if (isAdmin || s.authorUid === userProfile?.id) setTopicToDelete(s.id); }}
+              className={`p-5 rounded-2xl border cursor-pointer transition-all duration-300 flex justify-between items-start gap-4 shadow-md ${selectedScriptId === s.id ? 'border-cyan-500 bg-cyan-900/30 shadow-[0_0_20px_rgba(6,182,212,0.2)]' : 'border-white/10 studio-input hover:border-cyan-500/50 hover:bg-white/10'}`}
+            >
+              <div className="min-w-0">
+                <p className={`text-base font-black truncate ${selectedScriptId === s.id ? 'text-white' : 'text-slate-300'}`}>{s.title}</p>
+                <span className={`text-[9px] font-mono font-bold block mt-2 uppercase tracking-widest ${selectedScriptId === s.id ? 'text-cyan-400' : 'text-slate-500'}`}>By {s.authorName} • TTL: {getExpiry30(s.createdAt)}</span>
+              </div>
+            </LongPressable>
+          ))}
+          {scripts.length === 0 && <div className="text-center text-slate-500 font-mono tracking-widest py-20 text-xs border border-dashed border-white/10 rounded-2xl uppercase">Database Empty.</div>}
+        </ScrollReveal>
+
+        <ScrollReveal className="lg:col-span-2 studio-glass p-8 sm:p-10 rounded-[3rem] shadow-2xl border-t border-white/20 h-[600px] flex flex-col" delay={400}>
+          {!selectedScript ? (
+            <div className="text-center text-slate-500 font-mono tracking-widest uppercase m-auto text-sm">Select an entry to begin readout.</div>
+          ) : (
+            <div className="flex flex-col h-full">
+              <div className="flex justify-between items-start border-b border-white/10 pb-6 mb-6 shrink-0">
+                <div>
+                  <h3 className="font-serif text-3xl font-black text-white glow-text-cyan drop-shadow-md">{selectedScript.title}</h3>
+                  <div className="flex items-center gap-4 mt-3">
+                    {selectedScript.lastEditedBy && <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Override by {selectedScript.lastEditedBy}</p>}
+                    <span className="bg-red-500/20 text-red-400 text-[9px] px-3 py-1 rounded border border-red-500/40 font-black tracking-widest uppercase">TTL: {getExpiry30(selectedScript.createdAt)}</span>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  {canEditSelected && !isEditingBody && <button onClick={() => setIsEditingBody(true)} className="text-[10px] font-black uppercase tracking-widest text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-xl px-5 py-2 hover:bg-cyan-500/20 transition shadow-sm">✎ Input Mode</button>}
+                  {isEditingBody && (
+                    <div className="flex items-center gap-4 bg-black/40 px-4 py-2 rounded-xl border border-white/10 shadow-inner">
+                      <span className="text-[10px] font-mono text-slate-400 font-black uppercase tracking-widest">{saving ? '⏳ Syncing...' : '✅ Synced'}</span>
+                      <button onClick={() => setIsEditingBody(false)} className="text-[10px] font-black uppercase tracking-widest text-white bg-white/10 border border-white/20 rounded px-4 py-1 hover:bg-white/20 transition">Lock</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {isEditingBody ? (
+                  <div className="animate-fadeIn h-full">
+                    <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} placeholder="Begin text input... (Auto-syncs via secure channel)" className="w-full h-full min-h-[300px] px-6 py-5 studio-input border border-white/10 rounded-2xl text-base text-slate-200 font-semibold focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 focus:outline-none font-sans leading-relaxed custom-scrollbar shadow-inner resize-none placeholder-slate-600" autoFocus />
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap text-lg text-slate-300 font-medium leading-loose font-sans p-6 rounded-2xl border border-white/5 bg-white/5 shadow-inner min-h-[300px]">
+                    {selectedScript.content ? selectedScript.content : <span className="italic text-slate-600 font-mono text-sm tracking-widest uppercase">End of file. Awaiting input.</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </ScrollReveal>
+      </div>
+
+      {showNewTopicModal && (
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+          <form onSubmit={createTopic} className="studio-glass p-8 rounded-[3rem] border-t border-white/20 w-full max-w-md space-y-6 font-sans shadow-2xl animate-sweepUp">
+            <h4 className="font-serif font-black text-white text-xl uppercase tracking-widest border-b border-white/10 pb-4 glow-text-cyan">New Manuscript</h4>
+            <div>
+              <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest mb-1.5">Designation</label>
+              <input type="text" value={newTopicTitle} onChange={e => setNewTopicTitle(e.target.value)} placeholder="e.g. Operation Alpha Script" className="w-full px-5 py-3 studio-input rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-bold text-white placeholder-slate-600 shadow-inner transition-all" required autoFocus />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest mb-1.5">Attach to Board (Opt)</label>
+              <select value={relatedProjectId} onChange={e => setRelatedProjectId(e.target.value)} className="w-full px-5 py-3 studio-input rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-bold text-slate-300 shadow-inner transition-all">
+                <option value="">-- Unlinked --</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-4 justify-end pt-4 border-t border-white/10">
+              <button type="button" onClick={() => setShowNewTopicModal(false)} className="px-6 py-2.5 studio-input text-slate-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition shadow-sm">Abort</button>
+              <button type="submit" className="px-6 py-2.5 bg-cyan-600/30 border border-cyan-500/50 hover:bg-cyan-500/40 text-cyan-400 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-[0_0_15px_rgba(6,182,212,0.3)]">Initialize</button>
+            </div>
+          </form>
+        </div>
+      )}
+      
+      {topicToDelete && (
+        <LongPressMenu title="Purge this manuscript?" onConfirm={removeTopic} onCancel={() => setTopicToDelete(null)} confirmText="Purge File" />
+      )}
+    </section>
+  );
+}
+
+// --- CHATROOM ---
+function WhiteboardChat({ chats, userProfile, chatChannel, setChatChannel, pushNotification, siteSettings, isAdmin, showToast, onInspectUser, viewMode, setViewMode }) {
+  const [inputText, setInputText] = useState('');
+  const [newChannelName, setNewChannelName] = useState('');
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [activeMessageMenu, setActiveMessageMenu] = useState(null);
+  const [editingMessageText, setEditingMessageText] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [channelToDelete, setChannelToDelete] = useState(null);
+
+  const messagesEndRef = useRef(null);
+  const channels = siteSettings.chatChannels || [{ id: 'general', name: '🌍 Studio Room' }];
+
+  const openChannel = (id) => { setChatChannel(id); setViewMode('chat'); };
+
+  const channelChats = useMemo(() => {
+    return (chats || [])
+      .filter(c => c.projectId === chatChannel)
+      .sort((a, b) => a.createdAt - b.createdAt); 
+  }, [chats, chatChannel]);
+
+  useEffect(() => {
+    if (viewMode === 'chat' && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [channelChats, viewMode]);
+
+  const channelPreviews = useMemo(() => {
+    return channels.map(ch => {
+      const allThisChannel = (chats || []).filter(c => c.projectId === ch.id).sort((a, b) => b.createdAt - a.createdAt);
+      const last = allThisChannel[0];
+      return { ...ch, lastMessage: last?.text || 'No messages yet', lastSender: last?.senderName || '', lastTime: last?.createdAt || null };
+    }).sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
+  }, [channels, chats]);
+
+  const groupedChats = useMemo(() => {
+    const groups = [];
+    let currentGroup = [];
+    
+    channelChats.forEach((msg) => {
+      if (currentGroup.length === 0) {
+        currentGroup.push(msg);
+      } else {
+        const lastMsg = currentGroup[currentGroup.length - 1];
+        const isSameSender = msg.senderUid === lastMsg.senderUid;
+        const isCloseTime = (msg.createdAt - lastMsg.createdAt) < (5 * 60 * 1000); 
+
+        if (isSameSender && isCloseTime) {
+          currentGroup.push(msg);
+        } else {
+          groups.push([...currentGroup]);
+          currentGroup = [msg];
+        }
+      }
+    });
+    if (currentGroup.length > 0) groups.push(currentGroup);
+    return groups;
+  }, [channelChats]);
+
+  const commit = async (e) => {
+    e.preventDefault();
+    if (!inputText.trim() || !db || !db.app) return;
+    const text = inputText.trim();
+    
+    setInputText(''); 
+    
+    try {
+      const chatDocRef = await addDoc(collection(db, 'chats'), {
+        projectId: chatChannel, text, senderName: userProfile?.name || 'Guest Creator', senderUid: userProfile?.id || 'guest-uid', createdAt: Date.now(),
+      });
+      pushNotification(`"${text.length > 50 ? text.slice(0, 50) + '…' : text}"`, 'chat', { channelId: chatChannel, chatId: chatDocRef.id }, userProfile?.name || 'Guest Creator', 'all');
+    } catch (err) {}
+  };
+
+  const handleCreateGroup = async (e) => {
+    e.preventDefault();
+    const clean = newChannelName.trim();
+    if (!clean || !db || !db.app) return;
+    try {
+      const newId = 'ch_' + Date.now();
+      await setDoc(doc(db, 'meta/settings'), { chatChannels: [...channels, { id: newId, name: clean }] }, { merge: true });
+      setNewChannelName(''); setShowNewGroupModal(false); showToast("Link established!", "success");
+      openChannel(newId);
+    } catch (err) {}
+  };
+
+  const removeChannel = async () => {
+    if (!channelToDelete || !db || !db.app) return;
+    try {
+      await setDoc(doc(db, 'meta/settings'), { chatChannels: channels.filter(c => c.id !== channelToDelete) }, { merge: true });
+      if (chatChannel === channelToDelete) { setChatChannel('general'); setViewMode('list'); }
+      setChannelToDelete(null);
+      showToast("Link severed!", "info");
+    } catch (err) {}
+  };
+
+  const deleteMessage = async (msgId) => {
+    if (!db || !db.app) return;
+    
+    const msgToDelete = chats.find(c => c.id === msgId);
+    await deleteDoc(doc(db, 'chats', msgId));
+    setActiveMessageMenu(null);
+    
+    try {
+      const notifsRef = collection(db, 'notifications');
+      const q = query(notifsRef, where('type', '==', 'chat'));
+      const snap = await getDocs(q);
+      
+      const toDelete = snap.docs.filter(d => {
+        const data = d.data();
+        if (data.meta && data.meta.chatId === msgId) return true;
+        if (msgToDelete && data.actor === msgToDelete.senderName) {
+          const truncated = msgToDelete.text.length > 50 ? msgToDelete.text.slice(0, 50) + '…' : msgToDelete.text;
+          if (data.message === `"${truncated}"`) return true;
+        }
+        return false;
+      });
+      await Promise.all(toDelete.map(d => deleteDoc(d.ref)));
+    } catch (err) { console.error("Cleanup error:", err); }
+    showToast("Transmission redacted.", "info");
+  };
+
+  const saveEditedMessage = async () => {
+    if (!editingMessageText.trim() || !editingMessageId || !db || !db.app) return;
+    try {
+      await updateDoc(doc(db, 'chats', editingMessageId), { text: editingMessageText.trim() });
+      setEditingMessageId(null); setEditingMessageText(''); setActiveMessageMenu(null); showToast("Transmission altered!", "success");
+    } catch (e) { showToast("Access restricted.", "warning"); }
+  };
+
+  const copyMessageText = (txt) => {
+    try {
+      const container = document.createElement('textarea');
+      container.value = txt; container.style.position = 'fixed'; document.body.appendChild(container); container.select(); document.execCommand('copy'); document.body.removeChild(container);
+      showToast("Decrypted to clipboard!", "success");
+    } catch (e) { showToast("Clipboard offline.", "warning"); }
+    setActiveMessageMenu(null);
+  };
+
+  const timeAgo = (ts) => {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h`;
+    return `${Math.floor(hours / 24)}d`;
+  };
+
+  const initialOf = (name) => (name || '#').replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase() || '#';
+  const activeChannelObj = channels.find(c => c.id === chatChannel);
+
+  return (
+    <ScrollReveal className="studio-glass border-t border-white/20 rounded-[3rem] h-[80vh] overflow-hidden shadow-2xl animate-fadeIn font-sans flex flex-col">
+      {viewMode === 'list' ? (
+        <>
+          <div className="p-6 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/40">
+            <h3 className="font-serif font-black text-white text-xl uppercase tracking-widest glow-text-cyan">💬 Comms Link</h3>
+            <button onClick={() => setShowNewGroupModal(true)} className="btn-cinematic text-white text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-lg transition">Create Node</button>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+            {channelPreviews.map(ch => (
+              <LongPressable 
+                key={ch.id} 
+                onClick={() => openChannel(ch.id)} 
+                onLongPress={() => { if (isAdmin && ch.id !== 'general') setChannelToDelete(ch.id); }}
+                className="flex items-center gap-5 p-5 mb-3 studio-input border border-white/5 hover:border-white/20 rounded-2xl hover:bg-white/5 cursor-pointer transition shadow-md group"
+              >
+                <div className="w-14 h-14 rounded-full bg-black flex items-center justify-center text-white font-serif font-black text-xl shrink-0 shadow-[0_0_15px_rgba(255,255,255,0.1)] group-hover:shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-white/20 transition-all">
+                  {initialOf(ch.name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center">
+                    <span className="font-black text-lg text-white truncate group-hover:text-cyan-400 transition-colors uppercase tracking-wider">{ch.name}</span>
+                    {ch.lastTime && <span className="text-[10px] text-slate-500 font-mono font-bold shrink-0 ml-3 uppercase tracking-widest">{timeAgo(ch.lastTime)}</span>}
+                  </div>
+                  <p className="text-sm font-semibold text-slate-400 truncate mt-1">{ch.lastSender ? `${ch.lastSender}: ` : ''}{ch.lastMessage}</p>
+                </div>
+              </LongPressable>
+            ))}
+            {channelPreviews.length === 0 && <div className="text-center text-slate-500 font-mono uppercase tracking-widest py-20 text-xs border border-dashed border-white/10 rounded-3xl m-4">No active links.</div>}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="p-5 border-b border-white/10 flex items-center gap-5 shrink-0 bg-black/60 backdrop-blur-xl z-10 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+            <button onClick={() => setViewMode('list')} className="p-2 hover:bg-white/10 bg-white/5 rounded-full transition shadow-sm border border-white/10 text-slate-300 hover:text-white">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </button>
+            <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center text-cyan-400 font-serif font-black text-lg shrink-0 shadow-[0_0_15px_rgba(6,182,212,0.4)] border border-cyan-500/30">
+              {initialOf(activeChannelObj?.name)}
+            </div>
+            <span className="font-serif font-black text-white text-xl truncate uppercase tracking-widest glow-text-cyan">{activeChannelObj?.name}</span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar relative z-0 bg-[#020203]/50">
+            {groupedChats.map((group, gIdx) => {
+               const isMe = group[0].senderUid === userProfile?.id;
+               const senderName = group[0].senderName;
+
+               return (
+                 <div key={gIdx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                   {!isMe && <span className="text-[10px] text-slate-500 font-mono uppercase tracking-widest font-bold mb-2 ml-3">{senderName}</span>}
+
+                   <div className={`flex flex-col gap-1.5 max-w-[85%] sm:max-w-[75%]`}>
+                      {group.map((m, i) => {
+                         const isFirst = i === 0;
+                         const isLast = i === group.length - 1;
+                         
+                         let corners = 'rounded-2xl';
+                         if (isMe) {
+                            if (group.length > 1) {
+                               if (isFirst) corners = 'rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl rounded-br-sm';
+                               else if (isLast) corners = 'rounded-tl-2xl rounded-tr-sm rounded-bl-2xl rounded-br-2xl';
+                               else corners = 'rounded-tl-2xl rounded-tr-sm rounded-bl-2xl rounded-br-sm';
+                            } else {
+                                corners = 'rounded-2xl rounded-br-sm';
+                            }
+                         } else {
+                             if (group.length > 1) {
+                               if (isFirst) corners = 'rounded-tr-2xl rounded-tl-2xl rounded-br-2xl rounded-bl-sm';
+                               else if (isLast) corners = 'rounded-tr-2xl rounded-tl-sm rounded-br-2xl rounded-bl-2xl';
+                               else corners = 'rounded-tr-2xl rounded-tl-sm rounded-br-2xl rounded-bl-sm';
+                            } else {
+                                corners = 'rounded-2xl rounded-bl-sm';
+                            }
+                         }
+
+                         return (
+                            <LongPressable
+                              key={m.id}
+                              onLongPress={() => setActiveMessageMenu(m)}
+                              className={`relative px-5 py-3 text-sm font-semibold ${corners} shadow-lg cursor-pointer backdrop-blur-md transition-all ${isMe ? 'bg-gradient-to-br from-red-700 to-rose-900 text-white border border-red-500/50 shadow-[0_5px_15px_rgba(220,38,38,0.2)]' : 'studio-input border-white/20 text-slate-200'}`}
+                            >
+                               <p className="break-words leading-relaxed">{m.text}</p>
+                            </LongPressable>
+                         );
+                      })}
+                   </div>
+                   <span className="text-[9px] text-slate-600 font-bold mt-2 mx-3 font-mono tracking-widest uppercase">{formatTimeAMPM(group[group.length - 1].createdAt)}</span>
+                 </div>
+               );
+            })}
+            <div ref={messagesEndRef} className="h-1" />
+          </div>
+          
+          <form
+            onSubmit={commit}
+            className="p-5 bg-black/60 border-t border-white/10 shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] z-10 backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-4 studio-input rounded-full pl-6 pr-2 py-2 focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/30 transition-all shadow-inner border border-white/20">
+              <input 
+                type="text" 
+                placeholder="Transmit message..." 
+                value={inputText} 
+                onChange={(e) => setInputText(e.target.value)} 
+                className="flex-1 bg-transparent text-sm font-bold text-white placeholder-slate-500 focus:outline-none tracking-wide" 
+                required 
+              />
+              <button 
+                type="submit" 
+                className="bg-white text-black text-xs font-black uppercase tracking-widest px-6 py-3 rounded-full transition hover:bg-slate-300 active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.4)]"
+              >
+                Send
+              </button>
+            </div>
+          </form>
+        </>
+      )}
+
+      {showNewGroupModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-4" onClick={() => setShowNewGroupModal(false)}>
+          <form onSubmit={handleCreateGroup} onClick={(e) => e.stopPropagation()} className="studio-glass border-t border-white/20 p-8 rounded-[3rem] w-full max-w-md space-y-6 font-sans shadow-[0_0_50px_rgba(0,0,0,0.8)] animate-sweepUp">
+            <h4 className="font-serif font-black text-white text-xl border-b border-white/10 pb-3 uppercase tracking-widest glow-text-cyan">Establish Comms Node</h4>
+            <input type="text" value={newChannelName} onChange={(e) => setNewChannelName(e.target.value)} placeholder="Node Designation..." className="w-full px-5 py-3 studio-input rounded-xl text-sm font-bold text-white focus:ring-2 focus:ring-cyan-500 outline-none shadow-inner placeholder-slate-500 transition-all" required autoFocus />
+            <div className="flex gap-4 justify-end pt-3">
+              <button type="button" onClick={() => setShowNewGroupModal(false)} className="px-6 py-2.5 studio-input hover:bg-white/10 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition shadow-sm border border-white/10">Abort</button>
+              <button type="submit" className="px-6 py-2.5 bg-cyan-600/30 border border-cyan-500/50 text-cyan-400 font-black text-xs rounded-xl uppercase tracking-widest shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:bg-cyan-500/40 transition">Establish</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {channelToDelete && (
+        <LongPressMenu title="Sever this comms link completely?" onConfirm={removeChannel} onCancel={() => setChannelToDelete(null)} confirmText="Sever Link" />
+      )}
+
+      {activeMessageMenu && (
+        <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn" onClick={() => { setActiveMessageMenu(null); setEditingMessageId(null); }}>
+          <div className="w-full max-w-xs studio-glass border-t border-white/20 rounded-[2rem] p-6 shadow-[0_0_40px_rgba(0,0,0,0.6)] text-white space-y-4 text-center" onClick={(e) => e.stopPropagation()}>
+            <h5 className="font-serif font-black text-xs text-slate-400 pb-3 border-b border-white/10 uppercase tracking-widest drop-shadow-sm">Transmission Options</h5>
+            {editingMessageId !== activeMessageMenu.id ? (
+              <div className="flex flex-col gap-3 pt-2">
+                <button onClick={() => copyMessageText(activeMessageMenu.text)} className="w-full py-3 studio-input hover:bg-white/10 border border-white/10 text-white font-bold uppercase tracking-widest rounded-xl text-xs transition-colors shadow-sm">📋 Decrypt</button>
+                <button onClick={(e) => { e.stopPropagation(); onInspectUser(activeMessageMenu.senderUid); setActiveMessageMenu(null); }} className="w-full py-3 studio-input hover:bg-white/10 border border-white/10 text-white font-bold uppercase tracking-widest rounded-xl text-xs transition-colors shadow-sm">👤 Trace Source</button>
+                {(isAdmin || activeMessageMenu.senderUid === userProfile?.id) && (
+                  <>
+                    <button onClick={() => { setEditingMessageId(activeMessageMenu.id); setEditingMessageText(activeMessageMenu.text); }} className="w-full py-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-500 font-bold uppercase tracking-widest rounded-xl text-xs transition-colors shadow-sm backdrop-blur">✎ Alter</button>
+                    <button onClick={() => deleteMessage(activeMessageMenu.id)} className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-500 font-bold uppercase tracking-widest rounded-xl text-xs transition-colors shadow-sm backdrop-blur">🗑 Redact</button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4 pt-2">
+                <textarea value={editingMessageText} onChange={e => setEditingMessageText(e.target.value)} className="w-full p-4 studio-input border border-white/20 rounded-xl text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 shadow-inner" rows={4} />
+                <div className="flex gap-3 justify-end">
+                  <button onClick={() => { setEditingMessageId(null); setEditingMessageText(''); }} className="px-5 py-2 studio-input border border-white/10 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm">Abort</button>
+                  <button onClick={saveEditedMessage} className="px-5 py-2 bg-cyan-600/30 border border-cyan-500/50 hover:bg-cyan-500/40 text-cyan-400 font-black rounded-xl text-[10px] uppercase tracking-widest shadow-[0_0_15px_rgba(6,182,212,0.3)]">Confirm</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </ScrollReveal>
+  );
+}
+
 // --- MAIN APP COMPONENT ---
 export default function App() {
   const [showIntroLoader, setShowIntroLoader] = useState(true);
