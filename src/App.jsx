@@ -2143,15 +2143,16 @@ export default function App() {
   useEffect(() => {
     if (!auth || !auth.app) { setAuthLoading(false); return; }
     const initAuth = async () => { 
-      try { 
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token); 
-        } else {
-          await signInAnonymously(auth); 
-        }
-      } catch (e) {} 
-    };
-    initAuth();
+  try { 
+    if (auth.currentUser) return; // already logged in, don't touch it
+    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+      await signInWithCustomToken(auth, __initial_auth_token); 
+    } else {
+      await signInAnonymously(auth); 
+    }
+  } catch (e) {} 
+};
+initAuth();
     
     const unsub = onAuthStateChanged(auth, async (user) => { 
       setAuthUser(user); 
