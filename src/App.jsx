@@ -2142,29 +2142,36 @@ export default function App() {
   const ensureProfileDocRef = useRef(() => {});
 
   useEffect(() => {
-    if (!auth || !auth.app) { setAuthLoading(false); return; }
-    const initAuth = async () => { 
-  try { 
-    if (auth.currentUser) return; // already logged in, don't touch it
-    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-      await signInWithCustomToken(auth, __initial_auth_token); 
-    } else {
-      await signInAnonymously(auth); 
-    }
-  } catch (e) {} 
-};
-initAuth();
-    
-    const unsub = onAuthStateChanged(auth, async (user) => { 
-      setAuthUser(user); 
-      if (user && !user.isAnonymous) {
-        try { await ensureProfileDocRef.current(user); } catch (e) {} 
-      }
-      setAuthLoading(false); 
-    }, () => setAuthLoading(false));
-    return () => unsub();
-  }, []);
+    useEffect(() => {
+  if (!auth || !auth.app) { setAuthLoading(false); return; }
 
+  let hasCheckedInitialState = false;
+
+  const unsub = onAuthStateChanged(auth, async (user) => {
+    if (!hasCheckedInitialState) {
+      hasCheckedInitialState = true;
+      if (!user) {
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (e) {}
+        return;
+      }
+    }
+
+    setAuthUser(user);
+    if (user && !user.isAnonymous) {
+      try { await ensureProfileDocRef.current(user); } catch (e) {}
+    }
+    setAuthLoading(false);
+  }, () => setAuthLoading(false));
+
+  return () => unsub();
+}, []);
+    
   const isAuthReady = !!authUser;
   const [profiles] = useFirestoreCollection('profiles', null, null, isAuthReady);
   const [categoriesDoc] = useFirestoreDoc('meta/categories', { list: DEFAULT_CATEGORIES }, isAuthReady);
