@@ -2141,8 +2141,7 @@ export default function App() {
   }, []);
   const ensureProfileDocRef = useRef(() => {});
 
-  useEffect(() => {
-    useEffect(() => {
+  useEffect(() => { 
   if (!auth || !auth.app) { setAuthLoading(false); return; }
 
   let hasCheckedInitialState = false;
