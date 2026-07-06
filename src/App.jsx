@@ -2469,11 +2469,8 @@ initAuth();
 
   return (
     <div className="min-h-screen relative overflow-x-hidden text-slate-200 font-sans selection:bg-rose-500/30 bg-[#030308]">
-      {showIntroLoader && <CinematicLoader onComplete={() => setShowIntroLoader(false)} />}
-      
-      {/* EXTREME 3D HEAVENLY BACKGROUND */}
-      {!showIntroLoader && <ThreeArtBackground introDone={!showIntroLoader} />}
-
+      <ThreeArtBackground introDone={!showIntroLoader} />
+{showIntroLoader && <CinematicLoader onComplete={() => setShowIntroLoader(false)} />}
       {customToast && (
         <div className={`fixed top-8 left-1/2 transform -translate-x-1/2 z-[99999] px-6 sm:px-10 py-3 sm:py-4 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.8)] text-[10px] sm:text-xs font-black text-white transition-all animate-deepDiveIn border border-white/20 backdrop-blur-2xl uppercase tracking-widest ${customToast.type === 'success' ? 'bg-emerald-600/90 shadow-[0_0_20px_rgba(5,150,105,0.5)]' : 'bg-red-700/90 shadow-[0_0_20px_rgba(220,38,38,0.8)]'}`}>
           {customToast.message}
