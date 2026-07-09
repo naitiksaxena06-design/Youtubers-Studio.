@@ -1,0 +1,9 @@
+{
+  "short_name": "Youtubers Studio",
+  "name": "Youtubers Studio",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FCFAF2",
+  "theme_color": "#C5A03A",
+  "icons": []
+}
