@@ -26,6 +26,11 @@ const firebaseConfig = {
   appId: "1:414676912966:web:f4b40db19d4326ba3db347",
   measurementId: "G-8P1NK42WJW"
 };
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 
 let app, auth, db;
 try {
