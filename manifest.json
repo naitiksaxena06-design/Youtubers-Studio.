@@ -1,7 +1,8 @@
 {
   "short_name": "Youtubers Studio",
   "name": "Youtubers Studio",
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#FCFAF2",
   "theme_color": "#C5A03A",
