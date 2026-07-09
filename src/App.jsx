@@ -1756,7 +1756,7 @@ function ScriptsWorkspace({ scripts, projects, userProfile, isAdmin, showToast, 
               
               {isEditingBody ? (
                 <div className="space-y-3 animate-fadeIn">
-                  <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={14} placeholder="Write the script here... (Auto-saves as you type)" className="w-full px-4 py-3 bg-slate-50 border border-[#EADFC9] rounded-xl text-sm focus:ring-2 focus:ring-[#C5A03A]/50 focus:border-[#C5A03A] focus:outline-none font-sans leading-relaxed custom-scrollbar shadow-inner resize-y" autoFocus />
+               <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={14} placeholder="Write the script here... (Auto-saves as you type)" className="w-full px-4 py-3 bg-white border border-[#EADFC9] rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-[#C5A03A]/50 focus:border-[#C5A03A] focus:outline-none font-sans leading-relaxed custom-scrollbar shadow-inner resize-y" autoFocus />                
                 </div>
               ) : (
                 <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed min-h-[150px] font-sans">
