@@ -130,6 +130,32 @@ const compressAndConvertImage = (file, maxDim = 150) => {
     reader.onerror = (err) => reject(err);
   });
 };
+const svgToPngIcon = (svgString) => {
+  return new Promise((resolve) => {
+    try {
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 96;
+        canvas.height = 96;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, 96, 96);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+      img.src = url;
+    } catch (e) { resolve(''); }
+  });
+};
+
+const resolveNotificationIcon = async (photoURL) => {
+  if (!photoURL) return '';
+  if (photoURL.startsWith('<svg')) return await svgToPngIcon(photoURL);
+  return photoURL.length < 2500 ? photoURL : '';
+};
 
 const resolvePlayableVideo = (url) => {
   if (!url) return { type: 'none', src: '', thumbnail: null };
@@ -2359,8 +2385,37 @@ export default function App() {
 
   const pushNotification = useCallback(async (message, type = 'system', meta = {}, actorName = 'Crew Member', audience = 'all') => {
     if (isRoastingWaiter || !db || !db.app || userProfile?.status !== 'approved') return;
-    try { await addDoc(collection(db, 'notifications'), { message, type, meta, actor: actorName, timestamp: Date.now(), audience }); } catch (err) {}
-  }, [isRoastingWaiter, userProfile]);
+    try {
+      await addDoc(collection(db, 'notifications'), { message, type, meta, actor: actorName, timestamp: Date.now(), audience });
+
+      const targets = profiles.filter(p => {
+        if (p.id === userProfile.id) return false;
+        if (!p.fcmToken) return false;
+        if (audience === 'admin') return p.role === 'admin' || p.role === 'owner';
+        return true;
+      });
+      const seenTokens = new Set();
+      const uniqueTargets = targets.filter(p => {
+        if (seenTokens.has(p.fcmToken)) return false;
+        seenTokens.add(p.fcmToken);
+        return true;
+      });
+      const iconForPush = await resolveNotificationIcon(userProfile?.photoURL);
+
+      await Promise.all(uniqueTargets.map(async (p) => {
+        try {
+          const res = await fetch('/api/send-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: p.fcmToken, title: actorName, body: message, icon: iconForPush }),
+          });
+          if (res.status === 410 && db && db.app) {
+            await updateDoc(doc(db, 'profiles', p.id), { fcmToken: null });
+          }
+        } catch (e) {}
+      }));
+    } catch (err) {}
+  }, [isRoastingWaiter, userProfile, profiles]);
 
   const ensureProfileDoc = useCallback(async (user) => {
     if (!db || !db.app) return null;
@@ -2380,6 +2435,23 @@ export default function App() {
           message: `New crew application from ${newProfile.name}. Awaiting approval on roster list.`, 
           type: 'system', actor: 'System', timestamp: Date.now(), audience: "admin" 
         });
+        try {
+          const adminSnap = await getDocs(collection(db, 'profiles'));
+          const admins = adminSnap.docs.map(d => d.data()).filter(p => (p.role === 'admin' || p.role === 'owner') && p.fcmToken);
+          const applicantIcon = await resolveNotificationIcon(newProfile.photoURL);
+          await Promise.all(admins.map(async (p) => {
+            try {
+              const res = await fetch('/api/send-notification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: p.fcmToken, title: newProfile.name, body: 'Applied to join the crew — awaiting approval', icon: applicantIcon }),
+              });
+              if (res.status === 410 && db && db.app) {
+                await updateDoc(doc(db, 'profiles', p.id), { fcmToken: null });
+              }
+            } catch (e) {}
+          }));
+        } catch (e) {}
       }
       return newProfile;
     } else if (isOwner && snap.data().role !== 'owner') { await updateDoc(ref, { role: 'owner', status: 'approved' }); }
@@ -2464,6 +2536,38 @@ export default function App() {
     const timer = setInterval(() => { syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true); }, 5 * 60 * 1000);
     return () => clearInterval(timer);
   }, [showIntroLoader, isAdmin]);
+  useEffect(() => {
+    const autoFetchToken = async () => {
+      if (!messaging || !userProfile || !db || !db.app) return;
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      if (userProfile.fcmToken) return;
+      try {
+        const swReg = await navigator.serviceWorker.ready;
+        const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
+        if (token) { await updateDoc(doc(db, 'profiles', userProfile.id), { fcmToken: token }); }
+      } catch (e) {}
+    };
+    autoFetchToken();
+  }, [userProfile]);
+
+  useEffect(() => {
+    if (!messaging) return;
+    const unsubscribe = onMessage(messaging, (payload) => {
+      if (document.visibilityState !== 'visible') return;
+      const { title, body, icon } = payload.data || {};
+      const tag = payload.messageId || title;
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(title || 'Youtubers Studio', { body: body || '', icon: icon || undefined, tag });
+          });
+        } else {
+          new Notification(title || 'Youtubers Studio', { body: body || '', icon: icon || undefined, tag });
+        }
+      }
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [messaging]);
 
   useEffect(() => {
     injectArtStyleStyles();
@@ -2508,6 +2612,28 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-3 sm:space-x-6 shrink-0">
+          {typeof Notification !== "undefined" && Notification.permission !== "granted" && (
+            <button
+              onClick={async () => {
+                const permission = await Notification.requestPermission();
+                if (permission === "granted" && messaging) {
+                  try {
+                    const swReg = await navigator.serviceWorker.ready;
+                    const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
+                    if (token && userProfile && db && db.app) {
+                      await updateDoc(doc(db, 'profiles', userProfile.id), { fcmToken: token });
+                      showToast('Alerts synced! 🎉', 'success');
+                    } else {
+                      showToast('Could not get device token.', 'warning');
+                    }
+                  } catch (err) { showToast('Token setup failed.', 'warning'); }
+                }
+              }}
+              className="text-[9px] sm:text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-bold uppercase tracking-widest"
+            >
+              🔔 Enable Alerts
+            </button>
+          )}
           {userProfile && userProfile.status === 'approved' && !isRoastingWaiter && (
             <button onClick={() => currentPage === 'notifications' ? handleNavigationChange('home') : handleNavigationChange('notifications')} className="relative p-3 sm:p-4 hover:bg-cyan-900/40 bg-black/50 rounded-full transition text-white shadow-inner border border-cyan-500/30 backdrop-blur-md">
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
@@ -3069,7 +3195,24 @@ function AdminPanel({ profiles, siteSettings, ytConfig, syncYouTubeStats, userPr
     try { await setDoc(doc(db, 'meta/settings'), { logoText: logoTxt }, { merge: true }); showToast('Designation updated!', 'success'); } catch (err) { showToast('Save failed.', 'warning'); }
   };
 
-  const approve = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { status: 'approved' }); };
+const approve = async (uid) => {
+    if (!db || !db.app) return;
+    await updateDoc(doc(db, 'profiles', uid), { status: 'approved' });
+    try {
+      const targetSnap = await getDoc(doc(db, 'profiles', uid));
+      const target = targetSnap.data();
+      if (target?.fcmToken) {
+        try {
+          const res = await fetch('/api/send-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: target.fcmToken, title: 'Youtubers Studio', body: `Welcome aboard, ${target.name}! Your crew application has been approved 🎉` }),
+          });
+          if (res.status === 410) { await updateDoc(doc(db, 'profiles', uid), { fcmToken: null }); }
+        } catch (e) {}
+      }
+    } catch (e) {}
+  };
   const promote = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'admin', status: 'approved' }); };
   const makeWaiter = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'roasting waiter', status: 'approved' }); };
   const demote = (uid) => { if (db && db.app) updateDoc(doc(db, 'profiles', uid), { role: 'member' }); };
