@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { initializeApp } from 'firebase/app';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { 
   getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, 
   onAuthStateChanged, signInAnonymously, signInWithCustomToken,
@@ -32,14 +33,15 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-let app, auth, db;
+let app, auth, db, messaging;
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
+  try { messaging = getMessaging(app); } catch (e) { messaging = null; }
 } catch (e) {
   console.error("Firebase critical initialization failed.", e);
-  app = {}; auth = { currentUser: null }; db = {};
+  app = {}; auth = { currentUser: null }; db = {}; messaging = null;
 }
 
 const googleProvider = new GoogleAuthProvider();
