@@ -1,4 +1,4 @@
-import admin from 'firebase-admin';
+    import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -24,14 +24,30 @@ export default async function handler(req, res) {
   }
 
   try {
-    await admin.messaging().send({
-      token,
-      data: {
-        title,
-        body: body || '',
-        icon: icon || '',
-      },
-    });
+    try {
+      await admin.messaging().send({
+        token,
+        data: {
+          title,
+          body: body || '',
+          icon: icon || '',
+        },
+      });
+    } catch (innerErr) {
+      if (innerErr.code === 'messaging/invalid-argument' && icon) {
+        // Icon likely pushed payload over the size limit — retry without it.
+        await admin.messaging().send({
+          token,
+          data: {
+            title,
+            body: body || '',
+            icon: '',
+          },
+        });
+      } else {
+        throw innerErr;
+      }
+    }
     res.status(200).json({ success: true });
   } catch (err) {
     console.error('SEND NOTIFICATION ERROR:', err);
