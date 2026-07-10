@@ -9,17 +9,19 @@ firebase.initializeApp({
   messagingSenderId: "414676912966",
   appId: "1:414676912966:web:f4b40db19d4326ba3db347"
 });
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(clients.claim()));
 
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const { title, body } = payload.notification || {};
+  const { title, body, icon } = payload.data || {};
   self.registration.showNotification(title || 'Youtubers Studio', {
     body: body || '',
-    tag: payload.messageId || 'default',
+    icon: icon || undefined,
+    tag: payload.messageId || title || 'default',
   });
 });
-
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
