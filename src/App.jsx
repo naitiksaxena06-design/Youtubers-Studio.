@@ -2422,9 +2422,8 @@ eligibleProfiles.forEach(p => {
           });
           if (res.status === 410 && db && db.app) {
   await updateDoc(doc(db, 'profiles', p.id), { [p.tokenField]: null });
-          }
-          }
-        } catch (e) {}
+          }   
+       } catch (e) {}
       }));
     } catch (err) {}
   }, [isRoastingWaiter, userProfile, profiles]);
@@ -2449,18 +2448,20 @@ eligibleProfiles.forEach(p => {
         });
         try {
           const adminSnap = await getDocs(collection(db, 'profiles'));
-          const admins = adminSnap.docs.map(d => d.data()).filter(p => (p.role === 'admin' || p.role === 'owner') && p.fcmToken);
+          const admins = adminSnap.docs.map(d => d.data()).filter(p => (p.role === 'admin' || p.role === 'owner') && (p.fcmTokenMobile || p.fcmTokenDesktop));
           const applicantIcon = await resolveNotificationIcon(newProfile.photoURL);
           await Promise.all(admins.map(async (p) => {
             try {
-              const res = await fetch('/api/send-notification', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: p.fcmToken, title: newProfile.name, body: 'Applied to join the crew — awaiting approval', icon: applicantIcon }),
-              });
-              if (res.status === 410 && db && db.app) {
-                await updateDoc(doc(db, 'profiles', p.id), { fcmToken: null });
-              }
+              const targetToken = p.fcmTokenDesktop || p.fcmTokenMobile;
+const tokenField = p.fcmTokenDesktop ? 'fcmTokenDesktop' : 'fcmTokenMobile';
+const res = await fetch('/api/send-notification', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ token: targetToken, title: newProfile.name, body: 'Applied to join the crew — awaiting approval', icon: applicantIcon }),
+});
+if (res.status === 410 && db && db.app) {
+  await updateDoc(doc(db, 'profiles', p.id), { [tokenField]: null });
+}
             } catch (e) {}
           }));
         } catch (e) {}
@@ -2552,7 +2553,7 @@ eligibleProfiles.forEach(p => {
     const autoFetchToken = async () => {
       if (!messaging || !userProfile || !db || !db.app) return;
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-      if (userProfile.fcmToken) return;
+      if (userProfile.fcmTokenDesktop) return;
       try {
         const swReg = await navigator.serviceWorker.ready;
         const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
