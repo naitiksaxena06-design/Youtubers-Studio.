@@ -2641,6 +2641,19 @@ const dismissNotifPrompt = () => {
           {customToast.message}
         </div>
       )}
+      {showNotifPrompt && (
+  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] bg-white border-2 border-[#EADFC9] rounded-2xl shadow-skeuo-lg p-4 max-w-sm w-[90%] flex items-center gap-3 animate-fadeIn">
+    <span className="text-2xl">🔔</span>
+    <div className="flex-1 text-xs">
+      <p className="font-bold text-slate-800">Turn on notifications?</p>
+      <p className="text-slate-500 mt-0.5">Get alerted when crew members message, comment, or upload.</p>
+    </div>
+    <div className="flex flex-col gap-1.5 shrink-0">
+      <button onClick={handleEnableNotificationsPrompt} className="bg-[#C5A03A] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg">Allow</button>
+      <button onClick={dismissNotifPrompt} className="text-slate-400 text-[10px] font-bold px-3 py-1">Not now</button>
+    </div>
+  </div>
+)}
 
       {/* --- HEADER (GLASSMORPHISM) --- */}
       <header className={`sticky top-0 z-40 studio-header px-4 sm:px-10 py-4 sm:py-5 flex items-center justify-between font-sans transition-opacity duration-[1500ms] ease-in-out ${showIntroLoader ? 'opacity-0' : 'opacity-100'}`}>
