@@ -22,6 +22,26 @@ messaging.onBackgroundMessage((payload) => {
     tag: payload.messageId || title || 'default',
   });
 });
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  event.waitUntil(
+    (async () => {
+      try {
+        const payload = event.data.json();
+        if (payload && payload.data) {
+          const { title, body, icon } = payload.data;
+          await self.registration.showNotification(title || 'Youtubers Studio', {
+            body: body || '',
+            icon: icon || undefined,
+          });
+        }
+      } catch (e) {
+        await self.registration.showNotification('Youtubers Studio', { body: 'You have a new update.' });
+      }
+    })()
+  );
+});
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
