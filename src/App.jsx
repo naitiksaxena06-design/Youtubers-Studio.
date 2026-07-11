@@ -2562,6 +2562,40 @@ if (res.status === 410 && db && db.app) {
     };
     autoFetchToken();
   }, [userProfile]);
+  
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+
+useEffect(() => {
+  if (!userProfile || userProfile.status !== 'approved' || isRoastingWaiter) return;
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'default') return; // already granted or denied — nothing to ask
+  const dismissedKey = 'notifPromptDismissed_' + userProfile.id;
+  if (sessionStorage.getItem(dismissedKey)) return;
+  const timer = setTimeout(() => setShowNotifPrompt(true), 2000);
+  return () => clearTimeout(timer);
+}, [userProfile, isRoastingWaiter]);
+
+const handleEnableNotificationsPrompt = async () => {
+  setShowNotifPrompt(false);
+  if (userProfile) sessionStorage.setItem('notifPromptDismissed_' + userProfile.id, '1');
+  if (typeof Notification === 'undefined' || !messaging) return;
+  const permission = await Notification.requestPermission();
+  if (permission === 'granted') {
+    try {
+      const swReg = await navigator.serviceWorker.ready;
+      const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
+      if (token && userProfile && db && db.app) {
+        await updateDoc(doc(db, 'profiles', userProfile.id), { fcmTokendesktop: token });
+        showToast('Alerts enabled! 🎉', 'success');
+      }
+    } catch (e) {}
+  }
+};
+
+const dismissNotifPrompt = () => {
+  setShowNotifPrompt(false);
+  if (userProfile) sessionStorage.setItem('notifPromptDismissed_' + userProfile.id, '1');
+};
 
   useEffect(() => {
     if (!messaging) return;
