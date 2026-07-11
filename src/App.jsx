@@ -2395,18 +2395,22 @@ export default function App() {
     try {
       await addDoc(collection(db, 'notifications'), { message, type, meta, actor: actorName, timestamp: Date.now(), audience });
 
-      const targets = profiles.filter(p => {
-        if (p.id === userProfile.id) return false;
-        if (!p.fcmToken) return false;
-        if (audience === 'admin') return p.role === 'admin' || p.role === 'owner';
-        return true;
-      });
-      const seenTokens = new Set();
-      const uniqueTargets = targets.filter(p => {
-        if (seenTokens.has(p.fcmToken)) return false;
-        seenTokens.add(p.fcmToken);
-        return true;
-      });
+      const eligibleProfiles = profiles.filter(p => {
+  if (p.id === userProfile.id) return false;
+  if (!p.fcmTokenMobile && !p.fcmTokenDesktop) return false;
+  if (audience === 'admin') return p.role === 'admin' || p.role === 'owner';
+  return true;
+});
+const seenTokens = new Set();
+const uniqueTargets = [];
+eligibleProfiles.forEach(p => {
+  [{ field: 'fcmTokenMobile', token: p.fcmTokenMobile }, { field: 'fcmTokenDesktop', token: p.fcmTokenDesktop }].forEach(({ field, token }) => {
+    if (token && !seenTokens.has(token)) {
+      seenTokens.add(token);
+      uniqueTargets.push({ id: p.id, fcmToken: token, tokenField: field });
+    }
+  });
+});
       const iconForPush = await resolveNotificationIcon(userProfile?.photoURL);
 
       await Promise.all(uniqueTargets.map(async (p) => {
@@ -2417,7 +2421,8 @@ export default function App() {
             body: JSON.stringify({ token: p.fcmToken, title: actorName, body: message, icon: iconForPush }),
           });
           if (res.status === 410 && db && db.app) {
-            await updateDoc(doc(db, 'profiles', p.id), { fcmToken: null });
+  await updateDoc(doc(db, 'profiles', p.id), { [p.tokenField]: null });
+          }
           }
         } catch (e) {}
       }));
@@ -2551,7 +2556,7 @@ export default function App() {
       try {
         const swReg = await navigator.serviceWorker.ready;
         const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
-        if (token) { await updateDoc(doc(db, 'profiles', userProfile.id), { fcmToken: token }); }
+        if (token) { await updateDoc(doc(db, 'profiles', userProfile.id), { fcmTokenDesktop: token }); }
       } catch (e) {}
     };
     autoFetchToken();
@@ -2628,7 +2633,7 @@ export default function App() {
                     const swReg = await navigator.serviceWorker.ready;
                     const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
                     if (token && userProfile && db && db.app) {
-                      await updateDoc(doc(db, 'profiles', userProfile.id), { fcmToken: token });
+                      await updateDoc(doc(db, 'profiles', userProfile.id), { fcmTokenDesktop: token });
                       showToast('Alerts synced! 🎉', 'success');
                     } else {
                       showToast('Could not get device token.', 'warning');
