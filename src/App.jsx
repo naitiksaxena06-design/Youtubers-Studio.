@@ -2336,60 +2336,6 @@ export default function App() {
     };
   }, [visibleNotifications, userProfile, isRoastingWaiter]);
 
-  const seenNotifIdsRef = useRef(new Set());
-  const firstNotifLoadRef = useRef(true);
-  
-  useEffect(() => {
-    if (!userProfile || isRoastingWaiter || userProfile.status !== 'approved') return;
-    if (firstNotifLoadRef.current) {
-      (notifications || []).forEach(n => n && seenNotifIdsRef.current.add(n.id));
-      firstNotifLoadRef.current = false;
-      return;
-    }
-    
-    (notifications || []).forEach(n => {
-      if (!n || !n.message || seenNotifIdsRef.current.has(n.id)) return;
-      seenNotifIdsRef.current.add(n.id);
-      
-      if (n.actor === userProfile.name) return;
-      if (currentPage === 'vault' && n.type === 'video') return;
-      if (currentPage === 'projects' && n.type === 'project') return;
-      if (currentPage === 'scripts' && n.type === 'script') return;
-      if (currentPage === 'posts' && n.type === 'post') return;
-      if (currentPage === 'admin' && n.type === 'system') return;
-      if (currentPage === 'chat' && n.type === 'chat' && n.meta?.channelId === chatChannel && chatViewMode === 'chat') return;
-
-      const audience = n.audience || 'all';
-      const relevant = audience === 'all' || (audience === 'admin' && isAdmin);
-      
-      if (relevant && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try { 
-          const options = {
-            body: n.message,
-            icon: siteSettings.logoUrl || undefined,
-            badge: siteSettings.logoUrl || undefined,
-            tag: n.id,
-            renotify: true,
-            requireInteraction: true 
-          };
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistration().then(reg => {
-              if (reg && reg.showNotification) {
-                reg.showNotification('Youtubers Studio', options);
-              } else {
-                new Notification('Youtubers Studio', options);
-              }
-            }).catch(() => {
-              new Notification('Youtubers Studio', options);
-            });
-          } else {
-            new Notification('Youtubers Studio', options);
-          }
-        } catch (e) { console.error("Native push dispatch failure", e); }
-      }
-    });
-  }, [notifications, userProfile, isAdmin, siteSettings.logoUrl, currentPage, chatChannel, chatViewMode, isRoastingWaiter]);
-
   const pushNotification = useCallback(async (message, type = 'system', meta = {}, actorName = 'Crew Member', audience = 'all') => {
     if (isRoastingWaiter || !db || !db.app || userProfile?.status !== 'approved') return;
     try {
@@ -2549,53 +2495,56 @@ if (res.status === 410 && db && db.app) {
     const timer = setInterval(() => { syncYouTubeStats(ytConfigRef.current.channelId, ytConfigRef.current.apiKey, true); }, 5 * 60 * 1000);
     return () => clearInterval(timer);
   }, [showIntroLoader, isAdmin]);
-  useEffect(() => {
+useEffect(() => {
     const autoFetchToken = async () => {
       if (!messaging || !userProfile || !db || !db.app) return;
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-      if (userProfile.fcmTokenDesktop) return;
+      const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      const fieldName = isMobileDevice ? 'fcmTokenMobile' : 'fcmTokenDesktop';
+      if (userProfile[fieldName]) return;
       try {
         const swReg = await navigator.serviceWorker.ready;
         const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
-        if (token) { await updateDoc(doc(db, 'profiles', userProfile.id), { fcmTokenDesktop: token }); }
+        if (token) { await updateDoc(doc(db, 'profiles', userProfile.id), { [fieldName]: token }); }
       } catch (e) {}
     };
     autoFetchToken();
   }, [userProfile]);
-  
+
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
 
-useEffect(() => {
-  if (!userProfile || userProfile.status !== 'approved' || isRoastingWaiter) return;
-  if (typeof Notification === 'undefined') return;
-  if (Notification.permission !== 'default') return; // already granted or denied — nothing to ask
-  const dismissedKey = 'notifPromptDismissed_' + userProfile.id;
-  if (sessionStorage.getItem(dismissedKey)) return;
-  const timer = setTimeout(() => setShowNotifPrompt(true), 2000);
-  return () => clearTimeout(timer);
-}, [userProfile, isRoastingWaiter]);
+  useEffect(() => {
+    if (!userProfile || userProfile.status !== 'approved' || isRoastingWaiter) return;
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'default') return;
+    const dismissedKey = 'notifPromptDismissed_' + userProfile.id;
+    if (sessionStorage.getItem(dismissedKey)) return;
+    const timer = setTimeout(() => setShowNotifPrompt(true), 2000);
+    return () => clearTimeout(timer);
+  }, [userProfile, isRoastingWaiter]);
 
-const handleEnableNotificationsPrompt = async () => {
-  setShowNotifPrompt(false);
-  if (userProfile) sessionStorage.setItem('notifPromptDismissed_' + userProfile.id, '1');
-  if (typeof Notification === 'undefined' || !messaging) return;
-  const permission = await Notification.requestPermission();
-  if (permission === 'granted') {
-    try {
-      const swReg = await navigator.serviceWorker.ready;
-      const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
-      if (token && userProfile && db && db.app) {
-        await updateDoc(doc(db, 'profiles', userProfile.id), { fcmTokendesktop: token });
-        showToast('Alerts enabled! 🎉', 'success');
-      }
-    } catch (e) {}
-  }
-};
+  const handleEnableNotificationsPrompt = async () => {
+    setShowNotifPrompt(false);
+    if (userProfile) sessionStorage.setItem('notifPromptDismissed_' + userProfile.id, '1');
+    if (typeof Notification === 'undefined' || !messaging) return;
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      try {
+        const swReg = await navigator.serviceWorker.ready;
+        const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
+        if (token && userProfile && db && db.app) {
+          const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+          await updateDoc(doc(db, 'profiles', userProfile.id), { [isMobileDevice ? 'fcmTokenMobile' : 'fcmTokenDesktop']: token });
+          showToast('Alerts enabled! 🎉', 'success');
+        }
+      } catch (e) {}
+    }
+  };
 
-const dismissNotifPrompt = () => {
-  setShowNotifPrompt(false);
-  if (userProfile) sessionStorage.setItem('notifPromptDismissed_' + userProfile.id, '1');
-};
+  const dismissNotifPrompt = () => {
+    setShowNotifPrompt(false);
+    if (userProfile) sessionStorage.setItem('notifPromptDismissed_' + userProfile.id, '1');
+  };
 
   useEffect(() => {
     if (!messaging) return;
@@ -2681,7 +2630,8 @@ const dismissNotifPrompt = () => {
                     const swReg = await navigator.serviceWorker.ready;
                     const token = await getToken(messaging, { vapidKey: 'BNXy2GAYsoxX--4Rgt4Rs-CxEXNmdog91HvY7y6M5__9boxr9tVFJzlBW9N9Y11RLltkDSjHoXw_ctX8OIGL_A4', serviceWorkerRegistration: swReg });
                     if (token && userProfile && db && db.app) {
-                      await updateDoc(doc(db, 'profiles', userProfile.id), { fcmTokenDesktop: token });
+                      const isMobileDevice = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+                      await updateDoc(doc(db, 'profiles', userProfile.id), { [isMobileDevice ? 'fcmTokenMobile' : 'fcmTokenDesktop']: token });
                       showToast('Alerts synced! 🎉', 'success');
                     } else {
                       showToast('Could not get device token.', 'warning');
